@@ -3,13 +3,26 @@ import { NextResponse } from "next/server"
 
 const isPublic = createRouteMatcher(["/", "/sign-in(.*)", "/sign-up(.*)", "/backend(.*)"])
 
-export default clerkMiddleware(async (auth, req) => {
-  const { userId } = await auth()
-  if (userId && req.nextUrl.pathname === "/") {
-    return NextResponse.redirect(new URL("/dashboard", req.url))
-  }
-  if (!isPublic(req)) await auth.protect()
-})
+const authorizedParties = [
+  "https://stockflow.amirelay.com",
+  "https://stockflow-nine-ashy.vercel.app",
+  "http://localhost:3000",
+]
+
+export default clerkMiddleware(
+  async (auth, req) => {
+    const { userId } = await auth()
+    if (userId && req.nextUrl.pathname === "/") {
+      return NextResponse.redirect(new URL("/dashboard", req.url))
+    }
+    if (!isPublic(req)) {
+      await auth.protect({
+        unauthenticatedUrl: new URL("/sign-in", req.url).toString(),
+      })
+    }
+  },
+  { authorizedParties }
+)
 
 export const config = {
   matcher: [
