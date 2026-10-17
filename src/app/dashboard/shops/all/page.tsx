@@ -4,7 +4,7 @@ import { ArrowLeft, Store } from "lucide-react"
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { ListingsGrid } from "@/components/listings-grid"
-import { Button, PageHeader, Segmented, Alert } from "@/components/ui"
+import { Button, PageHeader, Segmented } from "@/components/ui"
 import type { Listing, Shop } from "@/lib/store"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
@@ -28,11 +28,11 @@ export default function AllListingsPage() {
         label="Marketplace"
         title="Toutes les annonces"
         actions={
-          <Link href="/dashboard/shops">
-            <Button variant="secondary" size="sm">
+          <Button variant="secondary" size="sm" asChild>
+            <Link href="/dashboard/shops">
               <ArrowLeft className="w-3.5 h-3.5" /> Retour boutiques
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         }
       />
       <div className="mb-5 flex flex-wrap items-center gap-3">
@@ -42,7 +42,7 @@ export default function AllListingsPage() {
         </Link>
       </div>
       {listingsResource.error || shopsResource.error ? (
-        <Alert variant="destructive">Impossible de charger les annonces et boutiques.</Alert>
+        <p className="text-sm text-destructive">Impossible de charger les annonces et boutiques.</p>
       ) : (
         <ListingsGrid listings={visible} />
       )}

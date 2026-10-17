@@ -10,6 +10,7 @@ export const MARKETPLACES: Marketplace[] = [
   { id: "vinted", name: "Vinted", search: "https://www.vinted.fr/catalog?search_text=" },
   { id: "ebay", name: "eBay", search: "https://www.ebay.fr/sch/i.html?_nkw=" },
   { id: "vestiaire", name: "Vestiaire Collective", search: "https://fr.vestiairecollective.com/search/?q=" },
+  { id: "leboncoin", name: "leboncoin", search: "https://www.leboncoin.fr/recherche?text=" },
   { id: "zalando", name: "Zalando", search: "https://www.zalando.fr/catalogue/?q=" },
   { id: "amazon", name: "Amazon", search: "https://www.amazon.fr/s?k=" },
   { id: "farfetch", name: "Farfetch", search: "https://www.farfetch.com/fr/shopping/search/items.aspx?q=" },
@@ -141,5 +142,5 @@ export const PROFILE = {
   reviews: 128,
   sold: 214,
   followers: 1340,
-  marketplaces: ["vinted", "vestiaire", "ebay", "depop"] as MarketplaceId[],
+  marketplaces: ["vinted", "vestiaire", "ebay", "leboncoin", "depop"] as MarketplaceId[],
 }
