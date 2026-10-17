@@ -19,16 +19,16 @@ export default function HomePage() {
       </header>
       <main className="flex-1 flex items-center">
         <div className="max-w-5xl mx-auto px-4 py-16 w-full">
-          <p className="text-label mb-3">Hackathon POV</p>
+          <p className="text-label mb-3">Espace marketplace</p>
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight max-w-2xl leading-[1.1]">
             Chat agent, boutiques, stock d&apos;équipe et workflows marketplace.
           </h1>
           <p className="text-body-muted mt-4 max-w-xl">
-            Front-only pour la démo. Backend sur un autre VPS plus tard.
+            Centralise tes boutiques, annonces, ton stock et tes workflows marketplace dans un espace partagé.
           </p>
           <div className="flex flex-wrap gap-3 mt-8">
             <Link href="/sign-up">
-              <Button>Lancer la POV</Button>
+              <Button>Commencer</Button>
             </Link>
             <Link href="/sign-in">
               <Button variant="secondary">J&apos;ai déjà un compte</Button>

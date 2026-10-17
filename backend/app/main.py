@@ -1,4 +1,4 @@
-"""Stockflow hackathon API — binds 127.0.0.1:3000 behind nginx. Do not bind :8080 (OpenShell)."""
+"""Stockflow API — binds 127.0.0.1:3000 behind nginx. Keep port 8080 reserved by the host."""
 
 from __future__ import annotations
 
@@ -846,7 +846,7 @@ async def chat(body: ChatIn, user: dict[str, Any] = Depends(workspace_user)):
     if not settings.nebius_api_key:
         result = {
             "role": "assistant",
-            "content": f"(mock) Reçu: {body.message[:200]} — configure NEBIUS_API_KEY pour le vrai modèle.",
+            "content": f"J'ai bien reçu ton message : « {body.message[:200]} ». L'agent n'est pas configuré sur ce serveur.",
             "model": "mock",
         }
         if hermes_error:

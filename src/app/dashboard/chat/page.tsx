@@ -81,7 +81,7 @@ export default function ChatPage() {
     const next = [...attachments]
     for (const file of Array.from(files).slice(0, 6 - attachments.length)) {
       if (!file.type.startsWith("image/")) {
-        toast.error("Images seulement pour la POV")
+        toast.error("Ajoute uniquement des images.")
         continue
       }
       const preview = URL.createObjectURL(file)
@@ -120,8 +120,8 @@ export default function ChatPage() {
       } else {
         await new Promise((r) => setTimeout(r, 700))
         content = images.length
-          ? `J'ai reçu ${images.length} image(s)${text ? ` et ton message: « ${text} »` : ""}. (mock local, API non configurée.)`
-          : `Bien reçu (mock local). Configure NEXT_PUBLIC_API_URL pour le backend VPS.\n\nTu as dit: « ${text} ».`
+          ? `J'ai reçu ${images.length} image${images.length > 1 ? "s" : ""}${text ? ` et ton message : « ${text} »` : ""}. Le service de chat n'est pas configuré ; cette réponse est simulée.`
+          : `Réponse simulée : le service de chat n'est pas configuré.\n\nTu as dit : « ${text} ».`
       }
       const reply: ChatMsg = {
         id: crypto.randomUUID(),
@@ -151,8 +151,8 @@ export default function ChatPage() {
         title="Chat"
         subtitle={
           hasApi
-            ? "Upload images + agent Hermes (NemoClaw · Nebius DeepSeek) via le backend VPS."
-            : "Upload images. API non configurée: réponses mock locales."
+            ? "Pose tes questions à l'agent Stockflow et partage des images pour obtenir des conseils marketplace."
+            : "Le service de chat n'est pas configuré ; les réponses sont simulées."
         }
         actions={
           <Button

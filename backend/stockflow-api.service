@@ -1,5 +1,5 @@
 [Unit]
-Description=Stockflow hackathon API
+Description=Stockflow API
 After=network.target
 Conflicts=hackathon-placeholder.service
 

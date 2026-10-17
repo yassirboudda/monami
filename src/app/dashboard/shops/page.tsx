@@ -72,7 +72,7 @@ export default function ShopsPage() {
           <EmptyState
             icon={<Store className="w-6 h-6" />}
             title="Aucune boutique"
-            text="Installe l&apos;extension Stockflow pour connecter Vinted / Leboncoin, ou recharge pour les mocks."
+            text="Installe l&apos;extension Stockflow pour connecter Vinted ou Leboncoin et afficher tes boutiques."
             action={
               <Link href="/dashboard/extension">
                 <Button>

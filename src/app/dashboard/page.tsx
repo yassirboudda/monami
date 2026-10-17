@@ -3,7 +3,7 @@ import { MessageSquareText, Package, Puzzle, Store, Users, Workflow } from "luci
 import { Card, PageHeader } from "@/components/ui"
 
 const cards = [
-  { href: "/dashboard/chat", title: "Chat agent", text: "messages, images, réponses mock / Nebius.", icon: MessageSquareText },
+  { href: "/dashboard/chat", title: "Chat agent", text: "Échange avec l'agent Stockflow, partage des images et obtiens des conseils pour tes marketplaces.", icon: MessageSquareText },
   { href: "/dashboard/shops", title: "Boutique", text: "Boutiques + annonces. Clic boutique → ses annonces.", icon: Store },
   { href: "/dashboard/extension", title: "Extension", text: "Chrome companion pour cookies Vinted / Leboncoin.", icon: Puzzle },
   { href: "/dashboard/stock", title: "Stock", text: "Inventaire partagé dans l'organisation active.", icon: Package },
@@ -16,8 +16,8 @@ export default function DashboardHome() {
     <div>
       <PageHeader
         label="Dashboard"
-        title="POV Stockflow"
-        subtitle="Front Vercel + API Hetzner. Boutique regroupe boutiques et annonces. Extension pour les cookies."
+        title="Vue d'ensemble"
+        subtitle="Retrouve tes boutiques, annonces, stock et workflows marketplace au même endroit."
       />
       <div className="grid sm:grid-cols-2 gap-4">
         {cards.map((c) => (

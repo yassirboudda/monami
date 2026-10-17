@@ -20,8 +20,8 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Stockflow — hackathon POV",
-  description: "Chat, boutiques, stock partagé et workflows marketplace. Front POV sans backend.",
+  title: "Stockflow — Gestion marketplace",
+  description: "Gère tes boutiques, annonces et stock partagé avec l'agent Stockflow.",
   robots: { index: false, follow: false },
 }
 
