@@ -14,7 +14,7 @@ type ScreenTrace = {
   minutes: number
   frames: number
   windows: string[]
-  events: { t: string; kind: string; app: string; window: string; text: string }[]
+  events: { t: string; kind: string; app: string; window: string; text: string; label?: string; summary?: string }[]
   checkedAt: string
 }
 
@@ -114,7 +114,7 @@ export default function DesktopPage() {
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
             <Eye className="w-4 h-4 text-secondary" />
-            <p className="font-semibold">Ce que l&apos;agent a vu à l&apos;écran (2 dernières minutes)</p>
+            <p className="font-semibold">Ce que Screenpipe a vu à l&apos;écran (2 dernières minutes)</p>
           </div>
           <div className="flex items-center gap-2">
             {screen.data && <Badge tone={screen.data.frames ? "teal" : "amber"}>{screen.data.frames} frames</Badge>}
@@ -134,9 +134,21 @@ export default function DesktopPage() {
             {screen.data.events.map((e, i) => (
               <li key={`${e.t}-${i}`} className="flex gap-3">
                 <span className="text-xs text-muted-foreground tabular-nums shrink-0 pt-0.5">{e.t ? new Date(e.t).toLocaleTimeString("fr-FR") : "—"}</span>
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{e.window ? `Chrome · ${e.window}` : e.app || "Bureau OctoHandy"}</p>
-                  {e.text ? <p className="text-xs text-muted-foreground line-clamp-2">{e.text}</p> : <p className="text-xs text-muted-foreground italic">page sans texte lisible</p>}
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{e.label || (e.window ? `Chrome · ${e.window}` : e.app || "Bureau OctoHandy")}</p>
+                  {e.summary ? (
+                    <p className="text-sm text-foreground/80">{e.summary}</p>
+                  ) : e.text ? (
+                    <p className="text-xs text-muted-foreground line-clamp-2">{e.text}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">page sans texte lisible</p>
+                  )}
+                  {e.summary && e.text && (
+                    <details className="mt-0.5">
+                      <summary className="text-[11px] text-muted-foreground cursor-pointer">Texte brut lu par Screenpipe</summary>
+                      <p className="text-[11px] text-muted-foreground mt-1 break-words">{e.text}</p>
+                    </details>
+                  )}
                 </div>
               </li>
             ))}
