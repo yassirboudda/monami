@@ -140,6 +140,22 @@ CREATE TABLE IF NOT EXISTS seeded (
 CREATE INDEX IF NOT EXISTS idx_shops_workspace ON shops(workspace);
 CREATE INDEX IF NOT EXISTS idx_listings_workspace_shop ON listings(workspace, shop_id);
 CREATE INDEX IF NOT EXISTS idx_stock_workspace ON stock(workspace);
+CREATE TABLE IF NOT EXISTS teach_sessions (
+    id TEXT NOT NULL,
+    workspace TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    marketplace TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'recording',
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    trace_json TEXT,
+    draft_json TEXT,
+    workflow_id TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (workspace, id)
+);
 CREATE INDEX IF NOT EXISTS idx_workflows_workspace ON workflows(workspace);
 """
 

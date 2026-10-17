@@ -1,21 +1,23 @@
 "use client"
 
-import { Pause, Play, Workflow } from "lucide-react"
+import { GraduationCap, Pause, Play, Workflow } from "lucide-react"
 import { useState } from "react"
 import { Badge, Button, Card, PageHeader } from "@/components/ui"
+import { TeachWorkflowModal } from "@/components/teach-workflow"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
 type Flow = {
   id: string
-  marketplace: "vinted" | "leboncoin" | "multi"
+  marketplace: string
   title: string
   steps: string[]
-  tone: "teal" | "amber" | "blue"
+  tone: "teal" | "amber" | "blue" | "slate"
   enabled: boolean
 }
 
 export default function WorkflowsPage() {
   const { data, error, isLoading, request, mutate, orgId } = useWorkspaceResource<{ workflows: Flow[] }>("/v1/workflows")
+  const [teachOpen, setTeachOpen] = useState(false)
   const [saving, setSaving] = useState<string | null>(null)
   const workflows = data?.workflows ?? []
 
@@ -36,7 +38,12 @@ export default function WorkflowsPage() {
       <PageHeader
         label="Automatisations"
         title="Templates de workflow"
-        subtitle="Active les automatisations de cet espace. Les workflows sont partagés entre membres d'une organisation."
+        subtitle="Active les automatisations de cet espace, ou apprends-en une nouvelle à l'agent en la faisant une fois sur le bureau OctoHandy."
+        actions={
+          <Button onClick={() => setTeachOpen(true)}>
+            <GraduationCap className="w-4 h-4" /> Apprendre en le faisant
+          </Button>
+        }
       />
       {orgId && <p className="mb-4 text-sm text-secondary">partagé avec l&apos;équipe</p>}
       {error ? (
@@ -77,6 +84,13 @@ export default function WorkflowsPage() {
           ))}
         </div>
       )}
+      <TeachWorkflowModal
+        key={String(teachOpen)}
+        open={teachOpen}
+        onClose={() => setTeachOpen(false)}
+        request={request}
+        onSaved={() => void mutate()}
+      />
     </div>
   )
 }

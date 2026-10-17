@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -249,6 +250,7 @@ def health():
         "model": settings.nebius_model,
         "hermes": bool(settings.hermes_api_key),
         "desktop": bool(settings.desktop_base_url and settings.desktop_signing_secret),
+        "screenpipe": bool(settings.screenpipe_api_url and settings.screenpipe_api_key),
         "hermesUrl": settings.hermes_api_url,
         "hint": "API live on 127.0.0.1:3000 via nginx :80/:8080",
     }
@@ -712,6 +714,335 @@ async def desktop_connected(body: DesktopConnectedIn, user: dict[str, Any] = Dep
             (user["workspace"], shop_id),
         ).fetchone()
     return {"shop": _shop_dict(row)}
+
+
+# ---------------------------------------------------------------------------
+# Teach by doing: the seller performs the task once on the remote desktop, we
+# pull that time window from Screenpipe (same machine as Chrome) and Hermes
+# compiles the trace into a workflow card built from a fixed tool catalog.
+
+TEACH_TOOLS: list[str] = [
+    "list_unread_messages", "read_thread", "send_message", "list_favorites", "list_offers",
+    "send_offer", "get_listing", "update_price", "republish_listing", "list_notifications",
+    "wait_for_event", "notify_seller",
+]
+
+_WORKFLOW_TONES = {"vinted": "teal", "leboncoin": "amber"}
+
+
+def _teach_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "marketplace": row["marketplace"],
+        "status": row["status"],
+        "startedAt": row["started_at"],
+        "endedAt": row["ended_at"],
+        "trace": json.loads(row["trace_json"]) if row["trace_json"] else None,
+        "draft": json.loads(row["draft_json"]) if row["draft_json"] else None,
+        "workflowId": row["workflow_id"],
+        "error": row["error"],
+        "createdAt": row["created_at"],
+    }
+
+
+def _teach_row(conn: Any, workspace: str, teach_id: str) -> Any:
+    row = conn.execute(
+        "SELECT * FROM teach_sessions WHERE workspace=? AND id=?", (workspace, teach_id)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, "Session d'apprentissage introuvable")
+    return row
+
+
+def _screenpipe_enabled() -> bool:
+    return bool(settings.screenpipe_api_url and settings.screenpipe_api_key)
+
+
+async def _screenpipe_events(start_iso: str, end_iso: str) -> dict[str, Any]:
+    """Fetch the Screenpipe window and compress it into a compact, de-duplicated trace."""
+    items: list[dict[str, Any]] = []
+    headers = {"Authorization": f"Bearer {settings.screenpipe_api_key}"}
+    async with httpx.AsyncClient(timeout=30) as client:
+        for offset in range(0, 600, 200):
+            response = await client.get(
+                f"{settings.screenpipe_api_url.rstrip('/')}/search",
+                headers=headers,
+                params={
+                    "content_type": "all", "start_time": start_iso, "end_time": end_iso,
+                    "limit": 200, "offset": offset,
+                },
+            )
+            response.raise_for_status()
+            page = response.json().get("data", [])
+            items.extend(page)
+            if len(page) < 200:
+                break
+    items.sort(key=lambda item: str((item.get("content") or {}).get("timestamp", "")))
+    events: list[dict[str, Any]] = []
+    seen_lines: set[str] = set()
+    apps: dict[str, int] = {}
+    total_chars = 0
+    for item in items:
+        content = item.get("content") or {}
+        kind = str(item.get("type", "")).lower()
+        app = str(content.get("app_name") or "")
+        window = str(content.get("window_name") or content.get("title") or "")
+        text = str(content.get("text") or content.get("transcription") or "")
+        apps[app or "?"] = apps.get(app or "?", 0) + 1
+        lines: list[str] = []
+        for raw in text.splitlines():
+            line = " ".join(raw.split())
+            if len(line) < 3 or line in seen_lines:
+                continue
+            seen_lines.add(line)
+            lines.append(line)
+        snippet = " | ".join(lines)[:600]
+        if not snippet and (not events or events[-1]["window"] == window):
+            continue
+        if events and events[-1]["window"] == window and events[-1]["kind"] == kind and len(events[-1]["text"]) < 900:
+            events[-1]["text"] = (events[-1]["text"] + " | " + snippet).strip(" |")[:1200]
+        else:
+            events.append({
+                "t": str(content.get("timestamp") or ""), "kind": kind, "app": app,
+                "window": window, "text": snippet,
+            })
+        total_chars += len(snippet)
+        if total_chars > 14000:
+            break
+    return {
+        "frames": len(items), "events": events[:80], "apps": apps,
+        "windows": list(dict.fromkeys(event["window"] for event in events if event["window"]))[:20],
+    }
+
+
+def _parse_json_block(text: str) -> dict[str, Any] | None:
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        text = text[text.find("\n") + 1:] if "\n" in text else text
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end == -1:
+        return None
+    try:
+        data = json.loads(text[start:end + 1])
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _fallback_draft(marketplace: str, trace: dict[str, Any]) -> dict[str, Any]:
+    windows = [w for w in trace.get("windows", []) if w][:4] or ["Action réalisée sur la marketplace"]
+    return {
+        "title": f"Workflow {marketplace.capitalize()} appris le {datetime.now(timezone.utc).strftime('%d/%m %H:%M')}",
+        "trigger": "À définir (déclencheur non détecté dans la démonstration)",
+        "steps": [f"Écran : {w[:90]}" for w in windows],
+        "tools": [], "guardrails": ["Toujours demander validation avant d'envoyer un message"],
+        "tone_notes": "", "confidence": "low",
+    }
+
+
+async def _llm_json(system: str, user_text: str, session_key: str) -> tuple[dict[str, Any] | None, str]:
+    """Hermes first (same OpenAI-compatible gateway as /v1/chat), then Nebius DeepSeek directly."""
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": user_text}]
+    if settings.hermes_api_key:
+        try:
+            async with httpx.AsyncClient(timeout=settings.hermes_timeout) as client:
+                response = await client.post(
+                    f"{settings.hermes_api_url.rstrip('/')}/chat/completions",
+                    headers={"Authorization": f"Bearer {settings.hermes_api_key}", "X-Hermes-Session-Key": session_key},
+                    json={"model": settings.hermes_model, "messages": messages, "stream": False},
+                )
+            if response.status_code < 400:
+                parsed = _parse_json_block(response.json()["choices"][0]["message"]["content"])
+                if parsed:
+                    return parsed, "hermes"
+        except (httpx.HTTPError, KeyError, ValueError):
+            pass
+    if settings.nebius_api_key:
+        try:
+            async with httpx.AsyncClient(timeout=90) as client:
+                response = await client.post(
+                    f"{settings.nebius_base_url.rstrip('/')}/chat/completions",
+                    headers={"Authorization": f"Bearer {settings.nebius_api_key}"},
+                    json={"model": settings.nebius_model, "messages": messages, "temperature": 0.2,
+                          "response_format": {"type": "json_object"}},
+                )
+            if response.status_code < 400:
+                parsed = _parse_json_block(response.json()["choices"][0]["message"]["content"])
+                if parsed:
+                    return parsed, "nebius"
+        except (httpx.HTTPError, KeyError, ValueError):
+            pass
+    return None, "none"
+
+
+_TEACH_SYSTEM = """Tu es le compilateur de workflows d'OctoHandy, un assistant pour vendeurs sur les marketplaces
+(Vinted, Leboncoin, eBay…). On te donne la trace Screenpipe (texte OCR des écrans, titres de fenêtres, ordre
+chronologique) d'un vendeur qui vient de faire UNE FOIS, à la main, la tâche qu'il veut automatiser.
+Déduis le workflow réutilisable et réponds UNIQUEMENT avec un objet JSON (pas de markdown) :
+{
+ "title": "titre court (max 60 caractères), style 'Favoris → offre discount'",
+ "trigger": "l'événement qui déclenche le workflow, une phrase",
+ "steps": ["3 à 6 étapes courtes en français, impératif, style 'Client met un article en favoris'"],
+ "tools": [{"tool": "<un outil du catalogue>", "args": {"...": "..."}}],
+ "guardrails": ["règles de sécurité déduites (prix plancher, ne jamais répondre hors sujet, validation humaine…)"],
+ "tone_notes": "comment le vendeur écrit (tutoiement, emojis, formules), déduit des messages tapés",
+ "confidence": "high|medium|low"
+}
+Catalogue d'outils autorisés (n'en invente pas d'autre) : %s.
+Ignore les bandeaux cookies, publicités, onglets sans rapport. Si la trace est trop pauvre, mets confidence "low"
+et propose quand même le workflow le plus plausible pour cette marketplace.""" % ", ".join(TEACH_TOOLS)
+
+
+async def _compile_teach(marketplace: str, trace: dict[str, Any], user_id: str) -> tuple[dict[str, Any], str]:
+    started = trace.get("events", [{}])[0].get("t", "") if trace.get("events") else ""
+    lines = [f"Marketplace : {marketplace}", f"Frames Screenpipe : {trace.get('frames')}", f"Début : {started}", "Trace :"]
+    for event in trace.get("events", []):
+        lines.append(f"- [{event['t'][11:19]}] {event['app']} / {event['window'][:80]} :: {event['text'][:500]}")
+    draft, via = await _llm_json(_TEACH_SYSTEM, "\n".join(lines)[:16000], f"octohandy-teach-{user_id}")
+    if not draft or not isinstance(draft.get("steps"), list) or not draft.get("title"):
+        return _fallback_draft(marketplace, trace), "fallback"
+    draft["steps"] = [str(step)[:160] for step in draft["steps"]][:8]
+    draft["tools"] = [tool for tool in draft.get("tools", []) if isinstance(tool, dict) and tool.get("tool") in TEACH_TOOLS]
+    draft.setdefault("guardrails", [])
+    draft.setdefault("trigger", "")
+    draft.setdefault("tone_notes", "")
+    return draft, via
+
+
+class TeachStartIn(BaseModel):
+    marketplace: str
+
+
+class TeachSaveIn(BaseModel):
+    title: str | None = None
+    steps: list[str] | None = None
+    enabled: bool = False
+
+
+@app.get("/v1/teach")
+async def list_teach(user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM teach_sessions WHERE workspace=? ORDER BY created_at DESC LIMIT 20",
+            (user["workspace"],),
+        ).fetchall()
+    return {"enabled": _desktop_enabled() and _screenpipe_enabled(), "sessions": [_teach_dict(row) for row in rows]}
+
+
+@app.post("/v1/teach/start")
+async def teach_start(body: TeachStartIn, user: dict[str, Any] = Depends(workspace_user)):
+    if not (_desktop_enabled() and _screenpipe_enabled()):
+        raise HTTPException(503, "Apprentissage indisponible : bureau distant ou Screenpipe non configuré")
+    if get_marketplace(body.marketplace) is None and body.marketplace not in LOGIN_URLS:
+        raise HTTPException(404, "Marketplace inconnue")
+    teach_id = f"t-{uuid.uuid4().hex[:8]}"
+    now = _iso_now()
+    with db.connection() as conn:
+        conn.execute(
+            "UPDATE teach_sessions SET status='abandoned', updated_at=? WHERE workspace=? AND status='recording'",
+            (now, user["workspace"]),
+        )
+        conn.execute(
+            """INSERT INTO teach_sessions (id, workspace, created_by, marketplace, status, started_at)
+               VALUES (?, ?, ?, ?, 'recording', ?)""",
+            (teach_id, user["workspace"], user["user_id"], body.marketplace, now),
+        )
+        row = _teach_row(conn, user["workspace"], teach_id)
+    token, exp = _desktop_token(user["workspace"], body.marketplace, max(settings.desktop_session_ttl, 1800))
+    params = {
+        "autoconnect": "1", "resize": "remote", "reconnect": "1", "reconnect_delay": "1500",
+        "show_dot": "1", "t": token, "path": f"websockify?t={token}",
+    }
+    if settings.desktop_vnc_password:
+        params["password"] = settings.desktop_vnc_password
+    start_url = _marketplace_start_url(body.marketplace)
+    opened = await _desktop_open(start_url) if start_url else False
+    return {
+        "session": _teach_dict(row),
+        "desktop": {
+            "url": f"{settings.desktop_base_url.rstrip('/')}/vnc.html?{urlencode(params)}",
+            "expiresAt": datetime.fromtimestamp(exp, tz=timezone.utc).isoformat(),
+            "opened": opened,
+        },
+    }
+
+
+@app.post("/v1/teach/{teach_id}/stop")
+async def teach_stop(teach_id: str, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        row = _teach_row(conn, user["workspace"], teach_id)
+        if row["status"] != "recording":
+            raise HTTPException(409, "Cette session n'est plus en cours d'enregistrement")
+        ended = _iso_now()
+        conn.execute(
+            "UPDATE teach_sessions SET status='compiling', ended_at=?, updated_at=? WHERE workspace=? AND id=?",
+            (ended, ended, user["workspace"], teach_id),
+        )
+    error = None
+    trace: dict[str, Any] = {"frames": 0, "events": [], "apps": {}, "windows": []}
+    try:
+        # Screenpipe indexes with a few seconds of delay: give it a short grace period.
+        await asyncio.sleep(4)
+        trace = await _screenpipe_events(row["started_at"], ended)
+    except (httpx.HTTPError, ValueError) as e:
+        error = f"Screenpipe indisponible ({type(e).__name__})"
+    draft, via = await _compile_teach(row["marketplace"], trace, user["user_id"])
+    draft["via"] = via
+    with db.connection() as conn:
+        conn.execute(
+            """UPDATE teach_sessions SET status='draft', trace_json=?, draft_json=?, error=?, updated_at=?
+               WHERE workspace=? AND id=?""",
+            (json.dumps({**trace, "events": trace["events"][:40]}, ensure_ascii=False), json.dumps(draft, ensure_ascii=False),
+             error, _iso_now(), user["workspace"], teach_id),
+        )
+        row = _teach_row(conn, user["workspace"], teach_id)
+    return {"session": _teach_dict(row)}
+
+
+@app.post("/v1/teach/{teach_id}/save")
+async def teach_save(teach_id: str, body: TeachSaveIn, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        row = _teach_row(conn, user["workspace"], teach_id)
+        draft = json.loads(row["draft_json"] or "{}")
+        title = (body.title or draft.get("title") or "Workflow appris").strip()[:80]
+        steps = [step.strip() for step in (body.steps or draft.get("steps") or []) if step and step.strip()][:8]
+        if not steps:
+            raise HTTPException(422, "Le workflow doit contenir au moins une étape")
+        workflow_id = row["workflow_id"] or f"w-{uuid.uuid4().hex[:8]}"
+        tone = _WORKFLOW_TONES.get(row["marketplace"], "blue")
+        if row["workflow_id"]:
+            conn.execute(
+                "UPDATE workflows SET title=?, steps_json=?, enabled=?, updated_at=? WHERE workspace=? AND id=?",
+                (title, json.dumps(steps, ensure_ascii=False), int(body.enabled), _iso_now(), user["workspace"], workflow_id),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO workflows (id, workspace, created_by, marketplace, title, steps_json, tone, source, enabled)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'teach', ?)""",
+                (workflow_id, user["workspace"], user["user_id"], row["marketplace"], title,
+                 json.dumps(steps, ensure_ascii=False), tone, int(body.enabled)),
+            )
+        conn.execute(
+            "UPDATE teach_sessions SET status='saved', workflow_id=?, updated_at=? WHERE workspace=? AND id=?",
+            (workflow_id, _iso_now(), user["workspace"], teach_id),
+        )
+        workflow = conn.execute(
+            "SELECT * FROM workflows WHERE workspace=? AND id=?", (user["workspace"], workflow_id)
+        ).fetchone()
+        row = _teach_row(conn, user["workspace"], teach_id)
+    return {"workflow": _workflow_dict(workflow), "session": _teach_dict(row)}
+
+
+@app.delete("/v1/teach/{teach_id}")
+async def teach_discard(teach_id: str, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        _teach_row(conn, user["workspace"], teach_id)
+        conn.execute(
+            "UPDATE teach_sessions SET status='discarded', updated_at=? WHERE workspace=? AND id=?",
+            (_iso_now(), user["workspace"], teach_id),
+        )
+    return {"ok": True}
 
 
 @app.get("/v1/stock")
