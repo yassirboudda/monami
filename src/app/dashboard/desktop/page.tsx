@@ -9,6 +9,14 @@ import type { WorkflowRun } from "@/components/run-workflow"
 import { marketplaceName } from "@/components/connect-marketplace"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
+type ScreenTrace = {
+  minutes: number
+  frames: number
+  windows: string[]
+  events: { t: string; kind: string; app: string; window: string; text: string }[]
+  checkedAt: string
+}
+
 type DesktopStatus = {
   enabled: boolean
   host: string | null
@@ -39,6 +47,7 @@ export default function DesktopPage() {
   const status = useWorkspaceResource<DesktopStatus>("/v1/desktop/status")
   const teach = useWorkspaceResource<{ sessions: TeachSession[] }>("/v1/teach")
   const runs = useWorkspaceResource<{ runs: WorkflowRun[] }>("/v1/workflows/runs")
+  const screen = useWorkspaceResource<ScreenTrace>("/v1/desktop/screen?minutes=2")
   const [desktopUrl, setDesktopUrl] = useState<string | null>(null)
   const [opening, setOpening] = useState(false)
 
@@ -65,7 +74,7 @@ export default function DesktopPage() {
         subtitle="Un vrai Chrome sur une machine GPU (Brev A4000, IP résidentielle), avec Screenpipe comme mémoire visuelle et l'agent Hermes (NemoClaw · Nebius DeepSeek) à côté. Tes sessions marketplace vivent ici, pas sur ton PC."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => void Promise.all([status.mutate(), teach.mutate(), runs.mutate()])}>
+            <Button variant="secondary" onClick={() => void Promise.all([status.mutate(), teach.mutate(), runs.mutate(), screen.mutate()])}>
               <RefreshCw className="w-4 h-4" /> Rafraîchir
             </Button>
             <Button onClick={() => void openDesktop()} loading={opening}>
@@ -93,6 +102,40 @@ export default function DesktopPage() {
           {s.screen.excerpt && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{s.screen.excerpt}</p>}
         </Card>
       )}
+
+      <Card className="p-5 mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <Eye className="w-4 h-4 text-secondary" />
+            <p className="font-semibold">Ce que Screenpipe a vu (2 dernières minutes)</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {screen.data && <Badge tone={screen.data.frames ? "teal" : "amber"}>{screen.data.frames} frames</Badge>}
+            <Button variant="secondary" size="sm" onClick={() => void screen.mutate()} loading={screen.isLoading}>
+              <RefreshCw className="w-3.5 h-3.5" /> Relire l&apos;écran
+            </Button>
+          </div>
+        </div>
+        {screen.error ? (
+          <p className="text-sm text-red-700">Screenpipe injoignable : {screen.error.message}</p>
+        ) : !screen.data ? (
+          <p className="text-sm text-muted-foreground">Lecture…</p>
+        ) : !screen.data.events.length ? (
+          <p className="text-sm text-muted-foreground">Rien capturé sur les 2 dernières minutes (écran statique ou bureau inactif). Ouvre le bureau et bouge dans Chrome, puis relis.</p>
+        ) : (
+          <ul className="space-y-1.5 text-sm">
+            {screen.data.events.map((e, i) => (
+              <li key={`${e.t}-${i}`} className="flex gap-3">
+                <span className="text-xs text-muted-foreground tabular-nums shrink-0 pt-0.5">{e.t ? new Date(e.t).toLocaleTimeString("fr-FR") : "—"}</span>
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{e.window || e.app || "Bureau"}</p>
+                  {e.text && <p className="text-xs text-muted-foreground line-clamp-2">{e.text}</p>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       {desktopUrl && (
         <Card className="p-3 mb-6">
