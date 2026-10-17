@@ -156,7 +156,7 @@ export default function ExtensionPage() {
               Chrome → <code className="text-xs">chrome://extensions</code> → active le mode développeur.
             </li>
             <li>« Charger l&apos;extension non empaquetée » → choisis le dossier dézippé.</li>
-            <li>Reviens ici, clique Associer, puis ouvre Vinted / Leboncoin et Connecter dans le popup.</li>
+            <li>Reviens ici, clique Associer, puis ouvre Vinted et Connecter dans le popup.</li>
           </ol>
         </Card>
       </div>
