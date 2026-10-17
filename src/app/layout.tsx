@@ -1,29 +1,11 @@
 import type { Metadata, Viewport } from "next"
-import { Fraunces, Hanken_Grotesk, Instrument_Sans, JetBrains_Mono, Plus_Jakarta_Sans, Young_Serif } from "next/font/google"
-import { Toaster } from "sonner"
+import { Fraunces, Hanken_Grotesk, JetBrains_Mono } from "next/font/google"
+import { Toaster } from "@/components/ui/sonner"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
 import "./oh.css"
 
-const youngSerif = Young_Serif({
-  variable: "--font-young-serif",
-  subsets: ["latin"],
-  display: "swap",
-  weight: "400",
-})
-
-const instrument = Instrument_Sans({
-  variable: "--font-instrument",
-  subsets: ["latin"],
-  display: "swap",
-})
-
-const jakarta = Plus_Jakarta_Sans({
-  variable: "--font-jakarta",
-  subsets: ["latin"],
-  display: "swap",
-  weight: ["400", "500", "600", "700", "800"],
-})
-
+// Variable Fraunces with its SOFT/WONK axes: the rounded "soft" cut echoes the octopus drawing.
 const fraunces = Fraunces({
   variable: "--font-fraunces",
   subsets: ["latin"],
@@ -69,9 +51,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className={`${jakarta.variable} ${jetbrainsMono.variable} ${youngSerif.variable} ${instrument.variable} ${fraunces.variable} ${hanken.variable}`}>
+    <html lang="fr" className={`${jetbrainsMono.variable} ${fraunces.variable} ${hanken.variable}`}>
       <body className="antialiased">
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
         <Toaster richColors position="top-center" />
       </body>
     </html>
