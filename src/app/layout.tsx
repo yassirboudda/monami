@@ -4,7 +4,7 @@ import type { Metadata, Viewport } from "next"
 import { Instrument_Sans, JetBrains_Mono, Plus_Jakarta_Sans, Young_Serif } from "next/font/google"
 import { Toaster } from "sonner"
 import "./globals.css"
-import "./etagere.css"
+import "./oh.css"
 
 const youngSerif = Young_Serif({
   variable: "--font-young-serif",

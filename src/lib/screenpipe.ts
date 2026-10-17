@@ -1,17 +1,20 @@
 "use client"
 
-// screenpipe tourne en local sur la machine de l'utilisateur (API sur :3030).
-// Le navigateur l'interroge directement : rien ne quitte l'ordinateur.
-import { DEMO_MEMORIES, type ScreenMemory } from "@/lib/demo-data"
-
+// screenpipe runs locally on the user's machine (API on :3030).
+// The browser asks it directly, so nothing leaves the computer.
 const SCREENPIPE_URL = (process.env.NEXT_PUBLIC_SCREENPIPE_URL || "http://localhost:3030").replace(/\/$/, "")
 
-const WATCHED = ["Louboutin", "Longchamp", "Burberry", "Levi's", "Bottega", "Vuitton", "Seiko"]
+const WATCHED = ["Louboutin So Kate", "Longchamp Le Pliage", "Levi's Trucker", "Burberry Kensington", "Seiko"]
 
-type SearchHit = {
-  type: string
-  content: { text?: string; transcription?: string; timestamp?: string; app_name?: string; window_name?: string }
-}
+export type ScreenMemory = { query: string; seenOn: string }
+
+export const DEMO_MEMORIES: ScreenMemory[] = [
+  { query: "Louboutin So Kate", seenOn: "Instagram" },
+  { query: "Longchamp Le Pliage", seenOn: "TikTok" },
+  { query: "Levi's Trucker", seenOn: "Pinterest" },
+]
+
+type SearchHit = { content: { app_name?: string; window_name?: string } }
 
 async function get<T>(path: string, ms = 1500): Promise<T> {
   const ctrl = new AbortController()
@@ -25,40 +28,22 @@ async function get<T>(path: string, ms = 1500): Promise<T> {
   }
 }
 
-const when = (iso?: string) =>
-  iso
-    ? new Date(iso).toLocaleString("fr-FR", { weekday: "long", hour: "2-digit", minute: "2-digit" })
-    : "récemment"
-
-/** Produits repérés à l'écran. Retombe sur des données de démo si screenpipe ne répond pas. */
+/** Products the user looked at this week. Falls back to examples when screenpipe isn't running. */
 export async function loadScreenMemories(): Promise<{ live: boolean; memories: ScreenMemory[] }> {
   try {
     await get("/health")
     const since = new Date(Date.now() - 7 * 86400_000).toISOString()
-    const results = await Promise.all(
-      WATCHED.map((brand) =>
-        get<{ data: SearchHit[] }>(
-          `/search?q=${encodeURIComponent(brand)}&content_type=all&limit=1&start_time=${encodeURIComponent(since)}`,
-          4000
-        )
-          .then((r) => ({ brand, hit: r.data?.[0] }))
-          .catch(() => ({ brand, hit: undefined }))
+    const hits = await Promise.all(
+      WATCHED.map((q) =>
+        get<{ data: SearchHit[] }>(`/search?q=${encodeURIComponent(q.split(" ")[0])}&content_type=all&limit=1&start_time=${encodeURIComponent(since)}`, 4000)
+          .then((r) => ({ q, hit: r.data?.[0] }))
+          .catch(() => ({ q, hit: undefined }))
       )
     )
-    const memories = results
-      .filter((r) => r.hit)
-      .map(({ brand, hit }, i) => {
-        const text = (hit!.content.text || hit!.content.transcription || "").replace(/\s+/g, " ")
-        const at = text.toLowerCase().indexOf(brand.toLowerCase())
-        return {
-          id: `live${i}`,
-          query: brand,
-          seenOn: hit!.content.app_name || hit!.content.window_name || "votre écran",
-          when: when(hit!.content.timestamp),
-          excerpt: `« ${text.slice(Math.max(0, at - 30), at + 60).trim()} »`,
-        }
-      })
-    return { live: true, memories }
+    return {
+      live: true,
+      memories: hits.filter((h) => h.hit).map(({ q, hit }) => ({ query: q, seenOn: hit!.content.app_name || hit!.content.window_name || "screen" })),
+    }
   } catch {
     return { live: false, memories: DEMO_MEMORIES }
   }
