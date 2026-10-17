@@ -192,8 +192,33 @@ export function Segmented<T extends string>({
 // Brand marks from simpleicons.org; marketplaces it doesn't cover fall back to a coloured initial.
 const BRAND_ICONS: Record<string, SimpleIcon> = { vinted: siVinted, ebay: siEbay, etsy: siEtsy, facebook_marketplace: siFacebook }
 
+// Marketplaces without a simple-icons mark use the site's own favicon (official logo, served by Google's favicon cache).
+const BRAND_DOMAINS: Record<string, string> = {
+  leboncoin: "leboncoin.fr",
+  depop: "depop.com",
+  wallapop: "wallapop.com",
+  vestiaire: "vestiairecollective.com",
+  vestiairecollective: "vestiairecollective.com",
+  amazon: "amazon.fr",
+  zalando: "zalando.fr",
+  farfetch: "farfetch.com",
+}
+
 export function MarketplaceLogo({ marketplace, size = 36 }: { marketplace: string; size?: number }) {
   const icon = BRAND_ICONS[marketplace]
+  const domain = BRAND_DOMAINS[marketplace]
+  if (!icon && domain) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        aria-hidden
+        alt=""
+        src={`https://www.google.com/s2/favicons?domain=${domain}&sz=${size >= 32 ? 64 : 32}`}
+        className="rounded-md shrink-0 bg-white object-contain"
+        style={{ width: size, height: size }}
+      />
+    )
+  }
   if (icon) {
     return (
       <span aria-hidden className="rounded-md flex items-center justify-center shrink-0" style={{ width: size, height: size, background: `#${icon.hex}` }}>
