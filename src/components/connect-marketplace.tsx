@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Button, MarketplaceLogo, Modal } from "@/components/ui"
 import type { Shop } from "@/lib/store"
+import { DesktopClipboard } from "@/components/desktop-clipboard"
 
 export const CONNECTABLE_MARKETPLACES = [
   { id: "vinted", name: "Vinted" },
@@ -193,6 +194,7 @@ export function ConnectMarketplaceModal({
               allow="clipboard-read; clipboard-write"
             />
           </div>
+          <DesktopClipboard compact />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground">Session valable jusqu&apos;à {expires}.</span>
             <div className="flex flex-wrap gap-2">

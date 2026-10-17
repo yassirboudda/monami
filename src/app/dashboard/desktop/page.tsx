@@ -8,6 +8,7 @@ import type { TeachSession } from "@/components/teach-workflow"
 import type { WorkflowRun } from "@/components/run-workflow"
 import { marketplaceName } from "@/components/connect-marketplace"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
+import { DesktopClipboard } from "@/components/desktop-clipboard"
 
 type ScreenTrace = {
   minutes: number
@@ -23,7 +24,7 @@ type DesktopStatus = {
   gate: boolean
   screenpipe: { status: string; ok: boolean } | null
   hermes: boolean
-  screen: { window: string; at: string | null; excerpt: string } | null
+  screen: { window: string; url?: string | null; at: string | null; excerpt: string; raw?: string } | null
   model?: string
   checkedAt: string
 }
@@ -97,8 +98,15 @@ export default function DesktopPage() {
       {s?.screen && (
         <Card className="p-4 mb-6">
           <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">À l&apos;écran {screenAt && `· ${screenAt}`}</p>
-          <p className="font-medium text-sm">{s.screen.window || "Bureau"}</p>
+          <p className="font-medium text-sm">{s.screen.window || "Bureau OctoHandy"}</p>
+          {s.screen.url && <p className="text-xs text-muted-foreground truncate">{s.screen.url}</p>}
           {s.screen.excerpt && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{s.screen.excerpt}</p>}
+          {s.screen.raw && (
+            <details className="mt-1">
+              <summary className="text-[11px] text-muted-foreground cursor-pointer">Texte brut lu par Screenpipe (OCR)</summary>
+              <p className="text-[11px] text-muted-foreground mt-1 break-words">{s.screen.raw}</p>
+            </details>
+          )}
         </Card>
       )}
 
@@ -106,7 +114,7 @@ export default function DesktopPage() {
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
             <Eye className="w-4 h-4 text-secondary" />
-            <p className="font-semibold">Ce que Screenpipe a vu (2 dernières minutes)</p>
+            <p className="font-semibold">Ce que l&apos;agent a vu à l&apos;écran (2 dernières minutes)</p>
           </div>
           <div className="flex items-center gap-2">
             {screen.data && <Badge tone={screen.data.frames ? "teal" : "amber"}>{screen.data.frames} frames</Badge>}
@@ -127,8 +135,8 @@ export default function DesktopPage() {
               <li key={`${e.t}-${i}`} className="flex gap-3">
                 <span className="text-xs text-muted-foreground tabular-nums shrink-0 pt-0.5">{e.t ? new Date(e.t).toLocaleTimeString("fr-FR") : "—"}</span>
                 <div className="min-w-0">
-                  <p className="font-medium truncate">{e.window || e.app || "Bureau"}</p>
-                  {e.text && <p className="text-xs text-muted-foreground line-clamp-2">{e.text}</p>}
+                  <p className="font-medium truncate">{e.window ? `Chrome · ${e.window}` : e.app || "Bureau OctoHandy"}</p>
+                  {e.text ? <p className="text-xs text-muted-foreground line-clamp-2">{e.text}</p> : <p className="text-xs text-muted-foreground italic">page sans texte lisible</p>}
                 </div>
               </li>
             ))}
@@ -141,6 +149,7 @@ export default function DesktopPage() {
           <div className="rounded-xl overflow-hidden border bg-black aspect-video">
             <iframe src={desktopUrl} title="Bureau distant OctoHandy" className="w-full h-full" allow="clipboard-read; clipboard-write" />
           </div>
+          <DesktopClipboard compact={false} />
           <div className="flex justify-end mt-2">
             <a href={desktopUrl} target="_blank" rel="noreferrer">
               <Button variant="secondary" size="sm"><ExternalLink className="w-4 h-4" /> Plein écran</Button>
