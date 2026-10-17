@@ -5,7 +5,15 @@ import zlib
 from datetime import datetime, timedelta, timezone
 
 from app.human import HumanProfile, click_point, from_trace, key_delays, move_path, pre_action_delay, typos
-from app.rfb import RemoteDesktop, key_event, keysym_for_character, keysym_for_key, pointer_event, vnc_key
+from app.rfb import (
+    FRAMEBUFFER_PIXEL_FORMAT,
+    RemoteDesktop,
+    key_event,
+    keysym_for_character,
+    keysym_for_key,
+    pointer_event,
+    vnc_key,
+)
 from app.screen import ScreenpipeFrameStaleError, find_target, latest_frame_id
 
 
@@ -80,7 +88,7 @@ def test_typing_delays_and_typos_preserve_final_text():
 
 
 def test_rfb_message_encodings_vnc_key_and_keysyms():
-    assert pointer_event(1, 0x1234, 0xABCD) == bytes.fromhex("06011234abcd")
+    assert pointer_event(1, 0x1234, 0xABCD) == bytes.fromhex("05011234abcd")
     assert key_event(0x010000E9, True) == bytes.fromhex("04010000010000e9")
     assert vnc_key("password") == bytes.fromhex("0e86ceceeef64e26")
     assert keysym_for_character("a") == (ord("a"), False)
@@ -88,6 +96,28 @@ def test_rfb_message_encodings_vnc_key_and_keysyms():
     assert keysym_for_character("é") == (0x010000E9, False)
     assert keysym_for_key("Enter") == 0xFF0D
     assert keysym_for_character("\n") == (0xFF0D, False)
+
+
+def test_rfb_requests_raw_framebuffer_after_server_init():
+    class FakeSocket:
+        def __init__(self):
+            self.sent = []
+
+        async def send(self, message):
+            self.sent.append(message)
+
+    desktop = RemoteDesktop("workspace", None)
+    desktop.websocket = FakeSocket()
+    desktop.width = 1600
+    desktop.height = 900
+
+    asyncio.run(desktop._request_framebuffer())
+
+    assert desktop.websocket.sent == [
+        b"\x00\x00\x00\x00" + FRAMEBUFFER_PIXEL_FORMAT,
+        struct.pack(">BBHi", 2, 0, 1, 0),
+        struct.pack(">BBHHHH", 3, 0, 0, 0, 1600, 900),
+    ]
 
 
 def test_rfb_click_waits_before_press_and_holds_button(monkeypatch):

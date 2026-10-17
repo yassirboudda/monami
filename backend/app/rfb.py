@@ -23,7 +23,7 @@ class DesktopInputError(Exception):
 
 
 def pointer_event(button_mask: int, x: int, y: int) -> bytes:
-    return struct.pack(">BBHH", 6, button_mask & 0xFF, x, y)
+    return struct.pack(">BBHH", 5, button_mask & 0xFF, x, y)
 
 
 def key_event(keysym: int, down: bool) -> bytes:
@@ -134,6 +134,7 @@ class RemoteDesktop:
                 timeout=CONNECT_TIMEOUT,
             )
             await asyncio.wait_for(self._handshake(), timeout=CONNECT_TIMEOUT)
+            await self._request_framebuffer()
             self._start_drain()
         except DesktopInputError:
             await self.close()
@@ -220,6 +221,11 @@ class RemoteDesktop:
             self._closed = True
             raise DesktopInputError(f"Envoi RFB impossible ({type(exc).__name__})") from exc
 
+    async def _request_framebuffer(self) -> None:
+        await self._send(b"\x00\x00\x00\x00" + FRAMEBUFFER_PIXEL_FORMAT)
+        await self._send(struct.pack(">BBHi", 2, 0, 1, 0))
+        await self._send(struct.pack(">BBHHHH", 3, 0, 0, 0, self.width, self.height))
+
     def _clamp(self, x: int, y: int) -> tuple[int, int]:
         if self.width <= 0 or self.height <= 0:
             raise DesktopInputError("Écran distant indisponible")
@@ -264,9 +270,7 @@ class RemoteDesktop:
 
         resume_drain = await self._pause_drain()
         try:
-            await self._send(b"\x00\x00\x00\x00" + FRAMEBUFFER_PIXEL_FORMAT)
-            await self._send(struct.pack(">BBHi", 2, 0, 1, 0))
-            await self._send(struct.pack(">BBHHHH", 3, 0, 0, 0, self.width, self.height))
+            await self._request_framebuffer()
             pixels = bytearray(self.width * self.height * 3)
             coverage = bytearray(self.width * self.height)
             covered_pixels = 0
