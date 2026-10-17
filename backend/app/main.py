@@ -13,6 +13,7 @@ from jose import jwk, jwt
 from jose.exceptions import JWTError
 from pydantic import BaseModel, Field
 
+from .marketplaces import agent_context, get_doc, get_marketplace
 from .settings import settings
 
 app = FastAPI(title="Stockflow API", version="0.1.0")
@@ -32,6 +33,17 @@ _stock: dict[str, list[dict[str, Any]]] = {}
 _teams: dict[str, dict[str, Any]] = {}  # code -> team
 _ext_tokens: dict[str, dict[str, Any]] = {}  # sfx_… -> {user_id, name, createdAt}
 _jwks_cache: dict[str, Any] = {"at": 0.0, "keys": []}
+
+
+def _build_chat_system_prompt() -> str:
+    return (
+        "Tu es Stockflow, assistant marketplace. Réponds en français, de façon concise et "
+        "utile pour le stock, les prix, les messages clients et les workflows. Tu couvres les "
+        "marketplaces décrites dans la référence ci-dessous. Utilise-la pour décider si une "
+        "action passe par l'API ou un screenpipe_workflow, et quelles confirmations vendeur/"
+        "acheteur sont nécessaires.\n\n"
+        f"{agent_context()}"
+    )
 
 
 def _default_shops() -> list[dict[str, Any]]:
@@ -136,6 +148,19 @@ def health():
         "hermesUrl": settings.hermes_api_url,
         "hint": "API live on 127.0.0.1:3000 via nginx :80/:8080",
     }
+
+
+@app.get("/v1/marketplaces")
+def list_marketplaces():
+    return get_doc()
+
+
+@app.get("/v1/marketplaces/{marketplace_id}")
+def marketplace(marketplace_id: str):
+    result = get_marketplace(marketplace_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Marketplace not found")
+    return result
 
 
 @app.get("/v1/me")
@@ -351,10 +376,7 @@ class ChatIn(BaseModel):
 @app.post("/v1/chat")
 async def chat(body: ChatIn, user: dict[str, Any] = Depends(require_user)):
     """Chat via Hermes, then Nebius Token Factory (DeepSeek), or a mock response."""
-    system = (
-        "Tu es Stockflow, assistant marketplace (Vinted / Leboncoin). "
-        "Réponds en français, concis, utile pour stock, prix, messages clients et workflows."
-    )
+    system = _build_chat_system_prompt()
     hermes_user_content: Any = body.message
     if body.images:
         hermes_user_content = [
