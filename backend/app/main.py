@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
+import json
+import secrets
 import time
 import uuid
-import json
+from urllib.parse import urlencode
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
@@ -243,6 +248,7 @@ def health():
         "backend": True,
         "model": settings.nebius_model,
         "hermes": bool(settings.hermes_api_key),
+        "desktop": bool(settings.desktop_base_url and settings.desktop_signing_secret),
         "hermesUrl": settings.hermes_api_url,
         "hint": "API live on 127.0.0.1:3000 via nginx :80/:8080",
     }
@@ -489,7 +495,7 @@ async def extension_session(body: ExtSessionIn, user: dict[str, Any] = Depends(w
 
 
 class ShopIn(BaseModel):
-    marketplace: Literal["vinted", "leboncoin"]
+    marketplace: str
     displayName: str
     status: Literal["connected", "expired"] = "connected"
     listingCount: int = 0
@@ -502,6 +508,8 @@ class ShopPatch(BaseModel):
 
 @app.post("/v1/shops")
 async def create_shop(body: ShopIn, user: dict[str, Any] = Depends(workspace_user)):
+    if get_marketplace(body.marketplace) is None:
+        raise HTTPException(404, "Marketplace inconnue")
     shop_id = f"s-{uuid.uuid4().hex[:8]}"
     with db.connection() as conn:
         conn.execute(
@@ -563,6 +571,147 @@ async def delete_shop(shop_id: str, user: dict[str, Any] = Depends(workspace_use
         conn.execute("DELETE FROM listings WHERE workspace=? AND shop_id=?", (user["workspace"], shop_id))
         conn.execute("DELETE FROM shops WHERE workspace=? AND id=?", (user["workspace"], shop_id))
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Remote desktop (A4000): the seller logs into the marketplace in a real Chrome
+# that lives next to Screenpipe and Hermes. Access = short-lived HMAC token that
+# the A4000 gate verifies (Caddy forward_auth) on the noVNC websocket.
+
+LOGIN_URLS: dict[str, str] = {
+    "vinted": "https://www.vinted.fr/member/signup/select_type?ref_url=%2F",
+    "leboncoin": "https://auth.leboncoin.fr/login/",
+    "ebay": "https://signin.ebay.fr/",
+    "etsy": "https://www.etsy.com/fr/signin",
+    "depop": "https://www.depop.com/login/",
+    "vestiaire": "https://fr.vestiairecollective.com/login/",
+    "wallapop": "https://fr.wallapop.com/login",
+    "amazon": "https://sellercentral.amazon.fr/",
+    "facebook_marketplace": "https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2Fmarketplace%2F",
+}
+
+
+def _desktop_enabled() -> bool:
+    return bool(settings.desktop_base_url and settings.desktop_signing_secret)
+
+
+def _desktop_token(workspace: str, marketplace: str | None, ttl: int) -> tuple[str, int]:
+    exp = int(time.time()) + ttl
+    raw = json.dumps(
+        {"exp": exp, "ws": workspace, "mp": marketplace or "", "n": secrets.token_hex(6)},
+        separators=(",", ":"),
+    ).encode()
+    payload = base64.urlsafe_b64encode(raw).decode().rstrip("=")
+    sig = hmac.new(settings.desktop_signing_secret.encode(), payload.encode(), hashlib.sha256).hexdigest()[:40]
+    return f"{payload}.{sig}", exp
+
+
+def _marketplace_start_url(marketplace: str | None) -> str | None:
+    if not marketplace:
+        return None
+    if marketplace in LOGIN_URLS:
+        return LOGIN_URLS[marketplace]
+    doc = get_marketplace(marketplace) or {}
+    for key in ("login_url", "url", "website"):
+        if isinstance(doc.get(key), str) and doc[key].startswith("http"):
+            return doc[key]
+    return f"https://www.{marketplace}.fr/"
+
+
+async def _desktop_open(url: str) -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            response = await client.post(
+                f"{settings.desktop_base_url.rstrip('/')}/desktop/open",
+                headers={"X-Gate-Secret": settings.desktop_signing_secret},
+                json={"url": url},
+            )
+            return response.status_code == 200
+    except httpx.HTTPError:
+        return False
+
+
+class DesktopSessionIn(BaseModel):
+    marketplace: str | None = None
+    purpose: Literal["connect", "teach", "browse"] = "connect"
+
+
+@app.get("/v1/desktop")
+async def desktop_status(user: dict[str, Any] = Depends(workspace_user)):
+    return {
+        "enabled": _desktop_enabled(),
+        "host": settings.desktop_base_url or None,
+        "marketplaces": sorted(LOGIN_URLS),
+    }
+
+
+@app.post("/v1/desktop/sessions")
+async def create_desktop_session(body: DesktopSessionIn, user: dict[str, Any] = Depends(workspace_user)):
+    if not _desktop_enabled():
+        raise HTTPException(503, "Bureau distant non configuré (DESKTOP_BASE_URL / DESKTOP_SIGNING_SECRET)")
+    if body.marketplace and get_marketplace(body.marketplace) is None and body.marketplace not in LOGIN_URLS:
+        raise HTTPException(404, "Marketplace inconnue")
+    token, exp = _desktop_token(user["workspace"], body.marketplace, settings.desktop_session_ttl)
+    params = {
+        "autoconnect": "1",
+        "resize": "remote",
+        "reconnect": "1",
+        "reconnect_delay": "1500",
+        "show_dot": "1",
+        "t": token,
+        "path": f"websockify?t={token}",
+    }
+    if settings.desktop_vnc_password:
+        params["password"] = settings.desktop_vnc_password
+    url = f"{settings.desktop_base_url.rstrip('/')}/vnc.html?{urlencode(params)}"
+    start_url = _marketplace_start_url(body.marketplace) if body.purpose == "connect" else None
+    opened = await _desktop_open(start_url) if start_url else False
+    return {
+        "url": url,
+        "expiresAt": datetime.fromtimestamp(exp, tz=timezone.utc).isoformat(),
+        "marketplace": body.marketplace,
+        "purpose": body.purpose,
+        "startUrl": start_url,
+        "opened": opened,
+    }
+
+
+class DesktopConnectedIn(BaseModel):
+    marketplace: str
+    displayName: str | None = None
+
+
+@app.post("/v1/desktop/connected")
+async def desktop_connected(body: DesktopConnectedIn, user: dict[str, Any] = Depends(workspace_user)):
+    doc = get_marketplace(body.marketplace)
+    if doc is None and body.marketplace not in LOGIN_URLS:
+        raise HTTPException(404, "Marketplace inconnue")
+    name = body.displayName or f"{(doc or {}).get('name') or body.marketplace.capitalize()} · bureau distant"
+    with db.connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM shops WHERE workspace=? AND marketplace=? ORDER BY created_at LIMIT 1",
+            (user["workspace"], body.marketplace),
+        ).fetchone()
+        if row is None:
+            shop_id = f"s-{uuid.uuid4().hex[:8]}"
+            conn.execute(
+                """INSERT INTO shops (id, workspace, created_by, marketplace, display_name, status, listing_count)
+                   VALUES (?, ?, ?, ?, ?, 'connected', 0)""",
+                (shop_id, user["workspace"], user["user_id"], body.marketplace, name),
+            )
+        else:
+            shop_id = row["id"]
+            conn.execute(
+                "UPDATE shops SET status='connected', display_name=COALESCE(?, display_name), updated_at=? WHERE workspace=? AND id=?",
+                (body.displayName, _iso_now(), user["workspace"], shop_id),
+            )
+        row = conn.execute(
+            """SELECT s.*, COUNT(l.id) AS listing_count FROM shops s LEFT JOIN listings l
+               ON l.workspace=s.workspace AND l.shop_id=s.id
+               WHERE s.workspace=? AND s.id=? GROUP BY s.workspace, s.id""",
+            (user["workspace"], shop_id),
+        ).fetchone()
+    return {"shop": _shop_dict(row)}
 
 
 @app.get("/v1/stock")

@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     hermes_api_key: str = ""
     hermes_model: str = "hermes-agent"
     hermes_timeout: float = 120
+    # Remote desktop (A4000): noVNC behind Caddy + token gate. Empty = feature disabled.
+    desktop_base_url: str = ""
+    desktop_signing_secret: str = ""
+    desktop_vnc_password: str = ""
+    desktop_session_ttl: int = 900
 
     @property
     def cors_origin_list(self) -> list[str]:

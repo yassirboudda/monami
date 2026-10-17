@@ -2,7 +2,7 @@
 
 export type Shop = {
   id: string
-  marketplace: "vinted" | "leboncoin"
+  marketplace: string
   displayName: string
   status: "connected" | "expired"
   listingCount: number

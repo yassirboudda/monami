@@ -1,20 +1,23 @@
 "use client"
 
-import { ExternalLink, Puzzle, RefreshCw, Store, Tags } from "lucide-react"
+import { ExternalLink, MonitorSmartphone, Puzzle, RefreshCw, Store, Tags } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Badge, Button, Card, EmptyState, MarketplaceLogo, PageHeader, StatusDot } from "@/components/ui"
+import { ConnectMarketplaceModal } from "@/components/connect-marketplace"
 import type { Shop } from "@/lib/store"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
-const mpUrl = { leboncoin: "https://www.leboncoin.fr", vinted: "https://www.vinted.fr" }
+const mpUrl: Record<string, string> = { leboncoin: "https://www.leboncoin.fr", vinted: "https://www.vinted.fr" }
 
 export default function ShopsPage() {
   const router = useRouter()
   const { data, error, isLoading, request, mutate } = useWorkspaceResource<{ shops: Shop[] }>("/v1/shops")
   const shops = data?.shops ?? []
+  const [connect, setConnect] = useState<{ open: boolean; marketplace: string | null }>({ open: false, marketplace: null })
+  const openConnect = (marketplace: string | null = null) => setConnect({ open: true, marketplace })
 
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
@@ -55,10 +58,13 @@ export default function ShopsPage() {
               </Button>
             </Link>
             <Link href="/dashboard/extension">
-              <Button>
+              <Button variant="secondary">
                 <Puzzle className="w-4 h-4" /> Extension cookies
               </Button>
             </Link>
+            <Button onClick={() => openConnect()}>
+              <MonitorSmartphone className="w-4 h-4" /> Connecter une marketplace
+            </Button>
           </div>
         }
       />
@@ -72,7 +78,7 @@ export default function ShopsPage() {
           <EmptyState
             icon={<Store className="w-6 h-6" />}
             title="Aucune boutique"
-            text="Installe l&apos;extension OctoHandy pour connecter Vinted ou Leboncoin et afficher tes boutiques."
+            text="Clique « Connecter une marketplace » : tu te connectes à Vinted, Leboncoin, eBay… dans le Chrome du bureau OctoHandy, et l&apos;agent travaille dans cette session."
             action={
               <Link href="/dashboard/extension">
                 <Button>
@@ -111,7 +117,7 @@ export default function ShopsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold truncate">{s.displayName}</p>
-                      <Badge tone={s.marketplace === "vinted" ? "teal" : "amber"}>{s.marketplace}</Badge>
+                      <Badge tone={s.marketplace === "vinted" ? "teal" : s.marketplace === "leboncoin" ? "amber" : "slate"}>{s.marketplace}</Badge>
                     </div>
                     <p className={`text-xs mt-1.5 font-medium ${ok ? "text-emerald-700" : "text-red-600"}`}>
                       {ok ? "Session valide" : "Session expirée"}
@@ -134,10 +140,13 @@ export default function ShopsPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
+                  <Button variant={ok ? "secondary" : "primary"} size="sm" onClick={() => openConnect(s.marketplace)}>
+                    <MonitorSmartphone className="w-4 h-4" /> {ok ? "Ouvrir le bureau" : "Reconnecter"}
+                  </Button>
                   <Button variant="secondary" size="sm" onClick={(e) => void refresh(s.id, e)}>
                     <RefreshCw className="w-3.5 h-3.5" /> Vérifier
                   </Button>
-                  <a href={mpUrl[s.marketplace]} target="_blank" rel="noreferrer">
+                  <a href={mpUrl[s.marketplace] ?? `https://www.${s.marketplace}.fr`} target="_blank" rel="noreferrer">
                     <Button variant="ghost" size="sm">
                       <ExternalLink className="w-3.5 h-3.5" /> Ouvrir
                     </Button>
@@ -148,6 +157,14 @@ export default function ShopsPage() {
           })}
         </div>
       )}
+      <ConnectMarketplaceModal
+        key={`${connect.open}-${connect.marketplace ?? ""}`}
+        open={connect.open}
+        initialMarketplace={connect.marketplace}
+        onClose={() => setConnect({ open: false, marketplace: null })}
+        request={request}
+        onConnected={() => void mutate()}
+      />
     </div>
   )
 }
