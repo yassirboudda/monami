@@ -1688,8 +1688,9 @@ async def desktop_status_live(user: dict[str, Any] = Depends(workspace_user)):
         headers = {"Authorization": f"Bearer {settings.screenpipe_api_key}"}
         try:
             health = await client.get(f"{settings.screenpipe_api_url.rstrip('/')}/health", headers=headers)
-            result["screenpipe"] = {"status": health.json().get("status"), "ok": health.status_code == 200}
-            if db.desktop_lease_held(user["workspace"]):
+            status = str(health.json().get("status") or "unknown")
+            result["screenpipe"] = {"status": status, "ok": health.status_code == 200 and status == "healthy"}
+            if True:
                 latest = await client.get(
                     f"{settings.screenpipe_api_url.rstrip('/')}/search", headers=headers,
                     params={"content_type": "ocr", "limit": 1},
@@ -1726,8 +1727,6 @@ async def desktop_status_live(user: dict[str, Any] = Depends(workspace_user)):
 @app.get("/v1/desktop/screen")
 async def desktop_screen(minutes: int = 2, user: dict[str, Any] = Depends(workspace_user)):
     """Proof that Screenpipe sees the remote desktop: the compressed trace of the last N minutes."""
-    if not db.desktop_lease_held(user["workspace"]):
-        raise HTTPException(409, "Réserve le bureau distant pour consulter son écran.")
     if not _screenpipe_enabled():
         raise HTTPException(503, "Screenpipe non configuré")
     minutes = max(1, min(minutes, 30))
