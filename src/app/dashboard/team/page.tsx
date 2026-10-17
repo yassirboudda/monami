@@ -4,7 +4,7 @@ import { useAuth, useOrganization } from "@clerk/nextjs"
 import { Copy, Link2, Users } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
-import { Badge, Button, Card, Input, PageHeader, Textarea } from "@/components/ui"
+import { Badge, Button, Card, Input, PageHeader, Textarea, Alert, Table, THead, TBody, TR, TH, TD } from "@/components/ui"
 import { apiFetch } from "@/lib/api"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
@@ -45,7 +45,7 @@ function AgentProfileCard() {
     <Card className="p-5 mb-5">
       <h2 className="font-semibold">Mon profil (lu par l&apos;agent)</h2>
       <p className="text-sm text-muted-foreground mt-1 mb-4">Ton profil reste personnel, même dans une organisation.</p>
-      {error && <p role="alert" className="text-sm text-red-700 mb-3">Impossible de charger le profil : {error.message}</p>}
+      {error && <Alert variant="destructive" className="mb-3">Impossible de charger le profil : {error.message}</Alert>}
       <div className="space-y-3">
         <label className="block space-y-1.5">
           <span className="text-sm font-medium">Nom affiché</span>
@@ -149,21 +149,28 @@ export default function TeamPage() {
         {!members.length ? (
           <p className="text-sm text-muted-foreground">Chargement des membres…</p>
         ) : (
-          <ul className="divide-y divide-border/70">
-            {members.map((membership) => {
-              const publicUser = membership.publicUserData
-              const name = [publicUser?.firstName, publicUser?.lastName].filter(Boolean).join(" ")
-              return (
-                <li key={membership.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{name || publicUser?.identifier || "Membre"}</p>
-                    {publicUser?.identifier && <p className="text-caption truncate">{publicUser.identifier}</p>}
-                  </div>
-                  <Badge>{membership.roleName}</Badge>
-                </li>
-              )
-            })}
-          </ul>
+          <Table>
+            <THead>
+              <TR className="hover:bg-transparent">
+                <TH>Membre</TH>
+                <TH>Email</TH>
+                <TH className="text-right">Rôle</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {members.map((membership) => {
+                const publicUser = membership.publicUserData
+                const name = [publicUser?.firstName, publicUser?.lastName].filter(Boolean).join(" ")
+                return (
+                  <TR key={membership.id}>
+                    <TD className="font-medium">{name || publicUser?.identifier || "Membre"}</TD>
+                    <TD className="text-muted-foreground">{publicUser?.identifier || "—"}</TD>
+                    <TD className="text-right"><Badge>{membership.roleName}</Badge></TD>
+                  </TR>
+                )
+              })}
+            </TBody>
+          </Table>
         )}
         {memberships?.hasNextPage && (
           <Button className="mt-4" variant="secondary" size="sm" onClick={() => void memberships.fetchNext()}>
