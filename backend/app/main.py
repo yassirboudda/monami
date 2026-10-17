@@ -1,4 +1,4 @@
-"""Stockflow API — binds 127.0.0.1:3000 behind nginx. Keep port 8080 reserved by the host."""
+"""OctoHandy API — binds 127.0.0.1:3000 behind nginx. Keep port 8080 reserved by the host."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ async def _lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="Stockflow API", version="0.1.0", lifespan=_lifespan)
+app = FastAPI(title="OctoHandy API", version="0.1.0", lifespan=_lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,7 +43,7 @@ _organization_names: dict[str, str] = {}
 
 def _build_chat_system_prompt() -> str:
     return (
-        "Tu es Stockflow, assistant marketplace. Réponds en français, de façon concise et "
+        "Tu es OctoHandy, assistant marketplace. Réponds en français, de façon concise et "
         "utile pour le stock, les prix, les messages clients et les workflows. Tu couvres les "
         "marketplaces décrites dans la référence ci-dessous. Utilise-la pour décider si une "
         "action passe par l'API ou un screenpipe_workflow, et quelles confirmations vendeur/"
@@ -239,7 +239,7 @@ async def _chat_context(user: dict[str, Any]) -> str:
 def health():
     return {
         "ok": True,
-        "service": "stockflow-api",
+        "service": "octohandy-api",
         "backend": True,
         "model": settings.nebius_model,
         "hermes": bool(settings.hermes_api_key),
@@ -700,9 +700,9 @@ async def create_invite_link(user: dict[str, Any] = Depends(workspace_user)):
     try:
         clerk_status, clerk_user = await _clerk_api("GET", f"/users/{user['user_id']}")
     except (HTTPException, httpx.HTTPError) as exc:
-        raise HTTPException(status_code=502, detail="Impossible de vérifier l'accès Stockflow") from exc
+        raise HTTPException(status_code=502, detail="Impossible de vérifier l'accès OctoHandy") from exc
     if clerk_status >= 400:
-        raise HTTPException(status_code=502, detail="Impossible de vérifier l'accès Stockflow")
+        raise HTTPException(status_code=502, detail="Impossible de vérifier l'accès OctoHandy")
     public_metadata = clerk_user.get("public_metadata")
     if not isinstance(public_metadata, dict) or public_metadata.get("stockflow_access") is not True:
         allowed_emails = {
@@ -718,7 +718,7 @@ async def create_invite_link(user: dict[str, Any] = Depends(workspace_user)):
             for address in email_addresses
         )
         if not email_allowed:
-            raise HTTPException(status_code=403, detail="Accès Stockflow requis pour inviter")
+            raise HTTPException(status_code=403, detail="Accès OctoHandy requis pour inviter")
     created_at = datetime.now(timezone.utc)
     expires_at = created_at + timedelta(days=7)
     token = f"inv_{uuid.uuid4().hex}"
@@ -779,7 +779,7 @@ async def accept_invite(token: str, user: dict[str, Any] = Depends(workspace_use
         {"public_metadata": {"stockflow_access": True}},
     )
     if metadata_status >= 400:
-        raise HTTPException(status_code=502, detail="Impossible de mettre à jour l'accès Stockflow")
+        raise HTTPException(status_code=502, detail="Impossible de mettre à jour l'accès OctoHandy")
     return {"orgId": org_id}
 
 

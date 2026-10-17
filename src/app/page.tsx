@@ -5,7 +5,7 @@ export default function HomePage() {
   return (
     <div className="min-h-dvh flex flex-col">
       <header className="max-w-5xl mx-auto w-full px-4 py-5 flex items-center justify-between">
-        <p className="font-bold text-lg tracking-tight">Stockflow</p>
+        <p className="font-bold text-lg tracking-tight">OctoHandy</p>
         <div className="flex gap-2">
           <Link href="/sign-in">
             <Button variant="secondary" size="sm">

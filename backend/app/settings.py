@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     port: int = 3000
     database_path: str = str(Path(__file__).resolve().parents[1] / "var" / "stockflow.db")
     cors_origins: str = (
-        "https://stockflow.amirelay.com,"
+        "https://octohandy.amirelay.com,"
         "https://stockflow-nine-ashy.vercel.app,"
         "http://localhost:3000"
     )

@@ -31,7 +31,7 @@ export function PocWall({ currentEmail, access }: { currentEmail: string | null;
         <h1 className="text-2xl font-bold tracking-tight">Accès limité pendant le PoC</h1>
         <p className="text-muted-foreground mt-3">
           Pendant cette phase de PoC (hackathon), seul le compte <span className="font-medium text-foreground">{access.allowedEmail}</span>{" "}
-          peut se connecter à Stockflow : l&apos;instance cloud (navigateur distant, Screenpipe, agent Hermes) est dédiée à un seul utilisateur.
+          peut se connecter à OctoHandy : l&apos;instance cloud (navigateur distant, Screenpipe, agent Hermes) est dédiée à un seul utilisateur.
         </p>
         <div className="mt-6 rounded-xl border border-border/70 bg-white text-left p-4">
           <p className="text-sm font-semibold">Vous êtes juge ? Utilisez ces identifiants :</p>
@@ -39,7 +39,7 @@ export function PocWall({ currentEmail, access }: { currentEmail: string | null;
             <dt className="text-muted-foreground">Email</dt>
             <dd className="font-mono break-all select-all">{judgeEmail}</dd>
             <dt className="text-muted-foreground">Mot de passe</dt>
-            <dd className="font-mono break-all select-all">{access.judgePassword || "(communiqué par l'équipe Stockflow)"}</dd>
+            <dd className="font-mono break-all select-all">{access.judgePassword || "(communiqué par l'équipe OctoHandy)"}</dd>
           </dl>
           <p className="text-xs text-muted-foreground mt-3">
             Indice : le mot de passe est le nom du sponsor de l&apos;événement.

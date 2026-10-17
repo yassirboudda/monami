@@ -13,15 +13,15 @@ function useExtensionPresence() {
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if (e.source !== window || !e.data || typeof e.data !== "object") return
-      if (e.data.type === "STOCKFLOW_EXTENSION_READY" || e.data.type === "STOCKFLOW_PONG") {
+      if (e.data.type === "OCTOHANDY_EXTENSION_READY" || e.data.type === "OCTOHANDY_PONG") {
         setVersion(e.data.version || "?")
         setPaired(Boolean(e.data.paired))
       }
-      if (e.data.type === "STOCKFLOW_PAIRED") setPaired(true)
+      if (e.data.type === "OCTOHANDY_PAIRED") setPaired(true)
     }
     window.addEventListener("message", onMsg)
-    window.postMessage({ type: "STOCKFLOW_PING" }, window.location.origin)
-    const id = setInterval(() => window.postMessage({ type: "STOCKFLOW_PING" }, window.location.origin), 3000)
+    window.postMessage({ type: "OCTOHANDY_PING" }, window.location.origin)
+    const id = setInterval(() => window.postMessage({ type: "OCTOHANDY_PING" }, window.location.origin), 3000)
     return () => {
       window.removeEventListener("message", onMsg)
       clearInterval(id)
@@ -55,11 +55,11 @@ export default function ExtensionPage() {
       let failReason: string | null = null
       const onAck = (e: MessageEvent) => {
         if (e.source !== window) return
-        if (e.data?.type === "STOCKFLOW_PAIRED") acked = true
-        if (e.data?.type === "STOCKFLOW_PAIR_FAILED") failReason = e.data.error || "Association refusée"
+        if (e.data?.type === "OCTOHANDY_PAIRED") acked = true
+        if (e.data?.type === "OCTOHANDY_PAIR_FAILED") failReason = e.data.error || "Association refusée"
       }
       window.addEventListener("message", onAck)
-      window.postMessage({ type: "STOCKFLOW_PAIR", token, api: apiUrl }, window.location.origin)
+      window.postMessage({ type: "OCTOHANDY_PAIR", token, api: apiUrl }, window.location.origin)
       await new Promise((r) => setTimeout(r, 1800))
       window.removeEventListener("message", onAck)
       if (acked) {
@@ -101,7 +101,7 @@ export default function ExtensionPage() {
         title="Extension Chrome"
         subtitle="C'est elle qui récupère les cookies Vinted / Leboncoin pour brancher tes vraies boutiques."
         actions={
-          <a href="/stockflow-extension.zip" download>
+          <a href="/octohandy-extension.zip" download>
             <Button size="sm">
               <Download className="w-3.5 h-3.5" /> Télécharger l&apos;extension
             </Button>
@@ -130,7 +130,7 @@ export default function ExtensionPage() {
             <Button size="sm" loading={pairing} onClick={() => void pair()}>
               <RefreshCw className="w-3.5 h-3.5" /> {paired ? "Réassocier" : "Associer"}
             </Button>
-            <a href="/stockflow-extension.zip" download>
+            <a href="/octohandy-extension.zip" download>
               <Button variant="secondary" size="sm">
                 <Download className="w-3.5 h-3.5" /> ZIP
               </Button>
@@ -151,7 +151,7 @@ export default function ExtensionPage() {
           <p className="font-semibold">Installation (2 min)</p>
           <ol className="text-sm text-muted-foreground space-y-2 list-decimal pl-4">
             <li>
-              Télécharge <Badge tone="blue">stockflow-extension.zip</Badge> puis dézippe-le.
+              Télécharge <Badge tone="blue">octohandy-extension.zip</Badge> puis dézippe-le.
             </li>
             <li>
               Chrome → <code className="text-xs">chrome://extensions</code> → active le mode développeur.

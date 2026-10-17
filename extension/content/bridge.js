@@ -1,12 +1,12 @@
 const VERSION = chrome.runtime.getManifest().version
 
 function reply(type, extra = {}) {
-  window.postMessage({ type, version: VERSION, source: "stockflow-extension", ...extra }, window.location.origin)
+  window.postMessage({ type, version: VERSION, source: "octohandy-extension", ...extra }, window.location.origin)
 }
 
 function markShopConnected(marketplace, shop) {
   try {
-    const key = "stockflow.shops"
+    const key = "octohandy.shops"
     const raw = localStorage.getItem(key)
     const shops = raw ? JSON.parse(raw) : []
     const idx = shops.findIndex((s) => s.marketplace === marketplace)
@@ -26,23 +26,23 @@ function markShopConnected(marketplace, shop) {
   } catch {
     /* ignore */
   }
-  reply("STOCKFLOW_SHOP_CONNECTED", { marketplace, shop })
+  reply("OCTOHANDY_SHOP_CONNECTED", { marketplace, shop })
 }
 
 window.addEventListener("message", (e) => {
   if (e.source !== window || !e.data || typeof e.data !== "object") return
-  if (e.data.type === "STOCKFLOW_PING") reply("STOCKFLOW_PONG")
-  if (e.data.type === "STOCKFLOW_GET_SESSIONS") {
+  if (e.data.type === "OCTOHANDY_PING") reply("OCTOHANDY_PONG")
+  if (e.data.type === "OCTOHANDY_GET_SESSIONS") {
     chrome.runtime.sendMessage({ type: "SNAPSHOT" }, (res) => {
-      reply("STOCKFLOW_SESSIONS", { sessions: res })
+      reply("OCTOHANDY_SESSIONS", { sessions: res })
     })
   }
 })
 
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg?.type === "STOCKFLOW_CONNECTED") {
+  if (msg?.type === "OCTOHANDY_CONNECTED") {
     markShopConnected(msg.marketplace, msg.shop)
   }
 })
 
-reply("STOCKFLOW_EXTENSION_READY")
+reply("OCTOHANDY_EXTENSION_READY")

@@ -204,7 +204,7 @@ def test_invite_link_creation_requires_stockflow_access(
     response = test_client.post("/v1/org/invite-links")
     assert response.status_code == expected_status
     if expected_status == 403:
-        assert response.json()["detail"] == "Accès Stockflow requis pour inviter"
+        assert response.json()["detail"] == "Accès OctoHandy requis pour inviter"
     else:
         assert response.json()["token"].startswith("inv_")
 

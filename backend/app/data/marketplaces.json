@@ -20,7 +20,7 @@
       "to_verify": "À vérifier"
     },
     "workflow.created_by": {
-      "stockflow_template": "Enregistré une fois par Stockflow, fourni à tous les users (le user n'a rien à créer)",
+      "stockflow_template": "Enregistré une fois par OctoHandy, fourni à tous les users (le user n'a rien à créer)",
       "user": "Le user l'enregistre lui-même (personnel : ton, réponses types)"
     },
     "confirmation.required": {

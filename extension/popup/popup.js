@@ -21,7 +21,7 @@ function paint(snap) {
     if (info.loggedIn) {
       dot.className = "dot green"
       line.textContent = `Session détectée · ${info.cookieCount} cookies`
-      btn.textContent = "Connecter à Stockflow"
+      btn.textContent = "Connecter à OctoHandy"
       btn.disabled = false
     } else {
       dot.className = "dot amber"
@@ -56,13 +56,13 @@ $$("[data-connect]").forEach((btn) => {
       showMsg(res?.error || "Échec", "err")
       return
     }
-    showMsg(`${marketplace} connecté. Ouvre Boutique sur Stockflow.`)
+    showMsg(`${marketplace} connecté. Ouvre Boutique sur OctoHandy.`)
     const tabs = await chrome.tabs.query({
-      url: ["https://stockflow.amirelay.com/*", "https://stockflow-nine-ashy.vercel.app/*", "http://localhost:3000/*"],
+      url: ["https://octohandy.amirelay.com/*", "https://stockflow-nine-ashy.vercel.app/*", "http://localhost:3000/*"],
     })
     for (const tab of tabs) {
       if (!tab.id) continue
-      chrome.tabs.sendMessage(tab.id, { type: "STOCKFLOW_CONNECTED", marketplace, shop: res.shop }).catch(() => {})
+      chrome.tabs.sendMessage(tab.id, { type: "OCTOHANDY_CONNECTED", marketplace, shop: res.shop }).catch(() => {})
     }
     await refresh()
   })

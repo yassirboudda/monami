@@ -49,7 +49,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <Menu className="w-5 h-5" />
           </button>
           <Link href="/dashboard" className="font-bold tracking-tight text-lg">
-            Stockflow
+            OctoHandy
           </Link>
           <nav className="hidden lg:flex items-center gap-1 ml-4">
             {nav.map((n) => (

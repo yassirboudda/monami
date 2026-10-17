@@ -20,8 +20,8 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Stockflow — Gestion marketplace",
-  description: "Gère tes boutiques, annonces et stock partagé avec l'agent Stockflow.",
+  title: "OctoHandy — Gestion marketplace",
+  description: "Gère tes boutiques, annonces et stock partagé avec l'agent OctoHandy.",
   robots: { index: false, follow: false },
 }
 

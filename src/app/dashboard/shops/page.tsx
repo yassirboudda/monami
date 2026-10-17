@@ -19,7 +19,7 @@ export default function ShopsPage() {
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if (e.source !== window || !e.data || typeof e.data !== "object") return
-      if (e.data.type === "STOCKFLOW_SHOP_CONNECTED") {
+      if (e.data.type === "OCTOHANDY_SHOP_CONNECTED") {
         void mutate()
         toast.success(`${e.data.marketplace} connecté via extension`)
       }
@@ -72,7 +72,7 @@ export default function ShopsPage() {
           <EmptyState
             icon={<Store className="w-6 h-6" />}
             title="Aucune boutique"
-            text="Installe l&apos;extension Stockflow pour connecter Vinted ou Leboncoin et afficher tes boutiques."
+            text="Installe l&apos;extension OctoHandy pour connecter Vinted ou Leboncoin et afficher tes boutiques."
             action={
               <Link href="/dashboard/extension">
                 <Button>

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 const isPublic = createRouteMatcher(["/", "/sign-in(.*)", "/sign-up(.*)", "/backend(.*)"])
 
 const authorizedParties = [
+  "https://octohandy.amirelay.com",
   "https://stockflow.amirelay.com",
   "https://stockflow-nine-ashy.vercel.app",
   "http://localhost:3000",

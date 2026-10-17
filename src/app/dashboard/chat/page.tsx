@@ -151,7 +151,7 @@ export default function ChatPage() {
         title="Chat"
         subtitle={
           hasApi
-            ? "Pose tes questions à l'agent Stockflow et partage des images pour obtenir des conseils marketplace."
+            ? "Pose tes questions à l'agent OctoHandy et partage des images pour obtenir des conseils marketplace."
             : "Le service de chat n'est pas configuré ; les réponses sont simulées."
         }
         actions={

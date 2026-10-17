@@ -1,10 +1,10 @@
-# Stockflow
+# OctoHandy
 
 Next.js frontend and FastAPI backend for managing marketplace shops, listings, inventory, and workflows.
 
 ## Live
 
-- Front: https://stockflow.amirelay.com (primary)
+- Front: https://octohandy.amirelay.com (primary)
 - Fallback: https://stockflow-nine-ashy.vercel.app
 - Repo: https://github.com/yassirboudda/hackathon
 - API (Hetzner): http://178.104.100.35/health
@@ -15,14 +15,14 @@ Next.js frontend and FastAPI backend for managing marketplace shops, listings, i
 - **Clerk** sign-in with organization workspaces
 - **Chat** + image upload → Nebius DeepSeek via backend
 - **Boutique**: shops + listings on one flow (click a shop → its annonces; button « Voir toutes les annonces »)
-- **Extension Chrome** (`extension/` + download `/stockflow-extension.zip`) to capture Vinted / Leboncoin cookies
+- **Extension Chrome** (`extension/` + download `/octohandy-extension.zip`) to capture Vinted / Leboncoin cookies
 - Shared stock across organization workspaces / marketplace workflow templates
 
 ## Security
 
 **Never commit secrets** to this public repo. Put keys only in:
 
-- VPS `/home/deploy/apps/stockflow-api/.env`
+- VPS `/home/deploy/apps/octohandy-api/.env`
 - Hermes service environment file on the host (outside the repository)
 - Vercel project env vars
 - Private deployment handoff file (not in git)
@@ -40,14 +40,14 @@ npm run dev
 
 ## Backend (VPS)
 
-Code: `backend/` in this repo. Deploy path on server: `/home/deploy/apps/stockflow-api`.
+Code: `backend/` in this repo. Deploy path on server: `/home/deploy/apps/octohandy-api`.
 
 ```bash
 rsync -az -e "ssh -i ~/.ssh/hackathon_ed25519" \
   --exclude '.venv' --exclude '.env' --exclude '__pycache__' \
-  ./backend/ deploy@178.104.100.35:/home/deploy/apps/stockflow-api/
+  ./backend/ deploy@178.104.100.35:/home/deploy/apps/octohandy-api/
 ssh -i ~/.ssh/hackathon_ed25519 deploy@178.104.100.35 \
-  'sudo systemctl restart stockflow-api && curl -sS http://127.0.0.1:3000/health'
+  'sudo systemctl restart octohandy-api && curl -sS http://127.0.0.1:3000/health'
 ```
 
 Keep the backend bound to `127.0.0.1:3000`; port `8080` is reserved by the host.

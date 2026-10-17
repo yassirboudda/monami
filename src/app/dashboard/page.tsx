@@ -3,7 +3,7 @@ import { MessageSquareText, Package, Puzzle, Store, Users, Workflow } from "luci
 import { Card, PageHeader } from "@/components/ui"
 
 const cards = [
-  { href: "/dashboard/chat", title: "Chat agent", text: "Échange avec l'agent Stockflow, partage des images et obtiens des conseils pour tes marketplaces.", icon: MessageSquareText },
+  { href: "/dashboard/chat", title: "Chat agent", text: "Échange avec l'agent OctoHandy, partage des images et obtiens des conseils pour tes marketplaces.", icon: MessageSquareText },
   { href: "/dashboard/shops", title: "Boutique", text: "Boutiques + annonces. Clic boutique → ses annonces.", icon: Store },
   { href: "/dashboard/extension", title: "Extension", text: "Chrome companion pour cookies Vinted / Leboncoin.", icon: Puzzle },
   { href: "/dashboard/stock", title: "Stock", text: "Inventaire partagé dans l'organisation active.", icon: Package },

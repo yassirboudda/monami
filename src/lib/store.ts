@@ -44,7 +44,7 @@ const EMPTY_CHAT: ChatMsg[] = []
 const chatCache = new Map<string, ChatMsg[]>()
 
 function chatKey(userId: string, orgId: string | null) {
-  return `stockflow.chat.${userId}.${orgId ?? "personal"}`
+  return `octohandy.chat.${userId}.${orgId ?? "personal"}`
 }
 
 export const store = {

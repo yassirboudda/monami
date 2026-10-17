@@ -68,7 +68,7 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
     <main className="min-h-dvh flex items-center justify-center p-4 bg-muted/30">
       <Card className="max-w-lg w-full p-8 text-center">
         <Users className="w-8 h-8 mx-auto text-secondary mb-4" />
-        <h1 className="text-2xl font-bold">Invitation Stockflow</h1>
+        <h1 className="text-2xl font-bold">Invitation OctoHandy</h1>
         {loading ? (
           <p className="text-sm text-muted-foreground mt-3">Chargement de l&apos;invitation…</p>
         ) : error ? (

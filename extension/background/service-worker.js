@@ -1,4 +1,4 @@
-const DASHBOARD = "https://stockflow.amirelay.com/dashboard"
+const DASHBOARD = "https://octohandy.amirelay.com/dashboard"
 const VERSION = chrome.runtime.getManifest().version
 
 async function cookiesFor(domain) {
