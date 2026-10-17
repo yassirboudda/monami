@@ -118,7 +118,14 @@ export function TeachWorkflowModal({
   }
 
   const discard = async () => {
-    if (session) await request(`/v1/teach/${session.id}`, { method: "DELETE" }).catch(() => undefined)
+    if (session && session.status !== "saved") {
+      try {
+        await request(`/v1/teach/${session.id}`, { method: "DELETE" })
+        toast.info(phase === "recording" ? "Enregistrement annulé, session fermée." : "Brouillon jeté.")
+      } catch {
+        toast.error("Impossible de fermer la session côté serveur")
+      }
+    }
     onClose()
   }
 

@@ -656,7 +656,7 @@ async def create_desktop_session(body: DesktopSessionIn, user: dict[str, Any] = 
     token, exp = _desktop_token(user["workspace"], body.marketplace, settings.desktop_session_ttl)
     params = {
         "autoconnect": "1",
-        "resize": "remote",
+        "resize": "scale",
         "reconnect": "1",
         "reconnect_delay": "1500",
         "show_dot": "1",
@@ -951,7 +951,7 @@ async def teach_start(body: TeachStartIn, user: dict[str, Any] = Depends(workspa
         row = _teach_row(conn, user["workspace"], teach_id)
     token, exp = _desktop_token(user["workspace"], body.marketplace, max(settings.desktop_session_ttl, 1800))
     params = {
-        "autoconnect": "1", "resize": "remote", "reconnect": "1", "reconnect_delay": "1500",
+        "autoconnect": "1", "resize": "scale", "reconnect": "1", "reconnect_delay": "1500",
         "show_dot": "1", "t": token, "path": f"websockify?t={token}",
     }
     if settings.desktop_vnc_password:
@@ -1353,6 +1353,22 @@ async def desktop_status_live(user: dict[str, Any] = Depends(workspace_user)):
         await asyncio.gather(gate(client), screenpipe(client), hermes(client))
     result["model"] = settings.nebius_model
     return result
+
+
+@app.get("/v1/desktop/screen")
+async def desktop_screen(minutes: int = 2, user: dict[str, Any] = Depends(workspace_user)):
+    """Proof that Screenpipe sees the remote desktop: the compressed trace of the last N minutes."""
+    if not _screenpipe_enabled():
+        raise HTTPException(503, "Screenpipe non configuré")
+    minutes = max(1, min(minutes, 30))
+    end = datetime.now(timezone.utc)
+    try:
+        trace = await _screenpipe_events(
+            (end - timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%SZ"), end.strftime("%Y-%m-%dT%H:%M:%SZ")
+        )
+    except (httpx.HTTPError, ValueError) as e:
+        raise HTTPException(502, f"Screenpipe injoignable ({type(e).__name__})")
+    return {"minutes": minutes, "frames": trace["frames"], "windows": trace["windows"], "events": trace["events"][-12:], "checkedAt": _iso_now()}
 
 
 @app.get("/v1/stock")
