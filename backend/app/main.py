@@ -1501,7 +1501,7 @@ async def _execute_run_actions(
                 continue
 
             await asyncio.sleep(pre_action_delay(rng, profile))
-            target = await find_target(target_text)
+            target = await find_target(target_text, screen_size=(desktop.width, desktop.height))
             if target is None:
                 entry.update(
                     result="failed", outcome="cible introuvable à l'écran",

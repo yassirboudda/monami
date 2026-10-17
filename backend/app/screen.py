@@ -57,7 +57,10 @@ def _normalise(value: Any) -> str:
     return " ".join(unaccented.split())
 
 
-def _bounds(element: dict[str, Any]) -> tuple[float, float, float, float] | None:
+def _bounds(
+    element: dict[str, Any],
+    screen_size: tuple[int, int] | None,
+) -> tuple[float, float, float, float] | None:
     raw = element.get("bounds") or element.get("bounds_px")
     if isinstance(raw, dict):
         try:
@@ -68,7 +71,10 @@ def _bounds(element: dict[str, Any]) -> tuple[float, float, float, float] | None
         except (TypeError, ValueError):
             return None
         if max(abs(left), abs(top), abs(width), abs(height)) <= 1.01:
-            return left * 1600, top * 900, width * 1600, height * 900
+            if screen_size is None:
+                return None
+            screen_width, screen_height = screen_size
+            return left * screen_width, top * screen_height, width * screen_width, height * screen_height
         return left, top, width, height
     if isinstance(raw, (list, tuple)) and len(raw) == 4:
         try:
@@ -105,10 +111,14 @@ def _candidate(
     }
 
 
-def _candidates(elements: list[dict[str, Any]], frame_id: str) -> list[dict[str, Any]]:
+def _candidates(
+    elements: list[dict[str, Any]],
+    frame_id: str,
+    screen_size: tuple[int, int] | None,
+) -> list[dict[str, Any]]:
     usable: list[tuple[int, dict[str, Any], tuple[float, float, float, float]]] = []
     for index, element in enumerate(elements):
-        bounds = _bounds(element)
+        bounds = _bounds(element, screen_size)
         if not bounds or bounds[2] <= 0 or bounds[3] <= 0 or not str(element.get("text") or "").strip():
             continue
         usable.append((index, element, bounds))
@@ -171,7 +181,12 @@ def _inside(bounds: tuple[int, int, int, int], within: Any) -> bool:
         return False
 
 
-async def find_target(text: str, role: str | None = None, within: Any = None) -> dict[str, Any] | None:
+async def find_target(
+    text: str,
+    role: str | None = None,
+    within: Any = None,
+    screen_size: tuple[int, int] | None = None,
+) -> dict[str, Any] | None:
     target = _normalise(text)
     if not target:
         return None
@@ -180,7 +195,7 @@ async def find_target(text: str, role: str | None = None, within: Any = None) ->
         return None
     elements = await frame_elements(frame_id)
     matches: list[tuple[int, float, dict[str, Any]]] = []
-    for candidate in _candidates(elements, frame_id):
+    for candidate in _candidates(elements, frame_id, screen_size):
         normalized = _normalise(candidate["text"])
         confidence = candidate["confidence"]
         if confidence < 40 or not _inside(candidate["bounds_px"], within):

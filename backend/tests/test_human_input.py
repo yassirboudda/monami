@@ -1,8 +1,10 @@
 import asyncio
 import random
+import struct
+import zlib
 
 from app.human import HumanProfile, click_point, from_trace, key_delays, move_path, pre_action_delay, typos
-from app.rfb import key_event, keysym_for_character, keysym_for_key, pointer_event, vnc_key
+from app.rfb import RemoteDesktop, key_event, keysym_for_character, keysym_for_key, pointer_event, vnc_key
 from app.screen import find_target
 
 
@@ -87,6 +89,62 @@ def test_rfb_message_encodings_vnc_key_and_keysyms():
     assert keysym_for_character("\n") == (0xFF0D, False)
 
 
+def test_framebuffer_capture_requests_raw_pixels_and_returns_png():
+    class FakeSocket:
+        def __init__(self, message):
+            self.sent = []
+            self.messages = [message]
+
+        async def send(self, message):
+            self.sent.append(message)
+
+        async def recv(self):
+            if self.messages:
+                return self.messages.pop(0)
+            await asyncio.Future()
+
+    async def capture():
+        raw_pixels = bytes.fromhex(
+            "0000ff00"  # red
+            "00ff0000"  # green
+            "ff000000"  # blue
+            "ffffff00"  # white
+        )
+        update = (
+            b"\x00\x00\x00\x01"
+            + struct.pack(">HHHHi", 0, 0, 2, 2, 0)
+            + raw_pixels
+        )
+        desktop = RemoteDesktop("workspace", None)
+        desktop.websocket = FakeSocket(update)
+        desktop.width = 2
+        desktop.height = 2
+        desktop._read_buffer = bytearray()
+        png = await desktop.capture_framebuffer()
+        return png, desktop.websocket.sent
+
+    png, messages = asyncio.run(capture())
+    assert png.startswith(b"\x89PNG\r\n\x1a\n")
+    assert messages == [
+        b"\x00\x00\x00\x00" + struct.pack(">BBBBHHHBBB3x", 32, 24, 0, 1, 255, 255, 255, 16, 8, 0),
+        struct.pack(">BBHi", 2, 0, 1, 0),
+        struct.pack(">BBHHHH", 3, 0, 0, 0, 2, 2),
+    ]
+
+    chunks = []
+    cursor = 8
+    while cursor < len(png):
+        length = int.from_bytes(png[cursor : cursor + 4], "big")
+        kind = png[cursor + 4 : cursor + 8]
+        data = png[cursor + 8 : cursor + 8 + length]
+        chunks.append((kind, data))
+        cursor += length + 12
+    header = next(data for kind, data in chunks if kind == b"IHDR")
+    assert struct.unpack(">II", header[:8]) == (2, 2)
+    image_data = zlib.decompress(b"".join(data for kind, data in chunks if kind == b"IDAT"))
+    assert image_data == b"\x00\xff\x00\x00\x00\xff\x00\x00\x00\x00\xff\xff\xff\xff"
+
+
 def test_find_target_merges_phrases_normalizes_accents_and_filters_confidence(monkeypatch):
     elements = [
         {"role": "word", "text": "Se", "bounds": {"left": 0.1, "top": 0.2, "width": 0.025, "height": 0.02}, "confidence": 90},
@@ -105,11 +163,55 @@ def test_find_target_merges_phrases_normalizes_accents_and_filters_confidence(mo
 
     monkeypatch.setattr("app.screen.latest_frame_id", latest)
     monkeypatch.setattr("app.screen.frame_elements", frame)
-    target = asyncio.run(find_target("se connecter"))
+    target = asyncio.run(find_target("se connecter", screen_size=(1600, 900)))
     assert target is not None
     assert target["text"] == "Se connecter"
     assert target["frame_id"] == "frame-1"
     assert target["bounds_px"] == (160, 180, 144, 18)
-    assert asyncio.run(find_target("mot de passe"))["text"] == "Mot de passe"
-    assert asyncio.run(find_target("connexion")) is None
-    assert asyncio.run(find_target("bouton introuvable")) is None
+    assert asyncio.run(find_target("mot de passe", screen_size=(1600, 900)))["text"] == "Mot de passe"
+    assert asyncio.run(find_target("connexion", screen_size=(1600, 900))) is None
+    assert asyncio.run(find_target("bouton introuvable", screen_size=(1600, 900))) is None
+
+
+def test_find_target_maps_real_screenpipe_bounds_to_framebuffer_pixels(monkeypatch):
+    elements = [
+        {
+            "frame_id": 636,
+            "source": "ocr",
+            "role": "word",
+            "text": "Learn",
+            "bounds": {
+                "left": 0.4675,
+                "top": 0.9477777777777778,
+                "width": 0.026875,
+                "height": 0.013333333333333334,
+            },
+            "confidence": 96.41,
+        },
+        {
+            "frame_id": 636,
+            "source": "ocr",
+            "role": "word",
+            "text": "more",
+            "bounds": {
+                "left": 0.49875,
+                "top": 0.9511111111111112,
+                "width": 0.025,
+                "height": 0.01,
+            },
+            "confidence": 95.7,
+        },
+    ]
+
+    async def latest():
+        return "636"
+
+    async def frame(_frame_id):
+        return elements
+
+    monkeypatch.setattr("app.screen.latest_frame_id", latest)
+    monkeypatch.setattr("app.screen.frame_elements", frame)
+    target = asyncio.run(find_target("Learn more", screen_size=(1600, 900)))
+    assert target is not None
+    assert target["bounds_px"] == (748, 853, 90, 12)
+    assert target["confidence"] == 95.7

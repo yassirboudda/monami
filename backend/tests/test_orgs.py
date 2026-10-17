@@ -217,14 +217,15 @@ def test_auto_click_keeps_approval_filter_and_never_blind_clicks(client, monkeyp
     db.acquire_desktop_lease(current_user["workspace"], current_user["user_id"], "vinted", 3600)
     monkeypatch.setattr(main, "_desktop_enabled", lambda: True)
     monkeypatch.setattr(main, "_desktop_open", lambda _url: asyncio.sleep(0, result=True))
-    monkeypatch.setattr(main, "find_target", lambda _text: asyncio.sleep(0, result=None))
+    monkeypatch.setattr(main, "find_target", lambda _text, **_kwargs: asyncio.sleep(0, result=None))
     monkeypatch.setattr(main, "pre_action_delay", lambda _rng, _profile: 0)
 
     class FakeDesktop:
         clicks = 0
 
         def __init__(self, *_args):
-            pass
+            self.width = 1600
+            self.height = 900
 
         async def connect(self):
             pass
