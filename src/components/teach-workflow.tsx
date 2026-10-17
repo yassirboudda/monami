@@ -3,7 +3,8 @@
 import { Check, CircleDot, GraduationCap, Loader2, Sparkles, Square, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { CONNECTABLE_MARKETPLACES, marketplaceName } from "@/components/connect-marketplace"
+import { marketplaceName, useMarketplaceOptions } from "@/components/connect-marketplace"
+import { workflowConfidenceLabel, workflowSourceLabel, workflowToolLabel } from "@/components/run-workflow"
 import { Badge, Button, Field, Input, MarketplaceLogo, Modal, Textarea } from "@/components/ui"
 
 type Requester = <R>(path: string, options?: { method?: string; body?: unknown }) => Promise<R>
@@ -12,6 +13,13 @@ export type TeachDraft = {
   title: string
   trigger?: string
   steps: string[]
+  intent?: {
+    goal?: string
+    actor?: "seller" | "buyer"
+    entities?: Record<string, string>
+    success_criteria?: string
+    constraints?: string[]
+  }
   tools?: { tool: string; args?: Record<string, unknown> }[]
   guardrails?: string[]
   tone_notes?: string
@@ -53,10 +61,12 @@ export function TeachWorkflowModal({
   const [marketplace, setMarketplace] = useState<string | null>(null)
   const [session, setSession] = useState<TeachSession | null>(null)
   const [desktopUrl, setDesktopUrl] = useState<string | null>(null)
+  const [desktopOpened, setDesktopOpened] = useState(false)
   const [busy, setBusy] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [title, setTitle] = useState("")
   const [stepsText, setStepsText] = useState("")
+  const marketplaces = useMarketplaceOptions(request, open)
 
   useEffect(() => {
     if (phase !== "recording" || !session) return
@@ -69,12 +79,13 @@ export function TeachWorkflowModal({
     setMarketplace(mp)
     setBusy(true)
     try {
-      const res = await request<{ session: TeachSession; desktop: { url: string } }>("/v1/teach/start", {
+      const res = await request<{ session: TeachSession; desktop: { url: string; opened: boolean } }>("/v1/teach/start", {
         method: "POST",
         body: { marketplace: mp },
       })
       setSession(res.session)
       setDesktopUrl(res.desktop.url)
+      setDesktopOpened(res.desktop.opened)
       setPhase("recording")
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "Impossible de démarrer l'apprentissage")
@@ -107,6 +118,7 @@ export function TeachWorkflowModal({
         method: "POST",
         body: { title, steps: stepsText.split("\n").map((s) => s.trim()).filter(Boolean) },
       })
+      await request("/v1/desktop/release", { method: "POST" }).catch(() => undefined)
       toast.success("Workflow enregistré. Active-le quand tu veux.")
       onSaved?.()
       onClose()
@@ -126,10 +138,11 @@ export function TeachWorkflowModal({
         toast.error("Impossible de fermer la session côté serveur")
       }
     }
+    await request("/v1/desktop/release", { method: "POST" }).catch(() => undefined)
     onClose()
   }
 
-  const name = marketplace ? marketplaceName(marketplace) : null
+  const name = marketplace ? marketplaceName(marketplace, marketplaces) : null
   const draft = session?.draft
 
   return (
@@ -142,7 +155,7 @@ export function TeachWorkflowModal({
             démonstration Screenpipe en workflow que tu valides.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {CONNECTABLE_MARKETPLACES.map((m) => (
+            {marketplaces.map((m) => (
               <button
                 key={m.id}
                 type="button"
@@ -160,6 +173,11 @@ export function TeachWorkflowModal({
 
       {phase === "recording" && desktopUrl && (
         <div className="space-y-3">
+          {!desktopOpened && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              La page n&apos;a pas pu s&apos;ouvrir automatiquement. Ouvre-la manuellement dans le navigateur du bureau.
+            </p>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="inline-flex items-center gap-2 text-sm font-medium text-red-600">
               <CircleDot className="w-4 h-4 animate-pulse" /> Enregistrement · {formatElapsed(elapsed)}
@@ -192,20 +210,22 @@ export function TeachWorkflowModal({
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <Sparkles className="w-4 h-4 text-secondary" />
             {session.trace?.frames ?? 0} écrans analysés
-            {draft?.confidence && <Badge tone={draft.confidence === "high" ? "teal" : draft.confidence === "medium" ? "amber" : "slate"}>confiance {draft.confidence}</Badge>}
-            {draft?.via && <Badge tone="slate">via {draft.via}</Badge>}
+            {draft?.confidence && <Badge tone={draft.confidence === "high" ? "teal" : draft.confidence === "medium" ? "amber" : "slate"}>confiance {workflowConfidenceLabel(draft.confidence)}</Badge>}
+            {draft?.via && <Badge tone="slate">source : {workflowSourceLabel(draft.via)}</Badge>}
           </div>
           <Field label="Titre">
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </Field>
           {draft?.trigger && <p className="text-sm"><span className="font-medium">Déclencheur :</span> {draft.trigger}</p>}
+          {draft?.intent?.goal && <p className="text-sm"><span className="font-medium">Objectif :</span> {draft.intent.goal}</p>}
+          {draft?.intent?.success_criteria && <p className="text-sm"><span className="font-medium">Résultat attendu :</span> {draft.intent.success_criteria}</p>}
           <Field label="Étapes (une par ligne)">
             <Textarea rows={6} value={stepsText} onChange={(e) => setStepsText(e.target.value)} />
           </Field>
           {!!draft?.tools?.length && (
             <div className="flex flex-wrap gap-1.5">
               {draft.tools.map((t, i) => (
-                <Badge key={`${t.tool}-${i}`} tone="blue">{t.tool}</Badge>
+                <Badge key={`${t.tool}-${i}`} tone="blue">{workflowToolLabel(t.tool)}</Badge>
               ))}
             </div>
           )}

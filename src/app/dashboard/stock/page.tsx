@@ -18,7 +18,7 @@ export default function StockPage() {
   const totals = useMemo(
     () => ({
       qtySum: items.reduce((sum, item) => sum + item.qty, 0),
-      owners: new Set(items.map((item) => item.ownerLabel)).size,
+      owners: new Set(items.map((item) => item.createdBy ?? item.ownerLabel)).size,
     }),
     [items]
   )
@@ -103,7 +103,9 @@ export default function StockPage() {
               <div className="min-w-0 flex-1">
                 <p className="font-medium truncate">{item.title}</p>
                 <p className="text-caption truncate">
-                  {item.ownerLabel}
+                  {item.createdBy === user?.id
+                    ? "toi"
+                    : item.creatorName || (item.ownerLabel === "toi" ? "un membre" : item.ownerLabel)}
                   {item.marketplace ? ` · ${item.marketplace}` : ""}
                   {item.price != null ? ` · ${item.price} €` : ""}
                 </p>
