@@ -8,7 +8,6 @@ import type { Shop } from "@/lib/store"
 
 export const CONNECTABLE_MARKETPLACES = [
   { id: "vinted", name: "Vinted" },
-  { id: "leboncoin", name: "Leboncoin" },
   { id: "ebay", name: "eBay" },
   { id: "etsy", name: "Etsy" },
   { id: "depop", name: "Depop" },

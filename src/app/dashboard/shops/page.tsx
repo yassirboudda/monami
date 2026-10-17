@@ -77,7 +77,7 @@ export default function ShopsPage() {
           <EmptyState
             icon={<Store className="w-6 h-6" />}
             title="Aucune boutique"
-            text="Clique « Connecter une marketplace » : tu te connectes à Vinted, Leboncoin, eBay… dans le Chrome du bureau OctoHandy, et l&apos;agent travaille dans cette session."
+            text="Clique « Connecter une marketplace » : tu te connectes à Vinted, eBay, Vestiaire… dans le Chrome du bureau OctoHandy, et l&apos;agent travaille dans cette session."
             action={
               <Link href="/dashboard/extension">
                 <Button>
