@@ -7,6 +7,7 @@ import base64
 import hashlib
 import hmac
 import json
+import re
 import secrets
 import time
 import uuid
@@ -17,6 +18,7 @@ from typing import Any, Literal
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from jose import jwk, jwt
 from jose.exceptions import JWTError
@@ -1471,6 +1473,85 @@ async def workflows(user: dict[str, Any] = Depends(workspace_user)):
             (user["workspace"],),
         ).fetchall()
     return {"workflows": [_workflow_dict(row) for row in rows]}
+
+
+class WorkflowCreateIn(BaseModel):
+    title: str
+    marketplace: str
+    steps: list[str]
+    tone: str | None = None
+    source: str = "hermes-chat"
+    enabled: bool = False
+
+
+@app.post("/v1/workflows")
+async def create_workflow(body: WorkflowCreateIn, user: dict[str, Any] = Depends(workspace_user)):
+    steps = [step.strip() for step in body.steps if step and step.strip()][:12]
+    if not steps:
+        raise HTTPException(422, "Le workflow doit contenir au moins une étape")
+    marketplace = body.marketplace.strip().lower()[:40] or "multi"
+    workflow_id = f"w-{uuid.uuid4().hex[:8]}"
+    with db.connection() as conn:
+        conn.execute(
+            """INSERT INTO workflows (id, workspace, created_by, marketplace, title, steps_json, tone, source, enabled)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (workflow_id, user["workspace"], user["user_id"], marketplace, body.title.strip()[:80] or "Workflow",
+             json.dumps(steps, ensure_ascii=False), (body.tone or _WORKFLOW_TONES.get(marketplace, "blue"))[:40],
+             body.source[:40], int(body.enabled)),
+        )
+        row = conn.execute("SELECT * FROM workflows WHERE workspace=? AND id=?", (user["workspace"], workflow_id)).fetchone()
+    return {"workflow": _workflow_dict(row)}
+
+
+class RunLogIn(BaseModel):
+    workflowId: str
+    status: Literal["done", "partial", "failed"]
+    summary: str = ""
+    recordingId: str | None = None
+    stepsDone: list[str] = Field(default_factory=list)
+
+
+@app.post("/v1/workflows/runs/log")
+async def log_run(body: RunLogIn, user: dict[str, Any] = Depends(workspace_user)):
+    """Journal d'une exécution faite par l'agent Hermes sur le bureau (vidéo incluse)."""
+    recording = body.recordingId if body.recordingId and RECORDING_ID.fullmatch(body.recordingId) else None
+    log = [{"t": _iso_now(), "step": step[:300], "ok": True} for step in body.stepsDone[:20]]
+    log.append({"t": _iso_now(), "step": body.summary[:2000], "ok": body.status != "failed", "kind": "summary"})
+    if recording:
+        log.append({"t": _iso_now(), "step": "Vidéo de l'exécution", "ok": True, "kind": "recording",
+                    "recordingId": recording, "url": f"/v1/desktop/recordings/{recording}.mp4"})
+    run_id = f"r-{uuid.uuid4().hex[:8]}"
+    with db.connection() as conn:
+        conn.execute(
+            """INSERT INTO workflow_runs (id, workspace, created_by, workflow_id, status, mode, log_json, updated_at)
+               VALUES (?, ?, ?, ?, ?, 'hermes-chat', ?, ?)""",
+            (run_id, user["workspace"], user["user_id"], body.workflowId, body.status,
+             json.dumps(log, ensure_ascii=False), _iso_now()),
+        )
+        run = _run_row(conn, user["workspace"], run_id)
+    return {"run": _run_dict(run)}
+
+
+RECORDING_ID = re.compile(r"[0-9a-f]{16}")
+
+
+@app.get("/v1/desktop/recordings/{recording_id}.mp4")
+async def desktop_recording(recording_id: str):
+    """Vidéo d'une exécution sur le bureau A4000. L'id est un secret aléatoire de 64 bits (lien type pièce jointe)."""
+    if not RECORDING_ID.fullmatch(recording_id) or not _desktop_enabled():
+        raise HTTPException(404, "Vidéo introuvable")
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.get(
+                f"{settings.desktop_base_url.rstrip('/')}/desktop/recordings/{recording_id}.mp4",
+                headers={"X-Gate-Secret": settings.desktop_signing_secret},
+            )
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"Bureau indisponible ({type(e).__name__})") from e
+    if response.status_code != 200:
+        raise HTTPException(404, "Vidéo introuvable")
+    return Response(content=response.content, media_type="video/mp4",
+                    headers={"Cache-Control": "private, max-age=86400", "Accept-Ranges": "none"})
 
 
 class WorkflowPatch(BaseModel):

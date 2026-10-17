@@ -52,6 +52,22 @@ function FanAttachments({
   )
 }
 
+const VIDEO_URL = /https?:\/\/\S+\.mp4\b/g
+
+function renderContent(content: string) {
+  const videos = Array.from(new Set(content.match(VIDEO_URL) ?? []))
+  if (!videos.length) return content
+  const text = content.replace(VIDEO_URL, "").replace(/[ \t]+\n/g, "\n").trim()
+  return (
+    <>
+      {text}
+      {videos.map((src) => (
+        <video key={src} src={src} controls preload="metadata" className="mt-2 w-full max-w-[520px] rounded-lg border border-border bg-black" />
+      ))}
+    </>
+  )
+}
+
 export default function ChatPage() {
   const { user } = useUser()
   const { getToken, userId, orgId } = useAuth()
@@ -149,11 +165,6 @@ export default function ChatPage() {
       <PageHeader
         label="Agent"
         title="Chat"
-        subtitle={
-          hasApi
-            ? "Pose tes questions à l'agent OctoHandy et partage des images pour obtenir des conseils marketplace."
-            : "Le service de chat n'est pas configuré ; les réponses sont simulées."
-        }
         actions={
           <Button
             variant="ghost"
@@ -190,7 +201,7 @@ export default function ChatPage() {
                     ))}
                   </div>
                 ) : null}
-                {m.content}
+                {renderContent(m.content)}
               </div>
             </div>
           ))}

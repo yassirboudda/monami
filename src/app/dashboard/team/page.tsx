@@ -122,7 +122,6 @@ export default function TeamPage() {
       <PageHeader
         label="Espace partagé"
         title={organization?.name || "Équipe"}
-        subtitle="Les membres de cette organisation partagent les boutiques, annonces, stock et workflows."
         actions={
           <Button loading={creating} onClick={() => void createInvite()}>
             <Link2 className="w-4 h-4" /> Créer un lien d&apos;invitation

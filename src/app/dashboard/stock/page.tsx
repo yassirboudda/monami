@@ -69,7 +69,6 @@ export default function StockPage() {
       <PageHeader
         label="Inventaire"
         title="Stock"
-        subtitle="Le stock est partagé avec les membres de l'organisation active. Ton espace personnel reste séparé."
       />
 
       <div className="flex items-center justify-between gap-3 mb-3">

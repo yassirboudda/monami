@@ -40,7 +40,6 @@ export default function WorkflowsPage() {
       <PageHeader
         label="Automatisations"
         title="Templates de workflow"
-        subtitle="Active les automatisations de cet espace, ou apprends-en une nouvelle à l'agent en la faisant une fois sur le bureau OctoHandy."
         actions={
           <Button onClick={() => setTeachOpen(true)}>
             <GraduationCap className="w-4 h-4" /> Apprendre en le faisant

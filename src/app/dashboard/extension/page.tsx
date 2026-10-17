@@ -99,7 +99,6 @@ export default function ExtensionPage() {
       <PageHeader
         label="Connecteurs"
         title="Extension Chrome"
-        subtitle="C'est elle qui récupère les cookies Vinted / Leboncoin pour brancher tes vraies boutiques."
         actions={
           <a href="/octohandy-extension.zip" download>
             <Button size="sm">

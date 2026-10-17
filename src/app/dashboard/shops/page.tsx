@@ -49,7 +49,6 @@ export default function ShopsPage() {
       <PageHeader
         label="Marketplace"
         title="Boutique"
-        subtitle="Boutiques + annonces au même endroit. Clique une boutique pour voir ses annonces."
         actions={
           <div className="flex flex-wrap gap-2">
             <Link href="/dashboard/shops/all">
