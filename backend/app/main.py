@@ -800,6 +800,68 @@ def _screenpipe_enabled() -> bool:
     return bool(settings.screenpipe_api_url and settings.screenpipe_api_key)
 
 
+_SITE_RE = re.compile(r"\b((?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:fr|com|net|org|io|co|eu|de|es|it|be|uk|app))\b", re.I)
+_SITE_LABELS = {"vinted": "Vinted", "leboncoin": "Leboncoin", "ebay": "eBay", "etsy": "Etsy", "depop": "Depop", "vestiairecollective": "Vestiaire Collective",
+                "wallapop": "Wallapop", "facebook": "Facebook", "google": "Google", "octohandy": "OctoHandy"}
+
+
+def _guess_site(text: str) -> str:
+    for m in _SITE_RE.finditer(text or ""):
+        host = m.group(1).lower().removeprefix("www.")
+        if host.endswith((".sslip.io", "localhost")):
+            continue
+        key = host.split(".")[0]
+        if key in ("auth", "fr", "en", "m") and host.count(".") >= 2:
+            key = host.split(".")[1]
+        return _SITE_LABELS.get(key, host)
+    return ""
+
+
+_OCR_NOISE = {"sam", "dim", "lun", "mar", "mer", "jeu", "ven", "janv", "févr", "mars", "avr", "mai", "juin", "juil", "août", "sept", "oct", "nov", "déc",
+              "octohandy", "_octohandy", "os", "new", "tab", "google-chrome", "chrome", "applications", "vy"}
+
+
+def _clean_ocr(text: str, limit: int = 420) -> str:
+    """OCR brut → phrases lisibles : on jette les miettes (icônes, barre de titre, tokens pleins de symboles)."""
+    out: list[str] = []
+    for raw in re.split(r"[|\n]+", text or ""):
+        words = [w for w in raw.split() if re.search(r"[A-Za-zÀ-ÿ]{2,}", w) and len(re.sub(r"[A-Za-zÀ-ÿ0-9€%'’,.-]", "", w)) <= 1
+                 and w.strip(",.").lower() not in _OCR_NOISE and not (w.isupper() and len(w) <= 3)]
+        if len(words) < 3:
+            continue
+        phrase = " ".join(words)
+        if re.search(r"(New Tab|Google Chrome|octohandy -|sam\. \d|dim\. \d|lun\. \d|mar\. \d|mer\. \d|jeu\. \d|ven\. \d)", phrase):
+            continue
+        out.append(phrase)
+    joined = " · ".join(out)
+    return joined[:limit].rstrip(" ·")
+
+
+async def _desktop_active_tab() -> dict[str, str] | None:
+    """Onglet actif du Chrome du bureau (titre + URL) via le gate, pour nommer ce qui est à l'écran."""
+    if not _desktop_enabled():
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=6) as client:
+            response = await client.post(
+                f"{settings.desktop_base_url.rstrip('/')}/desktop/browser",
+                headers={"X-Gate-Secret": settings.desktop_signing_secret}, json={"action": "tabs"},
+            )
+        tabs = response.json().get("tabs") or []
+        return tabs[0] if tabs else None
+    except (httpx.HTTPError, ValueError):
+        return None
+
+
+def _screen_label(site: str, tab: dict[str, str] | None) -> str:
+    if tab and tab.get("url", "").startswith("http"):
+        host = re.sub(r"^https?://(www\.)?", "", tab["url"]).split("/")[0]
+        name = _SITE_LABELS.get(host.split(".")[0], host)
+        title = (tab.get("title") or "").strip()
+        return f"Chrome · {name}" + (f" — {title[:70]}" if title and title.lower() != name.lower() else "")
+    return f"Chrome · {site}" if site else "Bureau OctoHandy"
+
+
 async def _screenpipe_events(start_iso: str, end_iso: str) -> dict[str, Any]:
     """Fetch the Screenpipe window and compress it into a compact, de-duplicated trace."""
     items: list[dict[str, Any]] = []
@@ -838,7 +900,8 @@ async def _screenpipe_events(start_iso: str, end_iso: str) -> dict[str, Any]:
                 continue
             seen_lines.add(line)
             lines.append(line)
-        snippet = " | ".join(lines)[:600]
+        snippet = _clean_ocr(" | ".join(lines), 600)
+        window = window or _guess_site(text) or (events[-1]["window"] if events else "")
         if not snippet and (not events or events[-1]["window"] == window):
             continue
         if events and events[-1]["window"] == window and events[-1]["kind"] == kind and len(events[-1]["text"]) < 900:
@@ -1698,10 +1761,14 @@ async def desktop_status_live(user: dict[str, Any] = Depends(workspace_user)):
                 data = latest.json().get("data") or []
                 if data:
                     content = data[0].get("content") or {}
+                    raw = " ".join(str(content.get("text") or "").split())
+                    tab = await _desktop_active_tab()
                     result["screen"] = {
-                        "window": content.get("window_name") or content.get("app_name") or "",
+                        "window": _screen_label(_guess_site(raw), tab),
+                        "url": (tab or {}).get("url"),
                         "at": content.get("timestamp"),
-                        "excerpt": " ".join(str(content.get("text") or "").split())[:240],
+                        "excerpt": _clean_ocr(raw, 240),
+                        "raw": raw[:600],
                     }
         except (httpx.HTTPError, ValueError):
             result["screenpipe"] = result["screenpipe"] or {"status": "unreachable", "ok": False}
@@ -1738,6 +1805,36 @@ async def desktop_screen(minutes: int = 2, user: dict[str, Any] = Depends(worksp
     except (httpx.HTTPError, ValueError) as e:
         raise HTTPException(502, f"Screenpipe injoignable ({type(e).__name__})")
     return {"minutes": minutes, "frames": trace["frames"], "windows": trace["windows"], "events": trace["events"][-12:], "checkedAt": _iso_now()}
+
+
+class ClipboardIn(BaseModel):
+    text: str
+
+
+@app.get("/v1/desktop/clipboard")
+async def desktop_clipboard_get(user: dict[str, Any] = Depends(workspace_user)):
+    """Presse-papiers du bureau distant → PC (noVNC ne le synchronise pas)."""
+    if not _desktop_enabled():
+        raise HTTPException(503, "Bureau non configuré")
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            response = await client.get(
+                f"{settings.desktop_base_url.rstrip('/')}/desktop/clipboard",
+                headers={"X-Gate-Secret": settings.desktop_signing_secret},
+            )
+        return {"text": response.json().get("text", "")}
+    except (httpx.HTTPError, ValueError) as e:
+        raise HTTPException(502, f"Bureau indisponible ({type(e).__name__})")
+
+
+@app.post("/v1/desktop/clipboard")
+async def desktop_clipboard_set(body: ClipboardIn, user: dict[str, Any] = Depends(workspace_user)):
+    """PC → presse-papiers du bureau distant (Ctrl+V dans le Chrome du bureau)."""
+    if not _desktop_enabled():
+        raise HTTPException(503, "Bureau non configuré")
+    if not await _desktop_clipboard(body.text[:20000]):
+        raise HTTPException(502, "Bureau indisponible")
+    return {"ok": True}
 
 
 @app.get("/v1/stock")

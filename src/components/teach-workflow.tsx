@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { marketplaceName, useMarketplaceOptions } from "@/components/connect-marketplace"
 import { workflowConfidenceLabel, workflowSourceLabel, workflowToolLabel } from "@/components/run-workflow"
 import { Badge, Button, Field, Input, MarketplaceLogo, Modal, Textarea } from "@/components/ui"
+import { DesktopClipboard } from "@/components/desktop-clipboard"
 
 type Requester = <R>(path: string, options?: { method?: string; body?: unknown }) => Promise<R>
 
@@ -187,6 +188,7 @@ export function TeachWorkflowModal({
           <div className="rounded-xl overflow-hidden border bg-black aspect-video">
             <iframe src={desktopUrl} title="Bureau distant OctoHandy" className="w-full h-full" allow="clipboard-read; clipboard-write" />
           </div>
+          <DesktopClipboard compact />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={() => void discard()}>
               <Trash2 className="w-4 h-4" /> Annuler

@@ -4,6 +4,7 @@ import { AlertTriangle, Check, ExternalLink, Loader2, MonitorSmartphone, Play, X
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Badge, Button, Field, Modal } from "@/components/ui"
+import { DesktopClipboard } from "@/components/desktop-clipboard"
 
 type Requester = <R>(path: string, options?: { method?: string; body?: unknown }) => Promise<R>
 
@@ -283,9 +284,12 @@ export function RunWorkflowModal({
             ))}
           </ol>
           {desktopUrl && (
-            <div className="rounded-xl overflow-hidden border bg-black aspect-video">
-              <iframe src={desktopUrl} title="Bureau distant OctoHandy" className="w-full h-full" allow="clipboard-read; clipboard-write" />
-            </div>
+            <>
+              <div className="rounded-xl overflow-hidden border bg-black aspect-video">
+                <iframe src={desktopUrl} title="Bureau distant OctoHandy" className="w-full h-full" allow="clipboard-read; clipboard-write" />
+              </div>
+              <DesktopClipboard compact />
+            </>
           )}
           <div className="flex justify-end gap-2">
             {desktopUrl && (
