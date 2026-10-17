@@ -3,7 +3,7 @@
 import { useAuth, useUser } from "@clerk/nextjs"
 import { AnimatePresence, motion } from "framer-motion"
 import { ArrowUp, ImagePlus, Loader2, Trash2, X } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { toast } from "sonner"
 import { Button, Card, cn, PageHeader } from "@/components/ui"
 import { apiConfigured, apiFetch } from "@/lib/api"
@@ -54,8 +54,13 @@ function FanAttachments({
 
 export default function ChatPage() {
   const { user } = useUser()
-  const { getToken } = useAuth()
-  const [msgs, setMsgs] = useState<ChatMsg[]>([])
+  const { getToken, userId, orgId } = useAuth()
+  const activeOrgId = orgId ?? null
+  const msgs = useSyncExternalStore(
+    (onChange) => store.subscribeChat(userId ?? "", activeOrgId, onChange),
+    () => store.getChat(userId ?? "", activeOrgId),
+    () => store.getChat("", activeOrgId)
+  )
   const [draft, setDraft] = useState("")
   const [busy, setBusy] = useState(false)
   const [attachments, setAttachments] = useState<{ id: string; preview: string; name: string; file: File }[]>([])
@@ -64,16 +69,11 @@ export default function ChatPage() {
   const hasApi = apiConfigured()
 
   useEffect(() => {
-    setMsgs(store.getChat())
-  }, [])
-
-  useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [msgs, busy])
 
   const persist = (next: ChatMsg[]) => {
-    setMsgs(next)
-    store.setChat(next)
+    store.setChat(next, userId ?? "", activeOrgId)
   }
 
   const onFiles = async (files: FileList | null) => {

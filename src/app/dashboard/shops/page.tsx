@@ -3,40 +3,40 @@
 import { ExternalLink, Puzzle, RefreshCw, Store, Tags } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { toast } from "sonner"
 import { Badge, Button, Card, EmptyState, MarketplaceLogo, PageHeader, StatusDot } from "@/components/ui"
-import { store, type Shop } from "@/lib/store"
+import type { Shop } from "@/lib/store"
+import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
 const mpUrl = { leboncoin: "https://www.leboncoin.fr", vinted: "https://www.vinted.fr" }
 
 export default function ShopsPage() {
   const router = useRouter()
-  const [shops, setShops] = useState<Shop[]>([])
+  const { data, error, isLoading, request, mutate } = useWorkspaceResource<{ shops: Shop[] }>("/v1/shops")
+  const shops = data?.shops ?? []
 
   useEffect(() => {
-    // Force seed listings + sync counts (fixes old localStorage with listingCount but no clickable view)
-    store.getListings()
-    setShops(store.getShops())
-
     const onMsg = (e: MessageEvent) => {
       if (e.source !== window || !e.data || typeof e.data !== "object") return
       if (e.data.type === "STOCKFLOW_SHOP_CONNECTED") {
-        store.getListings()
-        setShops(store.getShops())
+        void mutate()
         toast.success(`${e.data.marketplace} connecté via extension`)
       }
     }
     window.addEventListener("message", onMsg)
     return () => window.removeEventListener("message", onMsg)
-  }, [])
+  }, [mutate])
 
-  const refresh = (id: string, e: React.MouseEvent) => {
+  const refresh = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    const next = shops.map((s) => (s.id === id ? { ...s, status: "connected" as const } : s))
-    setShops(next)
-    store.setShops(next)
-    toast.success("Session marquée OK (mock / extension)")
+    try {
+      await request(`/v1/shops/${id}`, { method: "PATCH", body: { status: "connected" } })
+      await mutate()
+      toast.success("Session marquée valide")
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Impossible de vérifier la session")
+    }
   }
 
   const openShop = (id: string) => router.push(`/dashboard/shops/${id}`)
@@ -63,16 +63,20 @@ export default function ShopsPage() {
         }
       />
 
-      {!shops.length ? (
+      {error ? (
+        <Card className="p-4 text-sm text-red-700">Impossible de charger les boutiques : {error.message}</Card>
+      ) : isLoading ? (
+        <Card className="p-4 text-sm text-muted-foreground">Chargement des boutiques…</Card>
+      ) : !shops.length ? (
         <Card>
           <EmptyState
             icon={<Store className="w-6 h-6" />}
             title="Aucune boutique"
-            text="Installe l'extension Stockflow pour connecter Vinted / Leboncoin, ou recharge pour les mocks."
+            text="Installe l&apos;extension Stockflow pour connecter Vinted / Leboncoin, ou recharge pour les mocks."
             action={
               <Link href="/dashboard/extension">
                 <Button>
-                  <Puzzle className="w-4 h-4" /> Installer l'extension
+                  <Puzzle className="w-4 h-4" /> Installer l&apos;extension
                 </Button>
               </Link>
             }
@@ -130,7 +134,7 @@ export default function ShopsPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
-                  <Button variant="secondary" size="sm" onClick={(e) => refresh(s.id, e)}>
+                  <Button variant="secondary" size="sm" onClick={(e) => void refresh(s.id, e)}>
                     <RefreshCw className="w-3.5 h-3.5" /> Vérifier
                   </Button>
                   <a href={mpUrl[s.marketplace]} target="_blank" rel="noreferrer">

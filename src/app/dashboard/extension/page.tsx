@@ -1,6 +1,6 @@
 "use client"
 
-import { useAuth } from "@clerk/nextjs"
+import { useAuth, useOrganization } from "@clerk/nextjs"
 import { Check, Copy, Download, Puzzle, RefreshCw } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -31,7 +31,8 @@ function useExtensionPresence() {
 }
 
 export default function ExtensionPage() {
-  const { getToken } = useAuth()
+  const { getToken, orgId } = useAuth()
+  const { organization } = useOrganization()
   const { version, paired, setPaired } = useExtensionPresence()
   const [pairing, setPairing] = useState(false)
   const [manualToken, setManualToken] = useState<string | null>(null)
@@ -102,7 +103,7 @@ export default function ExtensionPage() {
         actions={
           <a href="/stockflow-extension.zip" download>
             <Button size="sm">
-              <Download className="w-3.5 h-3.5" /> Télécharger l'extension
+              <Download className="w-3.5 h-3.5" /> Télécharger l&apos;extension
             </Button>
           </a>
         }
@@ -122,6 +123,9 @@ export default function ExtensionPage() {
             <StatusDot tone={paired ? "green" : "amber"} />
             {paired ? "Associée à ton compte" : "Pas encore associée"}
           </p>
+          <p className="text-sm text-muted-foreground">
+            L&apos;extension sera associée à : {orgId ? `Organisation ${organization?.name || orgId}` : "Espace personnel"}.
+          </p>
           <div className="flex flex-wrap gap-2 pt-1">
             <Button size="sm" loading={pairing} onClick={() => void pair()}>
               <RefreshCw className="w-3.5 h-3.5" /> {paired ? "Réassocier" : "Associer"}
@@ -134,7 +138,7 @@ export default function ExtensionPage() {
           </div>
           {manualToken ? (
             <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
-              <p className="text-xs text-muted-foreground">Code manuel (colle-le dans le popup de l'extension)</p>
+              <p className="text-xs text-muted-foreground">Code manuel (colle-le dans le popup de l&apos;extension)</p>
               <code className="block text-xs break-all font-mono">{manualToken}</code>
               <Button variant="ghost" size="sm" onClick={() => void copy()}>
                 {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} Copier

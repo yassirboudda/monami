@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,12 +8,14 @@ class Settings(BaseSettings):
 
     host: str = "127.0.0.1"
     port: int = 3000
+    database_path: str = str(Path(__file__).resolve().parents[1] / "var" / "stockflow.db")
     cors_origins: str = (
         "https://stockflow.amirelay.com,"
         "https://stockflow-nine-ashy.vercel.app,"
         "http://localhost:3000"
     )
     clerk_secret_key: str = ""
+    clerk_api_url: str = "https://api.clerk.com/v1"
     clerk_publishable_key: str = ""
     clerk_jwks_url: str = "https://clerk.amirelay.com/.well-known/jwks.json"
     nebius_api_key: str = ""

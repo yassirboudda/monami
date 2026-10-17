@@ -1,12 +1,13 @@
 import Link from "next/link"
-import { MessageSquareText, Package, Puzzle, Store, Workflow } from "lucide-react"
+import { MessageSquareText, Package, Puzzle, Store, Users, Workflow } from "lucide-react"
 import { Card, PageHeader } from "@/components/ui"
 
 const cards = [
   { href: "/dashboard/chat", title: "Chat agent", text: "messages, images, réponses mock / Nebius.", icon: MessageSquareText },
   { href: "/dashboard/shops", title: "Boutique", text: "Boutiques + annonces. Clic boutique → ses annonces.", icon: Store },
   { href: "/dashboard/extension", title: "Extension", text: "Chrome companion pour cookies Vinted / Leboncoin.", icon: Puzzle },
-  { href: "/dashboard/stock", title: "Stock + équipe", text: "Code d'invitation pour fusionner les stocks entre membres.", icon: Package },
+  { href: "/dashboard/stock", title: "Stock", text: "Inventaire partagé dans l'organisation active.", icon: Package },
+  { href: "/dashboard/team", title: "Équipe", text: "Membres de l'organisation et liens d'invitation.", icon: Users },
   { href: "/dashboard/workflows", title: "Workflows", text: "Templates par marketplace (ex. favoris Vinted → offre).", icon: Workflow },
 ]
 

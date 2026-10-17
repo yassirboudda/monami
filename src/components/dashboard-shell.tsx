@@ -1,6 +1,6 @@
 "use client"
 
-import { useClerk, useUser } from "@clerk/nextjs"
+import { OrganizationSwitcher, useClerk, useUser } from "@clerk/nextjs"
 import {
   LayoutDashboard,
   LogOut,
@@ -9,12 +9,13 @@ import {
   Package,
   Puzzle,
   Store,
+  Users,
   Workflow,
   X,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { cn } from "./ui"
 
 const nav = [
@@ -24,6 +25,7 @@ const nav = [
   { href: "/dashboard/stock", label: "Stock", icon: Package },
   { href: "/dashboard/extension", label: "Extension", icon: Puzzle },
   { href: "/dashboard/workflows", label: "Workflows", icon: Workflow },
+  { href: "/dashboard/team", label: "Équipe", icon: Users },
 ]
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -32,8 +34,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { signOut } = useClerk()
   const [drawer, setDrawer] = useState(false)
   const active = (href: string) => (href === "/dashboard" ? pathname === href : pathname.startsWith(href))
-
-  useEffect(() => setDrawer(false), [pathname])
 
   const linkClass = (href: string) =>
     cn(
@@ -60,6 +60,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            <OrganizationSwitcher
+              hidePersonal={false}
+              afterCreateOrganizationUrl="/dashboard"
+              afterSelectOrganizationUrl="/dashboard"
+              afterSelectPersonalUrl="/dashboard"
+            />
             <span className="hidden sm:inline text-xs text-muted-foreground truncate max-w-[160px]">
               {user?.primaryEmailAddress?.emailAddress}
             </span>
@@ -86,7 +92,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex flex-col gap-1">
               {nav.map((n) => (
-                <Link key={n.href} href={n.href} className={cn(linkClass(n.href), "w-full justify-start")}>
+                <Link key={n.href} href={n.href} className={cn(linkClass(n.href), "w-full justify-start")} onClick={() => setDrawer(false)}>
                   <n.icon className="w-4 h-4" />
                   {n.label}
                 </Link>
@@ -99,11 +105,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-6 pb-24 lg:pb-8">{children}</main>
 
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border/70 bg-white/85 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-6 gap-1 px-1 py-2">
+        <div className="grid grid-cols-7 gap-1 px-1 py-2">
           {nav.map((n) => (
             <Link
               key={n.href}
               href={n.href}
+              onClick={() => setDrawer(false)}
               className={cn(
                 "flex flex-col items-center gap-0.5 py-1.5 rounded-xl text-[10px] font-medium",
                 active(n.href) ? "text-secondary bg-muted/50" : "text-muted-foreground"

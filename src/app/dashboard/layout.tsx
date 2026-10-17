@@ -6,7 +6,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const user = await currentUser()
   const email = user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses[0]?.emailAddress ?? null
   const access = pocAccess()
-  if (!isPocAllowed(email, access)) {
+  if (!isPocAllowed(email, access) && user?.publicMetadata?.stockflow_access !== true) {
     return <PocWall currentEmail={email} access={access} />
   }
   return <DashboardShell>{children}</DashboardShell>

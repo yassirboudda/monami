@@ -3,32 +3,24 @@
 import { ArrowLeft, Store, Tags } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
 import { ListingsGrid } from "@/components/listings-grid"
 import { Badge, Button, Card, EmptyState, PageHeader, Skeleton, StatusDot } from "@/components/ui"
-import { store, type Listing, type Shop } from "@/lib/store"
+import type { Listing, Shop } from "@/lib/store"
+import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
 export default function ShopDetailPage() {
-  const params = useParams()
+  const params = useParams<{ id: string }>()
   const shopId = typeof params.id === "string" ? params.id : Array.isArray(params.id) ? params.id[0] : ""
-  const [shop, setShop] = useState<Shop | null>(null)
-  const [listings, setListings] = useState<Listing[]>([])
-  const [ready, setReady] = useState(false)
-
-  useEffect(() => {
-    if (!shopId) return
-    store.getListings()
-    const shops = store.getShops()
-    setShop(shops.find((s) => s.id === shopId) || null)
-    setListings(store.getListings(shopId))
-    setReady(true)
-  }, [shopId])
-
-  const title = useMemo(() => shop?.displayName || "Boutique", [shop])
+  const shopsResource = useWorkspaceResource<{ shops: Shop[] }>("/v1/shops")
+  const listingsResource = useWorkspaceResource<{ listings: Listing[] }>(`/v1/shops/${encodeURIComponent(shopId)}/listings`)
+  const shop = shopsResource.data?.shops.find((entry) => entry.id === shopId) ?? null
+  const listings = listingsResource.data?.listings ?? []
+  const isLoading = shopsResource.isLoading || listingsResource.isLoading
+  const title = shop?.displayName || "Boutique"
 
   if (!shopId) return null
 
-  if (!ready) {
+  if (isLoading) {
     return (
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {[0, 1, 2].map((i) => (
@@ -44,7 +36,7 @@ export default function ShopDetailPage() {
         <EmptyState
           icon={<Store className="w-6 h-6" />}
           title="Boutique introuvable"
-          text="Cette boutique n'existe pas dans le mock local. Retourne à Boutique."
+          text="Cette boutique n'existe pas dans cet espace. Retourne à Boutique."
           action={
             <Link href="/dashboard/shops">
               <Button size="sm">Retour boutiques</Button>
