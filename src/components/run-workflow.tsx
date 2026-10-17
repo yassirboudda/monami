@@ -110,13 +110,17 @@ export function RunWorkflowModal({
     }
   }, [workflow, request])
 
+  const workflowId = workflow?.id
+  const runId = run?.id
+  const runStatus = run?.status
+
   useEffect(() => {
-    if (!workflow || !run || run.status !== "executing") return
+    if (!workflowId || !runId || runStatus !== "executing") return
     let cancelled = false
     const timer = window.setInterval(() => {
-      void request<{ runs: WorkflowRun[] }>(`/v1/workflows/runs?workflow_id=${encodeURIComponent(workflow.id)}`)
+      void request<{ runs: WorkflowRun[] }>(`/v1/workflows/runs?workflow_id=${encodeURIComponent(workflowId)}`)
         .then(({ runs }) => {
-          const latest = runs.find((item) => item.id === run.id)
+          const latest = runs.find((item) => item.id === runId)
           if (!cancelled && latest) setRun(latest)
         })
         .catch(() => undefined)
@@ -125,7 +129,7 @@ export function RunWorkflowModal({
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [workflow?.id, run?.id, run?.status, request])
+  }, [workflowId, runId, runStatus, request])
 
   const approve = async () => {
     if (!run) return

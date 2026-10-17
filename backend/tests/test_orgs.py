@@ -1,5 +1,6 @@
 import asyncio
 import json
+import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -301,6 +302,28 @@ def test_vinted_start_url_uses_homepage():
     assert main._marketplace_start_url("vinted") == "https://www.vinted.fr/"
 
 
+def test_created_workflow_defaults_nullable_metadata(client):
+    test_client, _current_user = client
+    created = test_client.post(
+        "/v1/workflows",
+        json={
+            "title": "Workflow créé par le chat",
+            "marketplace": "vinted",
+            "steps": ["Vérifier le nouvel article"],
+        },
+    )
+    assert created.status_code == 200
+    workflow_id = created.json()["workflow"]["id"]
+    assert created.json()["workflow"]["intent"] == {}
+    assert created.json()["workflow"]["guardrails"] == []
+
+    listed = test_client.get("/v1/workflows")
+    assert listed.status_code == 200
+    workflow = next(item for item in listed.json()["workflows"] if item["id"] == workflow_id)
+    assert workflow["intent"] == {}
+    assert workflow["guardrails"] == []
+
+
 def test_workflow_schema_migration_is_idempotent(client):
     test_client, current_user = client
     test_client.get("/v1/workflows")
@@ -496,3 +519,153 @@ def test_require_user_derives_workspace_from_clerk_claims(
     user = asyncio.run(main.require_user(f"Bearer {token}"))
     assert user["workspace"] == expected_workspace
     assert user["org_id"] == expected_org
+
+
+def _install_fake_hermes(monkeypatch, on_post=None):
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"choices": [{"message": {"content": "Réponse test"}, "finish_reason": "stop"}]}
+
+    class FakeClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def post(self, _url, headers, json):
+            captured["messages"] = json["messages"]
+            if on_post:
+                on_post(json)
+            return FakeResponse()
+
+    async def empty_context(*_args):
+        return ""
+
+    monkeypatch.setattr(main.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(main.settings, "hermes_api_key", "test-key")
+    monkeypatch.setattr(main.settings, "nebius_api_key", "")
+    monkeypatch.setattr(main, "_chat_context", empty_context)
+    monkeypatch.setattr(main, "_screen_context", empty_context)
+    return captured
+
+
+def test_chat_with_other_workspace_lease_instructs_hermes_and_keeps_lease(client, monkeypatch):
+    _test_client, current_user = client
+    other_workspace = "org:team-b"
+    lease_id, remaining = db.acquire_desktop_lease(other_workspace, "user_b", "vinted", 600)
+    assert lease_id and remaining is None
+    captured = _install_fake_hermes(monkeypatch)
+
+    asyncio.run(main.chat(main.ChatIn(message="Vérifie mes annonces"), current_user))
+
+    system = captured["messages"][0]["content"]
+    assert "ne crée pas d'exécution" in system
+    assert "environ" in system
+    with db.connection() as conn:
+        lease = conn.execute("SELECT lease_id FROM desktop_leases WHERE id=1").fetchone()
+    assert lease["lease_id"] == lease_id
+    assert db.desktop_lease_held(other_workspace)
+
+
+def test_chat_temporarily_acquires_and_releases_lease(client, monkeypatch):
+    _test_client, current_user = client
+    observed = []
+
+    def assert_lease_during_request(_payload):
+        with db.connection() as conn:
+            lease = conn.execute("SELECT lease_id FROM desktop_leases WHERE id=1").fetchone()
+        observed.append(lease["lease_id"])
+        assert db.desktop_lease_held(current_user["workspace"])
+
+    _install_fake_hermes(monkeypatch, assert_lease_during_request)
+    asyncio.run(main.chat(main.ChatIn(message="Aide-moi"), current_user))
+
+    assert observed and observed[0]
+    assert not db.desktop_lease_held(current_user["workspace"])
+
+
+def test_chat_keeps_existing_teach_lease_and_id(client, monkeypatch):
+    _test_client, current_user = client
+    lease_id, _remaining = db.acquire_desktop_lease(
+        current_user["workspace"], current_user["user_id"], "vinted", 3600
+    )
+    observed = []
+
+    def assert_same_lease(_payload):
+        with db.connection() as conn:
+            lease = conn.execute("SELECT lease_id FROM desktop_leases WHERE id=1").fetchone()
+        observed.append(lease["lease_id"])
+
+    _install_fake_hermes(monkeypatch, assert_same_lease)
+    asyncio.run(main.chat(main.ChatIn(message="Aide-moi"), current_user))
+
+    assert observed == [lease_id]
+    with db.connection() as conn:
+        lease = conn.execute("SELECT lease_id FROM desktop_leases WHERE id=1").fetchone()
+    assert lease["lease_id"] == lease_id
+
+
+def test_run_log_is_blocked_by_other_workspace_lease_but_accepted_when_free(client):
+    test_client, _current_user = client
+    workflow_id = test_client.get("/v1/workflows").json()["workflows"][0]["id"]
+    body = {"workflowId": workflow_id, "status": "done", "summary": "Fini"}
+    db.acquire_desktop_lease("org:team-b", "user_b", "vinted", 600)
+
+    blocked = test_client.post("/v1/workflows/runs/log", json=body)
+    assert blocked.status_code == 409
+    assert blocked.json()["detail"] == "Le bureau est utilisé par une autre équipe."
+
+    with db.connection() as conn:
+        conn.execute("UPDATE desktop_leases SET expires_at='2000-01-01T00:00:00Z' WHERE id=1")
+    accepted = test_client.post("/v1/workflows/runs/log", json=body)
+    assert accepted.status_code == 200
+
+
+def test_desktop_lease_id_is_stable_and_expiry_never_shortens(client):
+    test_client, current_user = client
+    test_client.get("/v1/workflows")
+    first_lease_id, _remaining = db.acquire_desktop_lease(
+        current_user["workspace"], current_user["user_id"], "vinted", 3600
+    )
+    with db.connection() as conn:
+        first_expiry = conn.execute("SELECT expires_at FROM desktop_leases WHERE id=1").fetchone()["expires_at"]
+
+    second_lease_id, _remaining = db.acquire_desktop_lease(
+        current_user["workspace"], current_user["user_id"], "vinted", 1
+    )
+    with db.connection() as conn:
+        second_expiry = conn.execute("SELECT expires_at FROM desktop_leases WHERE id=1").fetchone()["expires_at"]
+    assert second_lease_id == first_lease_id
+    assert second_expiry >= first_expiry
+
+
+def test_legacy_desktop_lease_migration_is_idempotent():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        """CREATE TABLE desktop_leases (
+            id INTEGER PRIMARY KEY, workspace TEXT NOT NULL, user_id TEXT NOT NULL,
+            marketplace TEXT, acquired_at TEXT NOT NULL, expires_at TEXT NOT NULL
+        )"""
+    )
+    conn.execute(
+        "INSERT INTO desktop_leases VALUES (1, 'workspace-a', 'user-a', 'vinted', 'now', 'later')"
+    )
+
+    db.migrate_desktop_lease_id(conn)
+    first_id = conn.execute("SELECT lease_id FROM desktop_leases WHERE id=1").fetchone()["lease_id"]
+    db.migrate_desktop_lease_id(conn)
+    second_id = conn.execute("SELECT lease_id FROM desktop_leases WHERE id=1").fetchone()["lease_id"]
+
+    assert len(first_id) == 32
+    assert second_id == first_id
+    conn.close()

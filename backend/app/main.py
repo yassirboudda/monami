@@ -651,7 +651,9 @@ async def _desktop_open(url: str) -> bool:
 
 
 def _acquire_desktop_lease(user: dict[str, Any], marketplace: str | None, ttl: int) -> None:
-    remaining = db.acquire_desktop_lease(user["workspace"], user["user_id"], marketplace, ttl)
+    _lease_id, remaining = db.acquire_desktop_lease(
+        user["workspace"], user["user_id"], marketplace, ttl
+    )
     if remaining is not None:
         minutes = max(1, (remaining + 59) // 60)
         raise HTTPException(
@@ -1553,7 +1555,7 @@ async def _run_auto_click_background(
             run_id, workspace, user, workflow, plan, approved_indexes, "auto_click", log
         )
         _finish_workflow_run(workspace, run_id, "executed", log)
-    except asyncio.CancelledError as exc:
+    except asyncio.CancelledError:
         error = "Exécution interrompue avant la fin."
         log.append({"t": _iso_now(), "tool": "execution", "result": "failed", "detail": error})
         _finish_workflow_run(workspace, run_id, "failed", log, error)
@@ -1871,6 +1873,8 @@ class RunLogIn(BaseModel):
 @app.post("/v1/workflows/runs/log")
 async def log_run(body: RunLogIn, user: dict[str, Any] = Depends(workspace_user)):
     """Journal d'une exécution faite par l'agent Hermes sur le bureau (vidéo incluse)."""
+    if db.desktop_lease_held_by_other(user["workspace"]) is not None:
+        raise HTTPException(409, "Le bureau est utilisé par une autre équipe.")
     recording = body.recordingId if body.recordingId and RECORDING_ID.fullmatch(body.recordingId) else None
     log = [{"t": _iso_now(), "step": step[:300], "ok": True} for step in body.stepsDone[:20]]
     log.append({"t": _iso_now(), "step": body.summary[:2000], "ok": body.status != "failed", "kind": "summary"})
@@ -2032,10 +2036,8 @@ class ChatIn(BaseModel):
     images: list[str] = Field(default_factory=list)
 
 
-@app.post("/v1/chat")
-async def chat(body: ChatIn, user: dict[str, Any] = Depends(workspace_user)):
+async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dict[str, Any]:
     """Chat via Hermes, then Nebius Token Factory (DeepSeek), or a mock response."""
-    system = _build_chat_system_prompt() + await _chat_context(user) + await _screen_context(user["workspace"])
     hermes_user_content: Any = body.message
     if body.images:
         hermes_user_content = [
@@ -2136,3 +2138,30 @@ async def chat(body: ChatIn, user: dict[str, Any] = Depends(workspace_user)):
         raise
     except Exception as e:
         raise HTTPException(502, f"Chat failed: {e}") from e
+
+
+@app.post("/v1/chat")
+async def chat(body: ChatIn, user: dict[str, Any] = Depends(workspace_user)):
+    workspace = user["workspace"]
+    lease_id = None
+    busy_seconds = None
+    if not db.desktop_lease_held(workspace):
+        lease_id, busy_seconds = db.acquire_desktop_lease(
+            workspace,
+            user["user_id"],
+            None,
+            int(settings.hermes_timeout + 60),
+        )
+    try:
+        system = _build_chat_system_prompt() + await _chat_context(user) + await _screen_context(workspace)
+        if busy_seconds is not None:
+            minutes = max(1, (busy_seconds + 59) // 60)
+            system += (
+                "\n\nLe bureau OctoHandy est utilisé par une autre équipe en ce moment : "
+                "ne lance aucune action ni aucun workflow sur le bureau, ne crée pas d'exécution. "
+                f"Dis à l'utilisateur que le bureau est occupé et qu'il pourra réessayer dans environ {minutes} minute(s)."
+            )
+        return await _chat_response(body, user, system)
+    finally:
+        if lease_id:
+            db.release_desktop_lease(workspace, lease_id)

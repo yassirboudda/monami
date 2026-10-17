@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -236,6 +237,7 @@ CREATE TABLE IF NOT EXISTS desktop_leases (
     workspace TEXT NOT NULL,
     user_id TEXT NOT NULL,
     marketplace TEXT,
+    lease_id TEXT NOT NULL,
     acquired_at TEXT NOT NULL,
     expires_at TEXT NOT NULL
 );
@@ -265,6 +267,7 @@ def initialize_database() -> None:
     with connection() as conn:
         conn.executescript(_SCHEMA)
         migrate_workflow_columns(conn)
+        migrate_desktop_lease_id(conn)
         migrate_default_workflow_copy(conn)
 
 
@@ -283,6 +286,15 @@ def migrate_workflow_columns(conn: sqlite3.Connection) -> None:
         if name not in columns:
             quoted_name = f'"{name}"'
             conn.execute(f"ALTER TABLE workflows ADD COLUMN {quoted_name} {column_type}")
+
+
+def migrate_desktop_lease_id(conn: sqlite3.Connection) -> None:
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(desktop_leases)")}
+    if "lease_id" not in columns:
+        conn.execute("ALTER TABLE desktop_leases ADD COLUMN lease_id TEXT")
+    rows = conn.execute("SELECT id FROM desktop_leases WHERE lease_id IS NULL").fetchall()
+    for row in rows:
+        conn.execute("UPDATE desktop_leases SET lease_id=? WHERE id=?", (uuid.uuid4().hex, row["id"]))
 
 
 def migrate_default_workflow_copy(conn: sqlite3.Connection) -> None:
@@ -349,7 +361,12 @@ def _lease_expiry(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-def acquire_desktop_lease(workspace: str, user_id: str, marketplace: str | None, ttl: int) -> int | None:
+def acquire_desktop_lease(
+    workspace: str,
+    user_id: str,
+    marketplace: str | None,
+    ttl: int,
+) -> tuple[str | None, int | None]:
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat().replace("+00:00", "Z")
     expires_iso = (now + timedelta(seconds=max(1, ttl))).isoformat().replace("+00:00", "Z")
@@ -358,22 +375,31 @@ def acquire_desktop_lease(workspace: str, user_id: str, marketplace: str | None,
         lease = conn.execute("SELECT * FROM desktop_leases WHERE id=1").fetchone()
         if lease is not None and _lease_expiry(lease["expires_at"]) > now:
             if lease["workspace"] != workspace:
-                return max(0, int((_lease_expiry(lease["expires_at"]) - now).total_seconds()))
+                return None, max(0, int((_lease_expiry(lease["expires_at"]) - now).total_seconds()))
+            lease_id = lease["lease_id"] or uuid.uuid4().hex
+            extended_expiry = max(_lease_expiry(lease["expires_at"]), _lease_expiry(expires_iso))
             conn.execute(
                 """UPDATE desktop_leases
-                   SET user_id=?, marketplace=?, expires_at=? WHERE id=1""",
-                (user_id, marketplace, expires_iso),
+                   SET user_id=?, marketplace=?, lease_id=?, expires_at=? WHERE id=1""",
+                (
+                    user_id,
+                    marketplace,
+                    lease_id,
+                    extended_expiry.isoformat().replace("+00:00", "Z"),
+                ),
             )
+            return lease_id, None
         else:
+            lease_id = uuid.uuid4().hex
             conn.execute(
-                """INSERT INTO desktop_leases (id, workspace, user_id, marketplace, acquired_at, expires_at)
-                   VALUES (1, ?, ?, ?, ?, ?)
+                """INSERT INTO desktop_leases (id, workspace, user_id, marketplace, lease_id, acquired_at, expires_at)
+                   VALUES (1, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(id) DO UPDATE SET workspace=excluded.workspace, user_id=excluded.user_id,
-                     marketplace=excluded.marketplace, acquired_at=excluded.acquired_at,
+                     marketplace=excluded.marketplace, lease_id=excluded.lease_id, acquired_at=excluded.acquired_at,
                      expires_at=excluded.expires_at""",
-                (workspace, user_id, marketplace, now_iso, expires_iso),
+                (workspace, user_id, marketplace, lease_id, now_iso, expires_iso),
             )
-    return None
+            return lease_id, None
 
 
 def desktop_lease_held(workspace: str) -> bool:
@@ -383,9 +409,27 @@ def desktop_lease_held(workspace: str) -> bool:
     return bool(lease and lease["workspace"] == workspace and _lease_expiry(lease["expires_at"]) > now)
 
 
-def release_desktop_lease(workspace: str) -> bool:
+def desktop_lease_held_by_other(workspace: str) -> int | None:
+    now = datetime.now(timezone.utc)
     with connection() as conn:
-        result = conn.execute("DELETE FROM desktop_leases WHERE id=1 AND workspace=?", (workspace,))
+        lease = conn.execute("SELECT workspace, expires_at FROM desktop_leases WHERE id=1").fetchone()
+    if lease is None or lease["workspace"] == workspace:
+        return None
+    expires_at = _lease_expiry(lease["expires_at"])
+    if expires_at <= now:
+        return None
+    return max(0, int((expires_at - now).total_seconds()))
+
+
+def release_desktop_lease(workspace: str, lease_id: str | None = None) -> bool:
+    with connection() as conn:
+        if lease_id is None:
+            result = conn.execute("DELETE FROM desktop_leases WHERE id=1 AND workspace=?", (workspace,))
+        else:
+            result = conn.execute(
+                "DELETE FROM desktop_leases WHERE id=1 AND workspace=? AND lease_id=?",
+                (workspace, lease_id),
+            )
     return result.rowcount > 0
 
 
