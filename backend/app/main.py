@@ -8,6 +8,7 @@ from pathlib import Path
 import hmac
 import json
 import random
+import secrets
 import re
 import time
 import uuid
@@ -2252,6 +2253,18 @@ async def update_workflow(
 @app.post("/v1/org/invite-links")
 async def create_invite_link(user: dict[str, Any] = Depends(workspace_user)):
     org_id = user.get("org_id")
+    if user.get("via") == "app":
+        # Mono-user access: the invite points at the shared workspace; the invitee signs in with the access password.
+        org_id = user["workspace"]
+        created_at = datetime.now(timezone.utc)
+        token = secrets.token_urlsafe(24)
+        with db.connection() as conn:
+            conn.execute(
+                """INSERT INTO invite_links (token, org_id, created_by, created_at, expires_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (token, org_id, user["user_id"], created_at.isoformat(), (created_at + timedelta(days=7)).isoformat()),
+            )
+        return {"token": token, "path": f"/join/{token}", "expiresAt": (created_at + timedelta(days=7)).isoformat()}
     if not org_id:
         raise HTTPException(status_code=400, detail="Sélectionne une organisation")
     try:
@@ -2306,6 +2319,8 @@ def _invite(token: str) -> dict[str, Any]:
 @app.get("/v1/invites/{token}")
 async def invite_info(token: str, _user: dict[str, Any] = Depends(workspace_user)):
     invite = _invite(token)
+    if str(invite["org_id"]).startswith("user:"):
+        return {"orgId": invite["org_id"], "orgName": f"Équipe OctoHandy de {settings.app_user_email}", "expiresAt": invite["expires_at"], "shared": True}
     org_name = await _organization_name(invite["org_id"])
     return {"orgId": invite["org_id"], "orgName": org_name, "expiresAt": invite["expires_at"]}
 
@@ -2319,9 +2334,13 @@ def _clerk_error_codes(payload: dict[str, Any]) -> set[str]:
 
 @app.post("/v1/invites/{token}/accept")
 async def accept_invite(token: str, user: dict[str, Any] = Depends(workspace_user)):
+    invite = _invite(token)
+    if str(invite["org_id"]).startswith("user:"):
+        if invite["org_id"] != user["workspace"]:
+            raise HTTPException(status_code=403, detail="Cette invitation ne correspond pas à ton espace")
+        return {"ok": True, "orgId": invite["org_id"], "joined": True}
     if user.get("via") != "clerk":
         raise HTTPException(status_code=401, detail="Connexion Clerk requise")
-    invite = _invite(token)
     org_id = invite["org_id"]
     membership_status, membership_data = await _clerk_api(
         "POST",
