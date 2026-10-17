@@ -56,10 +56,13 @@ function recordingInputFor(text: string) {
 }
 
 function writeText(writer: UIMessageStreamWriter<UIMessage>, text: string) {
+  // Own step: useChat auto-resends while the last step holds completed tool calls, so text must follow in a new step.
   const id = randomUUID()
+  writer.write({ type: "start-step" })
   writer.write({ type: "text-start", id })
   writer.write({ type: "text-delta", id, delta: text })
   writer.write({ type: "text-end", id })
+  writer.write({ type: "finish-step" })
 }
 
 function noReply(status: number) {
@@ -111,18 +114,22 @@ export async function POST(req: Request) {
   const stream = createUIMessageStream<UIMessage>({
     execute: async ({ writer }) => {
       if (recordingInput) {
+        writer.write({ type: "start-step" })
         writer.write({
           type: "tool-input-available",
           toolCallId: randomUUID(),
           toolName: "showRecordingSession",
           input: recordingInput,
         })
+        writer.write({ type: "finish-step" })
         return
       }
       if (shortcut) {
         const toolCallId = randomUUID()
+        writer.write({ type: "start-step" })
         writer.write({ type: "tool-input-available", toolCallId, toolName: shortcut.tool, input: {} })
         writer.write({ type: "tool-output-available", toolCallId, output: { shown: true } })
+        writer.write({ type: "finish-step" })
         writeText(writer, shortcut.reply)
         return
       }
