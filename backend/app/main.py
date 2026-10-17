@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+from pathlib import Path
 import hmac
 import json
 import random
@@ -1926,6 +1927,114 @@ async def auth_login(body: LoginIn):
 @app.get("/v1/auth/me")
 async def auth_me(user: dict[str, Any] = Depends(require_user)):
     return {"userId": user["user_id"], "email": (user.get("claims") or {}).get("email") or settings.app_user_email, "via": user.get("via")}
+
+
+# ---------------------------------------------------------------------------
+# Real shops: sync accounts + listings from the logged-in desktop Chrome (A4000 gate /sync),
+# download listing images through the desktop proxy and serve them from here (like Comie).
+# ---------------------------------------------------------------------------
+SYNC_MARKETPLACES = ("vinted", "ebay", "leboncoin", "etsy")
+MOCK_SHOP_IDS = ("s1", "s2")
+
+
+def _media_path(workspace: str, listing_id: str) -> Path:
+    key = hashlib.sha1(f"{settings.desktop_signing_secret}|{workspace}|{listing_id}".encode()).hexdigest()[:24]
+    return Path(settings.media_dir) / f"{key}.jpg"
+
+
+async def _gate_json(path: str, body: dict[str, Any], timeout: float = 150) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.post(f"{settings.desktop_base_url.rstrip('/')}/desktop{path}",
+                                     headers={"X-Gate-Secret": settings.desktop_signing_secret}, json=body)
+    response.raise_for_status()
+    return response.json()
+
+
+async def _store_listing_image(workspace: str, listing: dict[str, Any]) -> str | None:
+    src = listing.get("imageUrl")
+    if not src or not str(src).startswith("https://"):
+        return None
+    dest = _media_path(workspace, listing["id"])
+    if not dest.exists():
+        try:
+            async with httpx.AsyncClient(timeout=40) as client:
+                response = await client.get(f"{settings.desktop_base_url.rstrip('/')}/desktop/image",
+                                            headers={"X-Gate-Secret": settings.desktop_signing_secret},
+                                            params={"url": src, "referer": listing.get("url") or ""})
+            if response.status_code != 200 or len(response.content) < 200:
+                return None
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(response.content)
+        except httpx.HTTPError:
+            return None
+    return f"/v1/media/{dest.stem}.jpg"
+
+
+class ShopsSyncIn(BaseModel):
+    marketplaces: list[str] | None = None
+
+
+@app.post("/v1/shops/sync")
+async def shops_sync(body: ShopsSyncIn, user: dict[str, Any] = Depends(workspace_user)):
+    """Replace the demo data with the seller's real accounts/listings read from the remote desktop Chrome."""
+    if not _desktop_enabled():
+        raise HTTPException(503, "Bureau non configuré")
+    wanted = [m for m in (body.marketplaces or SYNC_MARKETPLACES) if m in SYNC_MARKETPLACES]
+    report: list[dict[str, Any]] = []
+    for marketplace in wanted:
+        try:
+            data = await _gate_json("/sync", {"marketplace": marketplace})
+        except (httpx.HTTPError, ValueError) as e:
+            report.append({"marketplace": marketplace, "ok": False, "error": f"bureau injoignable ({type(e).__name__})"})
+            continue
+        if not data.get("ok"):
+            report.append({"marketplace": marketplace, "ok": False, "error": data.get("error") or "échec"})
+            continue
+        account = data.get("account") or {}
+        listings = data.get("listings") or []
+        with db.connection() as conn:
+            row = conn.execute("SELECT * FROM shops WHERE workspace=? AND marketplace=? AND id NOT IN (?, ?) ORDER BY created_at LIMIT 1",
+                               (user["workspace"], marketplace, *MOCK_SHOP_IDS)).fetchone()
+            status = "connected" if data.get("loggedIn") else "expired"
+            name = account.get("username") or (row["display_name"] if row else marketplace.capitalize())
+            if row is None:
+                shop_id = f"s-{uuid.uuid4().hex[:8]}"
+                conn.execute("""INSERT INTO shops (id, workspace, created_by, marketplace, display_name, status, listing_count)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)""", (shop_id, user["workspace"], user["user_id"], marketplace, name, status, len(listings)))
+            else:
+                shop_id = row["id"]
+                conn.execute("UPDATE shops SET display_name=?, status=?, listing_count=?, updated_at=? WHERE workspace=? AND id=?",
+                             (name, status, len(listings), _iso_now(), user["workspace"], shop_id))
+            if data.get("loggedIn"):
+                # real data replaces the demo shops/listings for this workspace
+                conn.execute("DELETE FROM listings WHERE workspace=? AND shop_id IN (?, ?)", (user["workspace"], *MOCK_SHOP_IDS))
+                conn.execute("DELETE FROM shops WHERE workspace=? AND id IN (?, ?)", (user["workspace"], *MOCK_SHOP_IDS))
+                conn.execute("DELETE FROM listings WHERE workspace=? AND shop_id=?", (user["workspace"], shop_id))
+        images = 0
+        if data.get("loggedIn"):
+            for listing in listings[:120]:
+                stored = await _store_listing_image(user["workspace"], listing)
+                if stored:
+                    images += 1
+                with db.connection() as conn:
+                    conn.execute("""INSERT OR REPLACE INTO listings (id, workspace, created_by, shop_id, marketplace, title, price, status, image_url, url, views, favorites, updated_at)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                 (listing["id"], user["workspace"], user["user_id"], shop_id, marketplace, str(listing.get("title") or "")[:200],
+                                  float(listing.get("price") or 0), listing.get("status") or "active", stored or listing.get("imageUrl"),
+                                  listing.get("url"), listing.get("views"), listing.get("favorites"), _iso_now()))
+        report.append({"marketplace": marketplace, "ok": True, "loggedIn": bool(data.get("loggedIn")), "username": account.get("username"),
+                       "listings": len(listings) if data.get("loggedIn") else 0, "images": images})
+    return {"report": report, "syncedAt": _iso_now()}
+
+
+@app.get("/v1/media/{name}")
+async def media_file(name: str):
+    if not re.fullmatch(r"[0-9a-f]{24}\.jpg", name):
+        raise HTTPException(404)
+    path = Path(settings.media_dir) / name
+    if not path.exists():
+        raise HTTPException(404)
+    return Response(content=path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/v1/stock")
