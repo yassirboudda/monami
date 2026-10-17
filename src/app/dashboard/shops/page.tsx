@@ -14,9 +14,10 @@ const mpUrl: Record<string, string> = { leboncoin: "https://www.leboncoin.fr", v
 
 export default function ShopsPage() {
   const router = useRouter()
-  const { data, error, isLoading, request, mutate } = useWorkspaceResource<{ shops: Shop[] }>("/v1/shops")
+  const {data,  error,  isLoading,  request,  mutate } = useWorkspaceResource<{ shops: Shop[] }>("/v1/shops")
   const shops = data?.shops ?? []
   const [connect, setConnect] = useState<{ open: boolean; marketplace: string | null }>({ open: false, marketplace: null })
+  const [syncing, setSyncing] = useState(false)
   const openConnect = (marketplace: string | null = null) => setConnect({ open: true, marketplace })
 
   useEffect(() => {
@@ -61,6 +62,27 @@ export default function ShopsPage() {
                 <Puzzle className="w-4 h-4" /> Extension cookies
               </Button>
             </Link>
+            <Button
+              variant="secondary"
+              loading={syncing}
+              onClick={async () => {
+                setSyncing(true)
+                try {
+                  const r = (await request("/v1/shops/sync", { method: "POST", body: {} })) as { report: { marketplace: string; ok: boolean; loggedIn?: boolean; username?: string | null; listings?: number; error?: string }[] }
+                  const done = r.report.filter((x) => x.ok && x.loggedIn)
+                  const off = r.report.filter((x) => x.ok && !x.loggedIn).map((x) => x.marketplace)
+                  toast.success(done.length ? `Synchronisé : ${done.map((x) => `${x.marketplace} (${x.username || "?"}, ${x.listings} annonces)`).join(", ")}` : "Aucun compte connecté dans le bureau")
+                  if (off.length) toast.message(`Non connecté dans le bureau : ${off.join(", ")}`)
+                  await mutate()
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Synchronisation impossible")
+                } finally {
+                  setSyncing(false)
+                }
+              }}
+            >
+              <RefreshCw className="w-4 h-4" /> Synchroniser depuis le bureau
+            </Button>
             <Button onClick={() => openConnect()}>
               <MonitorSmartphone className="w-4 h-4" /> Connecter une marketplace
             </Button>

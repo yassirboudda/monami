@@ -31,6 +31,11 @@ export function ListingsGrid({ listings, emptyText }: { listings: Listing[]; emp
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {listings.map((l) => (
         <Card key={l.id} className="p-4 flex flex-col gap-3">
+          {l.imageUrl && (
+            <div className="-mx-4 -mt-4 mb-1 aspect-[4/3] overflow-hidden rounded-t-xl bg-muted">
+              <img src={l.imageUrl.startsWith("/v1/") ? `/backend${l.imageUrl}` : l.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+            </div>
+          )}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="font-semibold truncate">{l.title}</p>

@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 3000
     database_path: str = str(Path(__file__).resolve().parents[1] / "var" / "stockflow.db")
+    media_dir: str = str(Path(__file__).resolve().parents[1] / "var" / "media")
     cors_origins: str = (
         "https://octohandy.amirelay.com,"
         "https://stockflow-nine-ashy.vercel.app,"
