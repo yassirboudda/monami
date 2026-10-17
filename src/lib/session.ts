@@ -1,33 +1,10 @@
-// Mono-user access: a password (APP_ACCESS_PASSWORD, Vercel env) opens a signed session cookie.
-// Token format: oh.<expiresAtEpoch>.<hmacSha256(secret, exp)> — verified here and by the backend (same APP_SESSION_SECRET).
-import { createHmac, timingSafeEqual } from "crypto"
-
+// Mono-user access. The password lives ONLY on the Hetzner API (.env APP_ACCESS_PASSWORD); the API returns a signed
+// token oh.<exp>.<hmac> that we keep in a cookie and send as Bearer. The web app only checks shape/expiry; the API
+// verifies the signature on every call.
 export const SESSION_COOKIE = "oh_session"
-export const APP_USER = {
-  id: process.env.APP_USER_ID || "user_3JyIq3WyP0BS44BhxVz3zz60Gos",
-  email: process.env.NEXT_PUBLIC_APP_USER_EMAIL || "yassirboudda@gmail.com",
-  firstName: process.env.NEXT_PUBLIC_APP_USER_NAME || "Yassir",
-}
 
-function secret() {
-  return process.env.APP_SESSION_SECRET || ""
-}
-
-export function makeToken(ttlSec = 60 * 60 * 24 * 30) {
-  const exp = Math.floor(Date.now() / 1000) + ttlSec
-  const sig = createHmac("sha256", secret()).update(String(exp)).digest("hex")
-  return `oh.${exp}.${sig}`
-}
-
-export function verifyToken(token: string | undefined | null) {
-  if (!token || !secret()) return false
+export function tokenLooksValid(token: string | undefined | null) {
+  if (!token) return false
   const [p, exp, sig] = token.split(".")
-  if (p !== "oh" || !exp || !sig || Number(exp) < Date.now() / 1000) return false
-  const good = createHmac("sha256", secret()).update(exp).digest("hex")
-  return sig.length === good.length && timingSafeEqual(Buffer.from(sig), Buffer.from(good))
-}
-
-export function passwordOk(pw: string) {
-  const want = process.env.APP_ACCESS_PASSWORD || ""
-  return !!want && pw.length === want.length && timingSafeEqual(Buffer.from(pw), Buffer.from(want))
+  return p === "oh" && /^\d+$/.test(exp || "") && /^[0-9a-f]{64}$/.test(sig || "") && Number(exp) > Date.now() / 1000
 }
