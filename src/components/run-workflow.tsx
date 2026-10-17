@@ -110,6 +110,23 @@ export function RunWorkflowModal({
     }
   }, [workflow, request])
 
+  useEffect(() => {
+    if (!workflow || !run || run.status !== "executing") return
+    let cancelled = false
+    const timer = window.setInterval(() => {
+      void request<{ runs: WorkflowRun[] }>(`/v1/workflows/runs?workflow_id=${encodeURIComponent(workflow.id)}`)
+        .then(({ runs }) => {
+          const latest = runs.find((item) => item.id === run.id)
+          if (!cancelled && latest) setRun(latest)
+        })
+        .catch(() => undefined)
+    }, 2000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [workflow?.id, run?.id, run?.status, request])
+
   const approve = async () => {
     if (!run) return
     setBusy(true)
@@ -130,7 +147,7 @@ export function RunWorkflowModal({
       })
       setRun(next)
       setDesktopUrl(desktop?.url ?? null)
-      toast.success(mode === "auto_click" ? "Actions approuvées exécutées sur le bureau" : "Plan exécuté en mode assisté")
+      toast.success(mode === "auto_click" ? "Actions approuvées, exécution démarrée sur le bureau." : "Plan exécuté en mode assisté")
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "Exécution impossible")
     } finally {
@@ -142,7 +159,9 @@ export function RunWorkflowModal({
     if (run && run.status === "awaiting_approval") {
       await request(`/v1/workflows/runs/${run.id}/reject`, { method: "POST" }).catch(() => undefined)
     }
-    await request("/v1/desktop/release", { method: "POST" }).catch(() => undefined)
+    if (run?.status !== "executing") {
+      await request("/v1/desktop/release", { method: "POST" }).catch(() => undefined)
+    }
     onClose()
   }
 
@@ -227,12 +246,16 @@ export function RunWorkflowModal({
         </div>
       )}
 
-      {run && run.status === "executed" && (
+      {run && (run.status === "executing" || run.status === "executed" || run.status === "failed") && (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            {run.mode === "auto_click"
-              ? "Le bureau a exécuté les actions approuvées. Vérifie les résultats et les éléments reconnus à l'écran."
-              : "Mode assisté : les messages approuvés sont préparés dans le presse-papiers. Vérifie-les et envoie-les depuis le bureau."}
+            {run.status === "executing"
+              ? "Exécution en cours sur le bureau. Le journal se met à jour automatiquement."
+              : run.status === "failed"
+                ? run.error ?? "L'exécution a échoué. Consulte le journal ci-dessous."
+                : run.mode === "auto_click"
+                  ? "Le bureau a exécuté les actions approuvées. Vérifie les résultats et les éléments reconnus à l'écran."
+                  : "Mode assisté : les messages approuvés sont préparés dans le presse-papiers. Vérifie-les et envoie-les depuis le bureau."}
           </p>
           <ol className="space-y-2 text-sm">
             {run.log.map((entry, index) => (

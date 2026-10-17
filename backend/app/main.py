@@ -47,6 +47,7 @@ app.add_middleware(
 
 _jwks_cache: dict[str, Any] = {"at": 0.0, "keys": []}
 _organization_names: dict[str, str] = {}
+_run_tasks: set[asyncio.Task[None]] = set()
 
 
 def _build_chat_system_prompt() -> str:
@@ -610,7 +611,7 @@ async def delete_shop(shop_id: str, user: dict[str, Any] = Depends(workspace_use
 # the A4000 gate verifies (Caddy forward_auth) on the noVNC websocket.
 
 LOGIN_URLS: dict[str, str | None] = {
-    "vinted": None,
+    "vinted": "https://www.vinted.fr/",
     "leboncoin": "https://auth.leboncoin.fr/login/",
     "ebay": "https://signin.ebay.fr/",
     "etsy": "https://www.etsy.com/fr/signin",
@@ -1363,56 +1364,77 @@ async def _type_human_text(
         index += 1
 
 
-@app.post("/v1/workflows/runs/{run_id}/approve")
-async def approve_run(run_id: str, body: RunDecisionIn, user: dict[str, Any] = Depends(workspace_user)):
-    plan: dict[str, Any]
+def _persist_run_progress(workspace: str, run_id: str, log: list[dict[str, Any]]) -> None:
     with db.connection() as conn:
-        run = _run_row(conn, user["workspace"], run_id)
-        if run["status"] != "awaiting_approval":
-            raise HTTPException(409, "Cette exécution n'attend plus d'approbation")
-        workflow = conn.execute(
-            "SELECT * FROM workflows WHERE workspace=? AND id=?", (user["workspace"], run["workflow_id"])
-        ).fetchone()
-        plan = json.loads(run["plan_json"] or "{}")
-        approved = [
-            action for index, action in enumerate(plan.get("actions", []))
-            if body.approved_indexes is None or index in body.approved_indexes
-        ]
-        if body.mode == "auto_click" and approved and not db.desktop_lease_held(user["workspace"]):
-            raise HTTPException(409, "Réserve le bureau distant avant de lancer les clics.")
         conn.execute(
-            "UPDATE workflow_runs SET status='executing', mode=?, updated_at=? WHERE workspace=? AND id=?",
-            (body.mode, _iso_now(), user["workspace"], run_id),
+            "UPDATE workflow_runs SET log_json=?, updated_at=? WHERE workspace=? AND id=?",
+            (json.dumps(log, ensure_ascii=False), _iso_now(), workspace, run_id),
         )
+
+
+def _finish_workflow_run(
+    workspace: str,
+    run_id: str,
+    status: str,
+    log: list[dict[str, Any]],
+    error: str | None = None,
+) -> None:
+    with db.connection() as conn:
+        conn.execute(
+            "UPDATE workflow_runs SET status=?, log_json=?, error=?, updated_at=? WHERE workspace=? AND id=?",
+            (status, json.dumps(log, ensure_ascii=False), error, _iso_now(), workspace, run_id),
+        )
+
+
+def _execution_error(exc: BaseException) -> str:
+    detail = str(exc).strip() or type(exc).__name__
+    return f"Échec de l'exécution : {detail[:400]}"
+
+
+async def _execute_run_actions(
+    run_id: str,
+    workspace: str,
+    user: dict[str, Any],
+    workflow: dict[str, Any] | None,
+    plan: dict[str, Any],
+    approved_indexes: list[int] | None,
+    mode: Literal["assisted", "auto_click"],
+    log: list[dict[str, Any]],
+) -> None:
     marketplace = workflow["marketplace"] if workflow else "vinted"
-    log: list[dict[str, Any]] = []
     opened_pages: set[str] = set()
     desktop: RemoteDesktop | None = None
     desktop_attempted = False
     desktop_error: str | None = None
     profile = _workflow_human_profile(workflow, user["user_id"]) if workflow else from_trace(user["user_id"], {"events": []})
     rng = random.Random(f"{profile.seed}:{run_id}")
+
+    def record(entry: dict[str, Any]) -> None:
+        log.append(entry)
+        if mode == "auto_click":
+            _persist_run_progress(workspace, run_id, log)
+
     try:
         for index, action in enumerate(plan.get("actions", [])):
             tool = action["tool"]
-            if body.approved_indexes is not None and index not in body.approved_indexes:
-                log.append({"t": _iso_now(), "tool": tool, "result": "skipped", "detail": "non approuvée"})
+            if approved_indexes is not None and index not in approved_indexes:
+                record({"t": _iso_now(), "tool": tool, "result": "skipped", "detail": "non approuvée"})
                 continue
-            if body.mode == "auto_click":
+            if mode == "auto_click":
                 try:
                     _acquire_desktop_lease(user, marketplace, settings.desktop_session_ttl)
                 except HTTPException as exc:
-                    log.append({
+                    record({
                         "t": _iso_now(), "tool": tool, "result": "failed",
                         "detail": str(exc.detail),
                     })
                     break
-            if not db.desktop_lease_held(user["workspace"]):
-                log.append({
+            if not db.desktop_lease_held(workspace):
+                record({
                     "t": _iso_now(), "tool": tool, "result": "failed",
                     "detail": "réservation du bureau expirée ; aucune action effectuée",
                 })
-                if body.mode == "auto_click":
+                if mode == "auto_click":
                     break
                 continue
             page = (
@@ -1420,7 +1442,7 @@ async def approve_run(run_id: str, body: RunDecisionIn, user: dict[str, Any] = D
                 else LISTINGS_URLS.get(marketplace) if tool in _LISTING_TOOLS
                 else None
             )
-            if body.mode == "auto_click" and page is None:
+            if mode == "auto_click" and page is None:
                 page = _marketplace_start_url(marketplace)
             details: list[str] = []
             page_ok = True
@@ -1429,7 +1451,7 @@ async def approve_run(run_id: str, body: RunDecisionIn, user: dict[str, Any] = D
                 page_ok = await _desktop_open(page)
                 details.append(f"page ouverte dans le Chrome du bureau : {page}" if page_ok else "ouverture de page impossible")
 
-            if body.mode == "assisted":
+            if mode == "assisted":
                 ok = page_ok
                 if action.get("preview") and _desktop_enabled():
                     copied = await _desktop_clipboard(action["preview"])
@@ -1439,7 +1461,7 @@ async def approve_run(run_id: str, body: RunDecisionIn, user: dict[str, Any] = D
                     details.append("notification affichée dans le journal")
                 if tool == "wait_for_event":
                     details.append("déclencheur automatique à configurer")
-                log.append({
+                record({
                     "t": _iso_now(), "tool": tool, "args": action.get("args", {}),
                     "preview": action.get("preview", ""), "result": "assisted" if ok else "partial",
                     "detail": " · ".join(details) or "aucune action sur le bureau",
@@ -1454,16 +1476,16 @@ async def approve_run(run_id: str, body: RunDecisionIn, user: dict[str, Any] = D
             }
             if not page_ok:
                 entry.update(result="failed", outcome="ouverture de page impossible", detail="ouverture de page impossible")
-                log.append(entry)
+                record(entry)
                 continue
             if not target_text:
                 entry.update(result="failed", outcome="cible non précisée dans le plan", detail="cible non précisée dans le plan")
-                log.append(entry)
+                record(entry)
                 continue
             if not desktop_attempted:
                 desktop_attempted = True
                 try:
-                    desktop = RemoteDesktop(user["workspace"], marketplace, settings.desktop_session_ttl)
+                    desktop = RemoteDesktop(workspace, marketplace, settings.desktop_session_ttl)
                     await desktop.connect()
                 except DesktopInputError as exc:
                     desktop_error = str(exc)
@@ -1471,7 +1493,7 @@ async def approve_run(run_id: str, body: RunDecisionIn, user: dict[str, Any] = D
             if desktop is None:
                 outcome = desktop_error or "connexion RFB indisponible"
                 entry.update(result="failed", outcome=outcome, detail=outcome)
-                log.append(entry)
+                record(entry)
                 continue
 
             await asyncio.sleep(pre_action_delay(rng, profile))
@@ -1481,7 +1503,7 @@ async def approve_run(run_id: str, body: RunDecisionIn, user: dict[str, Any] = D
                     result="failed", outcome="cible introuvable à l'écran",
                     detail="cible introuvable à l'écran",
                 )
-                log.append(entry)
+                record(entry)
                 continue
             entry["matched"] = target["text"]
             entry["confidence"] = target["confidence"]
@@ -1509,15 +1531,83 @@ async def approve_run(run_id: str, body: RunDecisionIn, user: dict[str, Any] = D
                 if clicked:
                     await asyncio.sleep(rng.uniform(1.5, 3.0))
                     entry["evidence"] = await _screen_excerpt()
-            log.append(entry)
+            record(entry)
     finally:
         if desktop is not None:
             await desktop.close()
-    with db.connection() as conn:
-        conn.execute(
-            "UPDATE workflow_runs SET status='executed', log_json=?, updated_at=? WHERE workspace=? AND id=?",
-            (json.dumps(log, ensure_ascii=False), _iso_now(), user["workspace"], run_id),
+
+
+async def _run_auto_click_background(
+    run_id: str,
+    workspace: str,
+    user: dict[str, Any],
+    workflow: dict[str, Any] | None,
+    plan: dict[str, Any],
+    approved_indexes: list[int] | None,
+) -> None:
+    log: list[dict[str, Any]] = []
+    try:
+        await _execute_run_actions(
+            run_id, workspace, user, workflow, plan, approved_indexes, "auto_click", log
         )
+        _finish_workflow_run(workspace, run_id, "executed", log)
+    except asyncio.CancelledError as exc:
+        error = "Exécution interrompue avant la fin."
+        log.append({"t": _iso_now(), "tool": "execution", "result": "failed", "detail": error})
+        _finish_workflow_run(workspace, run_id, "failed", log, error)
+    except Exception as exc:
+        error = _execution_error(exc)
+        log.append({"t": _iso_now(), "tool": "execution", "result": "failed", "detail": error})
+        _finish_workflow_run(workspace, run_id, "failed", log, error)
+
+
+@app.post("/v1/workflows/runs/{run_id}/approve")
+async def approve_run(run_id: str, body: RunDecisionIn, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        run = _run_row(conn, user["workspace"], run_id)
+        if run["status"] != "awaiting_approval":
+            raise HTTPException(409, "Cette exécution n'attend plus d'approbation")
+        workflow_row = conn.execute(
+            "SELECT * FROM workflows WHERE workspace=? AND id=?", (user["workspace"], run["workflow_id"])
+        ).fetchone()
+        workflow = dict(workflow_row) if workflow_row else None
+        plan = json.loads(run["plan_json"] or "{}")
+        actions = plan.get("actions", [])
+        approved = [action for index, action in enumerate(actions) if body.approved_indexes is None or index in body.approved_indexes]
+        if body.mode == "auto_click" and approved and not db.desktop_lease_held(user["workspace"]):
+            raise HTTPException(409, "Réserve le bureau distant avant de lancer les clics.")
+        conn.execute(
+            "UPDATE workflow_runs SET status='executing', mode=?, updated_at=? WHERE workspace=? AND id=?",
+            (body.mode, _iso_now(), user["workspace"], run_id),
+        )
+    log: list[dict[str, Any]] = []
+    if body.mode == "auto_click":
+        try:
+            task = asyncio.create_task(
+                _run_auto_click_background(
+                    run_id, user["workspace"], user, workflow, plan,
+                    list(body.approved_indexes) if body.approved_indexes is not None else None,
+                )
+            )
+            _run_tasks.add(task)
+            task.add_done_callback(_run_tasks.discard)
+        except Exception as exc:
+            error = _execution_error(exc)
+            log.append({"t": _iso_now(), "tool": "execution", "result": "failed", "detail": error})
+            _finish_workflow_run(user["workspace"], run_id, "failed", log, error)
+    else:
+        try:
+            await _execute_run_actions(
+                run_id, user["workspace"], user, workflow, plan,
+                list(body.approved_indexes) if body.approved_indexes is not None else None,
+                "assisted", log,
+            )
+            _finish_workflow_run(user["workspace"], run_id, "executed", log)
+        except Exception as exc:
+            error = _execution_error(exc)
+            log.append({"t": _iso_now(), "tool": "execution", "result": "failed", "detail": error})
+            _finish_workflow_run(user["workspace"], run_id, "failed", log, error)
+    with db.connection() as conn:
         run = _run_row(conn, user["workspace"], run_id)
     return {"run": _run_dict(run)}
 

@@ -232,22 +232,73 @@ def test_auto_click_keeps_approval_filter_and_never_blind_clicks(client, monkeyp
             pass
 
         async def click(self, *_args):
-            self.clicks += 1
+            type(self).clicks += 1
 
     monkeypatch.setattr(main, "RemoteDesktop", FakeDesktop)
-    response = test_client.post(
-        f"/v1/workflows/runs/{run_id}/approve",
-        json={"approved_indexes": [1], "mode": "auto_click"},
-    )
-    assert response.status_code == 200
-    log = response.json()["run"]["log"]
+    async def approve_and_wait():
+        response = await main.approve_run(
+            run_id,
+            main.RunDecisionIn(approved_indexes=[1], mode="auto_click"),
+            current_user,
+        )
+        assert response["run"]["status"] == "executing"
+        tasks = [task for task in main._run_tasks if not task.done()]
+        assert len(tasks) == 1
+        await tasks[0]
+
+    asyncio.run(approve_and_wait())
+    with db.connection() as conn:
+        run = main._run_row(conn, current_user["workspace"], run_id)
+    log = json.loads(run["log_json"])
     assert log[0]["detail"] == "non approuvée"
     assert log[1]["detail"] == "cible introuvable à l'écran"
     assert FakeDesktop.clicks == 0
 
 
-def test_unverified_vinted_login_url_is_not_opened():
-    assert main._marketplace_start_url("vinted") is None
+def test_auto_click_approval_returns_before_background_execution_and_persists_result(client, monkeypatch):
+    test_client, current_user = client
+    workflow_id = test_client.get("/v1/workflows").json()["workflows"][0]["id"]
+    run_id = "run-background-click"
+    plan = {"actions": [{"tool": "read_thread", "args": {}, "preview": "", "needs_approval": False}]}
+    with db.connection() as conn:
+        conn.execute(
+            """INSERT INTO workflow_runs (id, workspace, created_by, workflow_id, status, plan_json)
+               VALUES (?, ?, ?, ?, 'awaiting_approval', ?)""",
+            (run_id, current_user["workspace"], current_user["user_id"], workflow_id, json.dumps(plan)),
+        )
+    db.acquire_desktop_lease(current_user["workspace"], current_user["user_id"], "vinted", 3600)
+    calls = []
+
+    async def fake_execute_run_actions(
+        _run_id, _workspace, _user, _workflow, _plan, _approved_indexes, _mode, log,
+    ):
+        calls.append("started")
+        log.append({"t": main._iso_now(), "tool": "read_thread", "result": "clicked", "detail": "test terminé"})
+
+    monkeypatch.setattr(main, "_execute_run_actions", fake_execute_run_actions)
+
+    async def approve_and_wait():
+        response = await main.approve_run(
+            run_id,
+            main.RunDecisionIn(approved_indexes=[0], mode="auto_click"),
+            current_user,
+        )
+        assert response["run"]["status"] == "executing"
+        assert calls == []
+        tasks = [task for task in main._run_tasks if not task.done()]
+        assert len(tasks) == 1
+        await tasks[0]
+
+    asyncio.run(approve_and_wait())
+    with db.connection() as conn:
+        run = main._run_row(conn, current_user["workspace"], run_id)
+    assert calls == ["started"]
+    assert run["status"] == "executed"
+    assert json.loads(run["log_json"])[0]["detail"] == "test terminé"
+
+
+def test_vinted_start_url_uses_homepage():
+    assert main._marketplace_start_url("vinted") == "https://www.vinted.fr/"
 
 
 def test_workflow_schema_migration_is_idempotent(client):
