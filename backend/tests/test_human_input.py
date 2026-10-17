@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from app.human import HumanProfile, click_point, from_trace, key_delays, move_path, pre_action_delay, typos
 from app.rfb import (
     FRAMEBUFFER_PIXEL_FORMAT,
+    RFB_INPUT_ENCODINGS,
     RemoteDesktop,
     key_event,
     keysym_for_character,
@@ -120,6 +121,67 @@ def test_rfb_requests_raw_framebuffer_after_server_init():
     ]
 
 
+def test_rfb_input_stream_negotiates_fences_and_continuous_updates():
+    class FakeSocket:
+        def __init__(self):
+            self.sent = []
+
+        async def send(self, message):
+            self.sent.append(message)
+
+    desktop = RemoteDesktop("workspace", None)
+    desktop.websocket = FakeSocket()
+    desktop.width = 1600
+    desktop.height = 900
+
+    asyncio.run(desktop._request_input_stream())
+
+    expected_encodings = (0, -312, -313)
+    assert RFB_INPUT_ENCODINGS == expected_encodings
+    assert desktop.websocket.sent == [
+        b"\x00\x00\x00\x00" + FRAMEBUFFER_PIXEL_FORMAT,
+        struct.pack(">BBH", 2, 0, len(expected_encodings))
+        + b"".join(struct.pack(">i", encoding) for encoding in expected_encodings),
+        struct.pack(">BBHHHH", 3, 0, 0, 0, 1600, 900),
+    ]
+
+
+def test_rfb_replies_to_server_fence_request():
+    class FakeSocket:
+        def __init__(self):
+            self.sent = []
+
+        async def send(self, message):
+            self.sent.append(message)
+
+    desktop = RemoteDesktop("workspace", None)
+    desktop.websocket = FakeSocket()
+
+    asyncio.run(desktop._handle_server_message(bytes.fromhex("f8000000800000010101")))
+
+    assert desktop.websocket.sent == [bytes.fromhex("f8000000000000010101")]
+
+
+def test_rfb_enables_continuous_updates_when_server_announces_support():
+    class FakeSocket:
+        def __init__(self):
+            self.sent = []
+
+        async def send(self, message):
+            self.sent.append(message)
+
+    desktop = RemoteDesktop("workspace", None)
+    desktop.websocket = FakeSocket()
+    desktop.width = 1600
+    desktop.height = 900
+
+    asyncio.run(desktop._handle_server_message(b"\x96"))
+
+    assert desktop.websocket.sent == [struct.pack(">BBHHHH", 150, 1, 0, 0, 1600, 900)]
+    assert desktop._supports_continuous_updates
+    assert desktop._enabled_continuous_updates
+
+
 def test_rfb_click_waits_before_press_and_holds_button(monkeypatch):
     class FakeSocket:
         def __init__(self):
@@ -217,7 +279,7 @@ def test_framebuffer_capture_requests_raw_pixels_and_returns_png():
             "ff000000"  # blue
             "ffffff00"  # white
         )
-        update = (
+        update = b"\x96" + (
             b"\x00\x00\x00\x01"
             + struct.pack(">HHHHi", 0, 0, 2, 2, 0)
             + raw_pixels
@@ -236,6 +298,7 @@ def test_framebuffer_capture_requests_raw_pixels_and_returns_png():
         b"\x00\x00\x00\x00" + struct.pack(">BBBBHHHBBB3x", 32, 24, 0, 1, 255, 255, 255, 16, 8, 0),
         struct.pack(">BBHi", 2, 0, 1, 0),
         struct.pack(">BBHHHH", 3, 0, 0, 0, 2, 2),
+        struct.pack(">BBHHHH", 150, 1, 0, 0, 2, 2),
     ]
 
     chunks = []

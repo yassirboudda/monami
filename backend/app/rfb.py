@@ -16,6 +16,10 @@ CONNECT_TIMEOUT = 15.0
 OPERATION_TIMEOUT = 10.0
 FRAMEBUFFER_TIMEOUT = 30.0
 FRAMEBUFFER_PIXEL_FORMAT = struct.pack(">BBBBHHHBBB3x", 32, 24, 0, 1, 255, 255, 255, 16, 8, 0)
+RFB_INPUT_ENCODINGS = (0, -312, -313)
+RFB_SERVER_FENCE_REQUEST = 1 << 31
+RFB_FENCE_FLAGS_MASK = 0x03
+RFB_FENCE_MAX_PAYLOAD = 64
 
 
 class DesktopInputError(Exception):
@@ -99,10 +103,13 @@ def keysym_for_character(char: str) -> tuple[int, bool]:
 
 
 class RemoteDesktop:
-    def __init__(self, workspace: str, marketplace: str | None, ttl: int | None = None):
+    def __init__(
+        self, workspace: str, marketplace: str | None, ttl: int | None = None, capture_only: bool = False
+    ):
         self.workspace = workspace
         self.marketplace = marketplace
         self.ttl = ttl or settings.desktop_session_ttl
+        self.capture_only = capture_only
         self.websocket = None
         self.width = 0
         self.height = 0
@@ -110,6 +117,9 @@ class RemoteDesktop:
         self._y = 0
         self._drain_task: asyncio.Task[None] | None = None
         self._closed = False
+        self._fence_ready = asyncio.Event()
+        self._supports_continuous_updates = False
+        self._enabled_continuous_updates = False
 
     async def __aenter__(self) -> RemoteDesktop:
         await self.connect()
@@ -134,8 +144,16 @@ class RemoteDesktop:
                 timeout=CONNECT_TIMEOUT,
             )
             await asyncio.wait_for(self._handshake(), timeout=CONNECT_TIMEOUT)
-            await self._request_framebuffer()
+            if self.capture_only:
+                await self._request_framebuffer()
+            else:
+                await self._request_input_stream()
             self._start_drain()
+            if not self.capture_only:
+                try:
+                    await asyncio.wait_for(self._fence_ready.wait(), timeout=0.25)
+                except asyncio.TimeoutError:
+                    pass
         except DesktopInputError:
             await self.close()
             raise
@@ -190,7 +208,9 @@ class RemoteDesktop:
     async def _drain_messages(self) -> None:
         try:
             while self.websocket is not None:
-                await self.websocket.recv()
+                message = await self.websocket.recv()
+                if isinstance(message, (bytes, bytearray)):
+                    await self._handle_server_message(bytes(message))
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -225,6 +245,41 @@ class RemoteDesktop:
         await self._send(b"\x00\x00\x00\x00" + FRAMEBUFFER_PIXEL_FORMAT)
         await self._send(struct.pack(">BBHi", 2, 0, 1, 0))
         await self._send(struct.pack(">BBHHHH", 3, 0, 0, 0, self.width, self.height))
+
+    async def _request_input_stream(self) -> None:
+        await self._send(b"\x00\x00\x00\x00" + FRAMEBUFFER_PIXEL_FORMAT)
+        encodings = struct.pack(">BBH", 2, 0, len(RFB_INPUT_ENCODINGS)) + b"".join(
+            struct.pack(">i", encoding) for encoding in RFB_INPUT_ENCODINGS
+        )
+        await self._send(encodings)
+        await self._send(struct.pack(">BBHHHH", 3, 0, 0, 0, self.width, self.height))
+
+    async def _reply_to_server_fence(self, flags: int, payload: bytes) -> None:
+        if flags & RFB_SERVER_FENCE_REQUEST:
+            payload = payload[:RFB_FENCE_MAX_PAYLOAD]
+            await self._send(
+                struct.pack(">B3xIB", 248, flags & RFB_FENCE_FLAGS_MASK, len(payload)) + payload
+            )
+            self._fence_ready.set()
+
+    async def _handle_server_continuous_updates(self) -> None:
+        first = not self._supports_continuous_updates
+        self._supports_continuous_updates = True
+        self._enabled_continuous_updates = False
+        if first:
+            await self._send(struct.pack(">BBHHHH", 150, 1, 0, 0, self.width, self.height))
+            self._enabled_continuous_updates = True
+
+    async def _handle_server_message(self, message: bytes) -> None:
+        if not message:
+            return
+        if message[0] == 150:
+            await self._handle_server_continuous_updates()
+        elif message[0] == 248 and len(message) >= 9:
+            flags = int.from_bytes(message[4:8], "big")
+            payload_length = message[8]
+            if len(message) >= 9 + payload_length:
+                await self._reply_to_server_fence(flags, message[9 : 9 + payload_length])
 
     def _clamp(self, x: int, y: int) -> tuple[int, int]:
         if self.width <= 0 or self.height <= 0:
@@ -314,6 +369,14 @@ class RemoteDesktop:
                     header = await self._read_protocol_bytes(7, FRAMEBUFFER_TIMEOUT)
                     text_length = int.from_bytes(header[3:7], "big")
                     await self._read_protocol_bytes(text_length, FRAMEBUFFER_TIMEOUT)
+                elif message_type == 150:
+                    await self._handle_server_continuous_updates()
+                elif message_type == 248:
+                    header = await self._read_protocol_bytes(8, FRAMEBUFFER_TIMEOUT)
+                    flags = int.from_bytes(header[3:7], "big")
+                    payload_length = header[7]
+                    payload = await self._read_protocol_bytes(payload_length, FRAMEBUFFER_TIMEOUT)
+                    await self._reply_to_server_fence(flags, payload)
                 else:
                     raise DesktopInputError(f"Type de message RFB inconnu ({message_type})")
 
