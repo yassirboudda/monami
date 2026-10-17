@@ -45,8 +45,18 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://octohandy.amirelay.com"),
   title: "OctoHandy — Gestion marketplace",
   description: "Gère tes boutiques, annonces et stock partagé avec l'agent OctoHandy.",
+  applicationName: "OctoHandy",
+  openGraph: {
+    title: "OctoHandy — Ton assistant marketplace",
+    description: "La pieuvre qui surveille tes boutiques Vinted, eBay, Vestiaire, Depop et agit sur ton bureau distant.",
+    siteName: "OctoHandy",
+    locale: "fr_FR",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image" },
   robots: { index: false, follow: false },
 }
 
