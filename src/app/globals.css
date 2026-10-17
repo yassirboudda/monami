@@ -2,8 +2,9 @@
 @import "tw-animate-css";
 
 @theme inline {
-  --font-heading: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
-  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: var(--font-fraunces), Georgia, serif;
+  --font-heading--font-variation-settings: "SOFT" 100, "WONK" 1;
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -25,6 +26,11 @@
   --color-background: var(--background);
   --color-success: #059669;
   --color-warning: #d97706;
+  --color-sky: var(--sky);
+  --color-butter: var(--butter);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-border: var(--sidebar-border);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -37,25 +43,32 @@
   --app-header-height: 4rem;
   --app-bottom-nav-height: 4.5rem;
   --app-main-gap: 1rem;
-  --background: #eef1f5;
-  --foreground: #0f172a;
-  --card: rgba(255, 255, 255, 0.72);
-  --card-foreground: #0f172a;
-  --popover: rgba(255, 255, 255, 0.96);
-  --popover-foreground: #0f172a;
-  --primary: #0e7490;
-  --primary-foreground: #ffffff;
-  --secondary: #2563eb;
-  --secondary-foreground: #ffffff;
-  --muted: #e2e8f0;
-  --muted-foreground: #64748b;
-  --accent: #0284c7;
-  --accent-foreground: #ffffff;
-  --destructive: #dc2626;
-  --border: rgba(15, 23, 42, 0.08);
-  --input: rgba(15, 23, 42, 0.04);
-  --ring: #2563eb;
-  --radius: 0.625rem;
+  --background: #fffcf3;
+  --foreground: #43302e;
+  --card: #ffffff;
+  --card-foreground: #43302e;
+  --popover: #ffffff;
+  --popover-foreground: #43302e;
+  --primary: #43302e;
+  --primary-foreground: #fff1b5;
+  --secondary: #43302e;
+  --secondary-foreground: #fff1b5;
+  --muted: #f4eee4;
+  --muted-foreground: #7a6461;
+  --accent: #f1e9db;
+  --accent-foreground: #43302e;
+  --destructive: #b42318;
+  --border: rgba(67, 48, 46, 0.12);
+  --input: rgba(67, 48, 46, 0.16);
+  --ring: #43302e;
+  --radius: 0.5rem;
+  --sky: #c1dbe8;
+  --butter: #fff1b5;
+  --ink: #43302e;
+  --ink-soft: #7a6461;
+  --sidebar: #f7f2e6;
+  --sidebar-accent: #efe6d6;
+  --sidebar-border: rgba(67, 48, 46, 0.1);
 }
 
 @layer base {
@@ -69,10 +82,6 @@
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.011em;
     line-height: 1.55;
-    background-image:
-      radial-gradient(ellipse 100% 80% at 50% -30%, rgba(37, 99, 235, 0.07), transparent 55%),
-      radial-gradient(ellipse 60% 50% at 100% 50%, rgba(14, 116, 144, 0.05), transparent 50%),
-      linear-gradient(180deg, #f8fafc 0%, var(--background) 100%);
     background-attachment: fixed;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
@@ -116,7 +125,9 @@ html {
   line-height: 1.15;
 }
 .text-title {
-  font-size: clamp(1.375rem, 3vw, 1.75rem);
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-variation-settings: "SOFT" 100, "WONK" 1;
+  font-size: clamp(1.5rem, 3vw, 1.875rem);
   font-weight: 600;
   letter-spacing: -0.025em;
   line-height: 1.25;

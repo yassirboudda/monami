@@ -11,10 +11,10 @@ type BtnVariant = "primary" | "secondary" | "ghost" | "danger" | "blue"
 const btnBase =
   "inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all duration-200 disabled:opacity-55 select-none"
 const btnVariants: Record<BtnVariant, string> = {
-  primary: "btn-primary text-white px-4 py-2.5",
-  blue: "glass-button-primary text-white px-4 py-2.5 border border-white/20",
-  secondary: "bg-white/85 border border-border hover:bg-white hover:border-black/15 px-4 py-2.5 text-foreground shadow-sm",
-  ghost: "px-3 py-2 text-muted-foreground hover:text-foreground hover:bg-muted/50",
+  primary: "bg-primary text-primary-foreground hover:opacity-90 px-4 py-2.5 shadow-[0_1px_2px_rgba(67,48,46,0.2)]",
+  blue: "bg-primary text-primary-foreground hover:opacity-90 px-4 py-2.5",
+  secondary: "bg-card border border-border hover:bg-accent px-4 py-2.5 text-foreground shadow-[0_1px_2px_rgba(67,48,46,0.06)]",
+  ghost: "px-3 py-2 text-muted-foreground hover:text-foreground hover:bg-accent",
   danger: "px-4 py-2.5 text-red-600 bg-red-50 hover:bg-red-100 border border-red-200/70",
 }
 
@@ -37,7 +37,7 @@ export const Button = forwardRef<
 
 export function Card({ className, children, interactive, ...rest }: React.HTMLAttributes<HTMLDivElement> & { interactive?: boolean }) {
   return (
-    <div className={cn("glass-card rounded-2xl", interactive && "interactive cursor-pointer", className)} {...rest}>
+    <div className={cn("bg-card border border-border rounded-xl shadow-[0_1px_2px_rgba(67,48,46,0.06)]", interactive && "cursor-pointer hover:bg-accent/40 transition-colors", className)} {...rest}>
       {children}
     </div>
   )
@@ -75,12 +75,12 @@ export function PageHeader({
 }
 
 const tones = {
-  green: "bg-emerald-50 text-emerald-700 border-emerald-200/70",
+  green: "bg-[#e3f1ea] text-emerald-700 border-[#bfe0cf]/70",
   red: "bg-red-50 text-red-700 border-red-200/70",
-  amber: "bg-amber-50 text-amber-700 border-amber-200/70",
-  blue: "bg-blue-50 text-blue-700 border-blue-200/70",
-  slate: "bg-slate-100 text-slate-600 border-slate-200",
-  teal: "bg-cyan-50 text-cyan-800 border-cyan-200/70",
+  amber: "bg-butter text-foreground border-[#efd96a]/70",
+  blue: "bg-sky/40 text-foreground border-sky/70",
+  slate: "bg-muted text-muted-foreground border-border",
+  teal: "bg-sky/40 text-foreground border-sky/70",
 }
 export type Tone = keyof typeof tones
 
@@ -150,7 +150,7 @@ export function Modal({
     <AnimatePresence>
       {open && (
         <motion.div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-0 sm:p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
+          <div className="absolute inset-0 bg-primary/40 backdrop-blur-sm" onClick={onClose} />
           <motion.div
             role="dialog"
             aria-modal
@@ -205,14 +205,14 @@ export function Field({ label, hint, children }: { label: string; hint?: React.R
 }
 
 export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...rest }, ref) {
-  return <input ref={ref} className={cn("glass-input w-full rounded-xl px-3.5 py-2.5 text-sm placeholder:text-slate-400", className)} {...rest} />
+  return <input ref={ref} className={cn("glass-input w-full rounded-xl px-3.5 py-2.5 text-sm placeholder:text-muted-foreground", className)} {...rest} />
 })
 
 export const Textarea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea(
   { className, ...rest },
   ref
 ) {
-  return <textarea ref={ref} className={cn("glass-input w-full rounded-xl px-3.5 py-2.5 text-sm placeholder:text-slate-400 resize-y min-h-24", className)} {...rest} />
+  return <textarea ref={ref} className={cn("glass-input w-full rounded-xl px-3.5 py-2.5 text-sm placeholder:text-muted-foreground resize-y min-h-24", className)} {...rest} />
 })
 
 export function Segmented<T extends string>({
