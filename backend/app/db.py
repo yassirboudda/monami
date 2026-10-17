@@ -156,6 +156,21 @@ CREATE TABLE IF NOT EXISTS teach_sessions (
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     PRIMARY KEY (workspace, id)
 );
+CREATE TABLE IF NOT EXISTS workflow_runs (
+    id TEXT NOT NULL,
+    workspace TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    workflow_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'planning',
+    mode TEXT NOT NULL DEFAULT 'assisted',
+    context_json TEXT,
+    plan_json TEXT,
+    log_json TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (workspace, id)
+);
 CREATE INDEX IF NOT EXISTS idx_workflows_workspace ON workflows(workspace);
 """
 

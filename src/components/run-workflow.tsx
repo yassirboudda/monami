@@ -1,0 +1,185 @@
+"use client"
+
+import { AlertTriangle, Check, ExternalLink, Loader2, MonitorSmartphone, Play, X } from "lucide-react"
+import { useEffect, useState } from "react"
+import { toast } from "sonner"
+import { Badge, Button, Modal } from "@/components/ui"
+
+type Requester = <R>(path: string, options?: { method?: string; body?: unknown }) => Promise<R>
+
+export type RunAction = { tool: string; args: Record<string, unknown>; preview: string; needs_approval: boolean }
+export type RunPlan = { summary: string; situation?: string; actions: RunAction[]; risks?: string[]; ask_user?: string; via?: string }
+export type RunLog = { t: string; tool: string; result: string; detail: string; preview?: string }
+export type WorkflowRun = {
+  id: string
+  workflowId: string
+  status: "planning" | "awaiting_approval" | "executing" | "executed" | "rejected" | "failed"
+  mode: string
+  context: { frames: number; windows: string[] } | null
+  plan: RunPlan | null
+  log: RunLog[]
+  error: string | null
+}
+
+export function RunWorkflowModal({
+  workflow,
+  onClose,
+  request,
+}: {
+  workflow: { id: string; title: string; marketplace: string } | null
+  onClose: () => void
+  request: Requester
+}) {
+  const [run, setRun] = useState<WorkflowRun | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [selected, setSelected] = useState<number[]>([])
+  const [desktopUrl, setDesktopUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!workflow) return
+    let cancelled = false
+    request<{ run: WorkflowRun }>(`/v1/workflows/${workflow.id}/run`, { method: "POST" })
+      .then(({ run: next }) => {
+        if (cancelled) return
+        setRun(next)
+        setSelected((next.plan?.actions ?? []).map((_, i) => i))
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) toast.error(cause instanceof Error ? cause.message : "Hermes n'a pas pu préparer le plan")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [workflow, request])
+
+  const approve = async () => {
+    if (!run) return
+    setBusy(true)
+    try {
+      const [{ run: next }, desktop] = await Promise.all([
+        request<{ run: WorkflowRun }>(`/v1/workflows/runs/${run.id}/approve`, { method: "POST", body: { approved_indexes: selected } }),
+        request<{ url: string }>("/v1/desktop/sessions", { method: "POST", body: { marketplace: workflow?.marketplace, purpose: "browse" } }).catch(() => null),
+      ])
+      setRun(next)
+      setDesktopUrl(desktop?.url ?? null)
+      toast.success("Plan exécuté sur le bureau OctoHandy")
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Exécution impossible")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const reject = async () => {
+    if (run && run.status === "awaiting_approval") {
+      await request(`/v1/workflows/runs/${run.id}/reject`, { method: "POST" }).catch(() => undefined)
+    }
+    onClose()
+  }
+
+  const plan = run?.plan
+
+  return (
+    <Modal open={!!workflow} onClose={() => void reject()} title={workflow ? `Lancer · ${workflow.title}` : "Lancer"} wide>
+      {!run && (
+        <div className="flex flex-col items-center gap-3 py-12 text-sm text-muted-foreground">
+          <Loader2 className="w-8 h-8 animate-spin" />
+          Hermes regarde ton bureau (Screenpipe) et prépare le plan…
+        </div>
+      )}
+
+      {run && plan && run.status === "awaiting_approval" && (
+        <div className="space-y-4">
+          <div>
+            <p className="font-medium">{plan.summary}</p>
+            {plan.situation && <p className="text-sm text-muted-foreground mt-1">{plan.situation}</p>}
+            <p className="text-xs text-muted-foreground mt-1">
+              {run.context?.frames ?? 0} écrans analysés {plan.via && <Badge tone="slate">via {plan.via}</Badge>}
+            </p>
+          </div>
+          {plan.ask_user && (
+            <p className="text-sm rounded-lg border border-amber-200 bg-amber-50 p-3 flex gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" /> {plan.ask_user}
+            </p>
+          )}
+          <ul className="space-y-2">
+            {plan.actions.map((action, index) => (
+              <li key={`${action.tool}-${index}`} className="rounded-xl border p-3 flex gap-3 items-start">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={selected.includes(index)}
+                  onChange={(e) => setSelected(e.target.checked ? [...selected, index] : selected.filter((i) => i !== index))}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone="blue">{action.tool}</Badge>
+                    {action.needs_approval && <Badge tone="amber">approbation requise</Badge>}
+                    {!!Object.keys(action.args).length && (
+                      <span className="text-xs text-muted-foreground truncate">{JSON.stringify(action.args)}</span>
+                    )}
+                  </div>
+                  {action.preview && <p className="mt-2 text-sm whitespace-pre-wrap rounded-lg bg-slate-50 p-2">{action.preview}</p>}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {!!plan.risks?.length && (
+            <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
+              {plan.risks.map((risk) => <li key={risk}>{risk}</li>)}
+            </ul>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => void reject()}>
+              <X className="w-4 h-4" /> Refuser
+            </Button>
+            <Button size="sm" loading={busy} disabled={!selected.length} onClick={() => void approve()}>
+              <Check className="w-4 h-4" /> Approuver et exécuter ({selected.length})
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {run && run.status === "executed" && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Mode assisté (PoC) : l&apos;agent a ouvert la bonne page dans le Chrome du bureau et préparé le message dans le
+            presse-papiers. Vérifie et envoie depuis le bureau (Ctrl+V).
+          </p>
+          <ol className="space-y-2 text-sm">
+            {run.log.map((entry, index) => (
+              <li key={`${entry.tool}-${index}`} className="rounded-xl border p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone="blue">{entry.tool}</Badge>
+                  <Badge tone={entry.result === "assisted" ? "teal" : entry.result === "skipped" ? "slate" : "amber"}>{entry.result}</Badge>
+                  <span className="text-xs text-muted-foreground">{new Date(entry.t).toLocaleTimeString("fr-FR")}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{entry.detail}</p>
+              </li>
+            ))}
+          </ol>
+          {desktopUrl && (
+            <div className="rounded-xl overflow-hidden border bg-black aspect-video">
+              <iframe src={desktopUrl} title="Bureau distant OctoHandy" className="w-full h-full" allow="clipboard-read; clipboard-write" />
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            {desktopUrl && (
+              <a href={desktopUrl} target="_blank" rel="noreferrer">
+                <Button variant="secondary" size="sm">
+                  <ExternalLink className="w-4 h-4" /> Plein écran
+                </Button>
+              </a>
+            )}
+            <Button size="sm" onClick={onClose}>
+              <MonitorSmartphone className="w-4 h-4" /> Terminer
+            </Button>
+          </div>
+        </div>
+      )}
+      {run && run.status === "rejected" && (
+        <p className="text-sm text-muted-foreground flex items-center gap-2"><Play className="w-4 h-4" /> Exécution refusée.</p>
+      )}
+    </Modal>
+  )
+}

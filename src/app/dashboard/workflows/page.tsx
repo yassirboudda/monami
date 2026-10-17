@@ -1,8 +1,9 @@
 "use client"
 
-import { GraduationCap, Pause, Play, Workflow } from "lucide-react"
+import { GraduationCap, Pause, Play, Rocket, Workflow } from "lucide-react"
 import { useState } from "react"
 import { Badge, Button, Card, PageHeader } from "@/components/ui"
+import { RunWorkflowModal } from "@/components/run-workflow"
 import { TeachWorkflowModal } from "@/components/teach-workflow"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
@@ -18,6 +19,7 @@ type Flow = {
 export default function WorkflowsPage() {
   const { data, error, isLoading, request, mutate, orgId } = useWorkspaceResource<{ workflows: Flow[] }>("/v1/workflows")
   const [teachOpen, setTeachOpen] = useState(false)
+  const [running, setRunning] = useState<Flow | null>(null)
   const [saving, setSaving] = useState<string | null>(null)
   const workflows = data?.workflows ?? []
 
@@ -71,19 +73,25 @@ export default function WorkflowsPage() {
                   </li>
                 ))}
               </ol>
-              <Button
-                variant={flow.enabled ? "secondary" : "primary"}
-                size="sm"
-                loading={saving === flow.id}
-                onClick={() => void toggle(flow)}
-              >
-                {flow.enabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                {flow.enabled ? "Désactiver" : "Activer"}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => setRunning(flow)}>
+                  <Rocket className="w-3.5 h-3.5" /> Lancer maintenant
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={saving === flow.id}
+                  onClick={() => void toggle(flow)}
+                >
+                  {flow.enabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                  {flow.enabled ? "Désactiver" : "Activer"}
+                </Button>
+              </div>
             </Card>
           ))}
         </div>
       )}
+      <RunWorkflowModal key={running?.id ?? "none"} workflow={running} onClose={() => setRunning(null)} request={request} />
       <TeachWorkflowModal
         key={String(teachOpen)}
         open={teachOpen}

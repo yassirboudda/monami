@@ -1045,6 +1045,234 @@ async def teach_discard(teach_id: str, user: dict[str, Any] = Depends(workspace_
     return {"ok": True}
 
 
+# ---------------------------------------------------------------------------
+# Workflow runs: Hermes turns a workflow card + the live desktop context
+# (Screenpipe, last minutes) into a concrete action plan; the seller approves;
+# the backend executes in "assisted" mode on the A4000 desktop (opens the right
+# marketplace page in Chrome, puts the drafted message in the clipboard, logs
+# every step). Fully autonomous clicking is deliberately out of scope for the PoC.
+
+INBOX_URLS: dict[str, str] = {
+    "vinted": "https://www.vinted.fr/inbox",
+    "leboncoin": "https://www.leboncoin.fr/messages",
+    "ebay": "https://mesg.ebay.fr/mesgweb/ViewMessages/0",
+    "etsy": "https://www.etsy.com/fr/messages",
+    "depop": "https://www.depop.com/messages/",
+    "vestiaire": "https://fr.vestiairecollective.com/my-account/messages/",
+    "wallapop": "https://fr.wallapop.com/app/chat",
+    "facebook_marketplace": "https://www.facebook.com/messages/",
+}
+LISTINGS_URLS: dict[str, str] = {
+    "vinted": "https://www.vinted.fr/member/general/items",
+    "leboncoin": "https://www.leboncoin.fr/compte/part/mes-annonces",
+    "ebay": "https://www.ebay.fr/sh/lst/active",
+    "etsy": "https://www.etsy.com/your/shops/me/tools/listings",
+    "depop": "https://www.depop.com/products/",
+    "vestiaire": "https://fr.vestiairecollective.com/my-account/my-items/",
+    "wallapop": "https://fr.wallapop.com/app/catalog/published",
+    "facebook_marketplace": "https://www.facebook.com/marketplace/you/selling",
+}
+_MESSAGE_TOOLS = {"list_unread_messages", "read_thread", "send_message", "send_offer", "list_offers", "list_favorites", "list_notifications"}
+_LISTING_TOOLS = {"get_listing", "update_price", "republish_listing"}
+
+
+def _run_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "workflowId": row["workflow_id"],
+        "status": row["status"],
+        "mode": row["mode"],
+        "context": json.loads(row["context_json"]) if row["context_json"] else None,
+        "plan": json.loads(row["plan_json"]) if row["plan_json"] else None,
+        "log": json.loads(row["log_json"]) if row["log_json"] else [],
+        "error": row["error"],
+        "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"],
+    }
+
+
+def _run_row(conn: Any, workspace: str, run_id: str) -> Any:
+    row = conn.execute("SELECT * FROM workflow_runs WHERE workspace=? AND id=?", (workspace, run_id)).fetchone()
+    if row is None:
+        raise HTTPException(404, "Exécution introuvable")
+    return row
+
+
+async def _desktop_clipboard(text: str) -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            response = await client.post(
+                f"{settings.desktop_base_url.rstrip('/')}/desktop/clipboard",
+                headers={"X-Gate-Secret": settings.desktop_signing_secret},
+                json={"text": text},
+            )
+            return response.status_code == 200
+    except httpx.HTTPError:
+        return False
+
+
+_RUN_SYSTEM = """Tu es l'agent Hermes d'OctoHandy, qui exécute des workflows pour un vendeur sur une marketplace.
+On te donne : la carte du workflow (étapes, outils, garde-fous, ton du vendeur), et le contexte live de son bureau
+(texte OCR Screenpipe des dernières minutes : ce qui est à l'écran dans Chrome). Prépare le plan d'exécution
+concret pour CETTE occurrence. Réponds UNIQUEMENT avec un objet JSON :
+{
+ "summary": "une phrase : ce que tu vas faire maintenant",
+ "situation": "ce que tu comprends de l'écran (messages non lus, favoris, annonces…), ou 'contexte insuffisant'",
+ "actions": [
+   {"tool": "<outil du catalogue>", "args": {"...": "..."}, "preview": "texte exact du message/offre si l'action en envoie un, dans le ton du vendeur", "needs_approval": true}
+ ],
+ "risks": ["ce qui pourrait mal se passer"],
+ "ask_user": "question au vendeur si une info manque, sinon chaîne vide"
+}
+Catalogue d'outils : %s. Max 5 actions. Toute action qui envoie un message, une offre ou modifie un prix a
+needs_approval=true. Respecte les garde-fous (prix plancher, etc.). Les messages sont en français, courts, sans
+inventer d'informations sur l'article que tu ne vois pas à l'écran.""" % ", ".join(TEACH_TOOLS)
+
+
+def _fallback_plan(workflow: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "summary": f"Ouvrir {workflow['marketplace']} et dérouler « {workflow['title']} » avec toi",
+        "situation": "contexte insuffisant (agent indisponible)",
+        "actions": [{"tool": "list_unread_messages", "args": {"marketplace": workflow["marketplace"]}, "preview": "", "needs_approval": False}],
+        "risks": ["Plan de secours : l'agent n'a pas pu analyser l'écran"],
+        "ask_user": "",
+    }
+
+
+@app.get("/v1/workflows/runs")
+async def list_runs(workflow_id: str | None = None, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        if workflow_id:
+            rows = conn.execute(
+                "SELECT * FROM workflow_runs WHERE workspace=? AND workflow_id=? ORDER BY created_at DESC LIMIT 20",
+                (user["workspace"], workflow_id),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM workflow_runs WHERE workspace=? ORDER BY created_at DESC LIMIT 20", (user["workspace"],)
+            ).fetchall()
+    return {"runs": [_run_dict(row) for row in rows]}
+
+
+@app.post("/v1/workflows/{workflow_id}/run")
+async def run_workflow(workflow_id: str, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM workflows WHERE workspace=? AND id=?", (user["workspace"], workflow_id)
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "Workflow not found")
+        workflow = _workflow_dict(row)
+        run_id = f"r-{uuid.uuid4().hex[:8]}"
+        conn.execute(
+            "INSERT INTO workflow_runs (id, workspace, created_by, workflow_id, status) VALUES (?, ?, ?, ?, 'planning')",
+            (run_id, user["workspace"], user["user_id"], workflow_id),
+        )
+    context: dict[str, Any] = {"frames": 0, "events": [], "windows": []}
+    error = None
+    if _screenpipe_enabled():
+        try:
+            end = datetime.now(timezone.utc)
+            context = await _screenpipe_events(
+                (end - timedelta(minutes=3)).strftime("%Y-%m-%dT%H:%M:%SZ"), end.strftime("%Y-%m-%dT%H:%M:%SZ")
+            )
+        except (httpx.HTTPError, ValueError) as e:
+            error = f"Screenpipe indisponible ({type(e).__name__})"
+    lines = [
+        f"Workflow « {workflow['title']} » ({workflow['marketplace']})",
+        "Étapes : " + " / ".join(workflow["steps"]),
+        "",
+        f"Contexte live du bureau ({context.get('frames', 0)} frames Screenpipe, 3 dernières minutes) :",
+    ]
+    for event in context.get("events", [])[:30]:
+        lines.append(f"- [{event['t'][11:19]}] {event['window'][:80]} :: {event['text'][:400]}")
+    plan, via = await _llm_json(_RUN_SYSTEM, "\n".join(lines)[:14000], f"octohandy-run-{user['user_id']}")
+    if not plan or not isinstance(plan.get("actions"), list):
+        plan, via = _fallback_plan(workflow), "fallback"
+    plan["actions"] = [
+        {
+            "tool": action.get("tool"), "args": action.get("args") or {},
+            "preview": str(action.get("preview") or "")[:1500],
+            "needs_approval": bool(action.get("needs_approval", True)),
+        }
+        for action in plan["actions"] if isinstance(action, dict) and action.get("tool") in TEACH_TOOLS
+    ][:5]
+    plan["via"] = via
+    plan.setdefault("risks", [])
+    plan.setdefault("ask_user", "")
+    plan.setdefault("situation", "")
+    with db.connection() as conn:
+        conn.execute(
+            """UPDATE workflow_runs SET status='awaiting_approval', context_json=?, plan_json=?, error=?, updated_at=?
+               WHERE workspace=? AND id=?""",
+            (json.dumps({"frames": context.get("frames", 0), "windows": context.get("windows", [])[:10]}, ensure_ascii=False),
+             json.dumps(plan, ensure_ascii=False), error, _iso_now(), user["workspace"], run_id),
+        )
+        run = _run_row(conn, user["workspace"], run_id)
+    return {"run": _run_dict(run), "workflow": workflow}
+
+
+class RunDecisionIn(BaseModel):
+    approved_indexes: list[int] | None = None
+
+
+@app.post("/v1/workflows/runs/{run_id}/approve")
+async def approve_run(run_id: str, body: RunDecisionIn, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        run = _run_row(conn, user["workspace"], run_id)
+        if run["status"] != "awaiting_approval":
+            raise HTTPException(409, "Cette exécution n'attend plus d'approbation")
+        workflow = conn.execute(
+            "SELECT * FROM workflows WHERE workspace=? AND id=?", (user["workspace"], run["workflow_id"])
+        ).fetchone()
+        conn.execute("UPDATE workflow_runs SET status='executing', updated_at=? WHERE workspace=? AND id=?",
+                     (_iso_now(), user["workspace"], run_id))
+    plan = json.loads(run["plan_json"] or "{}")
+    marketplace = workflow["marketplace"] if workflow else "vinted"
+    log: list[dict[str, Any]] = []
+    opened_pages: set[str] = set()
+    for index, action in enumerate(plan.get("actions", [])):
+        if body.approved_indexes is not None and index not in body.approved_indexes:
+            log.append({"t": _iso_now(), "tool": action["tool"], "result": "skipped", "detail": "non approuvée"})
+            continue
+        tool = action["tool"]
+        page = INBOX_URLS.get(marketplace) if tool in _MESSAGE_TOOLS else LISTINGS_URLS.get(marketplace) if tool in _LISTING_TOOLS else None
+        detail: list[str] = []
+        ok = True
+        if page and page not in opened_pages and _desktop_enabled():
+            opened = await _desktop_open(page)
+            opened_pages.add(page)
+            detail.append(f"page ouverte dans le Chrome du bureau : {page}" if opened else "ouverture de page impossible")
+            ok = ok and opened
+        if action.get("preview") and _desktop_enabled():
+            copied = await _desktop_clipboard(action["preview"])
+            detail.append("message prêt dans le presse-papiers du bureau (Ctrl+V)" if copied else "presse-papiers indisponible")
+            ok = ok and copied
+        if tool == "notify_seller":
+            detail.append("notification affichée dans le journal")
+        if tool == "wait_for_event":
+            detail.append("déclencheur automatique : à venir (PoC = lancement manuel)")
+        log.append({"t": _iso_now(), "tool": tool, "args": action.get("args", {}), "preview": action.get("preview", ""),
+                    "result": "assisted" if ok else "partial", "detail": " · ".join(detail) or "rien à faire côté bureau"})
+    with db.connection() as conn:
+        conn.execute(
+            "UPDATE workflow_runs SET status='executed', log_json=?, updated_at=? WHERE workspace=? AND id=?",
+            (json.dumps(log, ensure_ascii=False), _iso_now(), user["workspace"], run_id),
+        )
+        run = _run_row(conn, user["workspace"], run_id)
+    return {"run": _run_dict(run)}
+
+
+@app.post("/v1/workflows/runs/{run_id}/reject")
+async def reject_run(run_id: str, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        _run_row(conn, user["workspace"], run_id)
+        conn.execute("UPDATE workflow_runs SET status='rejected', updated_at=? WHERE workspace=? AND id=?",
+                     (_iso_now(), user["workspace"], run_id))
+        run = _run_row(conn, user["workspace"], run_id)
+    return {"run": _run_dict(run)}
+
+
 @app.get("/v1/stock")
 async def list_stock(user: dict[str, Any] = Depends(workspace_user)):
     with db.connection() as conn:
