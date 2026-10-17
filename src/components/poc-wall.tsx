@@ -28,13 +28,13 @@ export function PocWall({ currentEmail, access }: { currentEmail: string | null;
         <div className="mx-auto w-12 h-12 rounded-2xl bg-muted/60 flex items-center justify-center mb-5">
           <LockKeyhole className="w-6 h-6 text-secondary" />
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">Accès restreint</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Accès limité pendant le PoC</h1>
         <p className="text-muted-foreground mt-3">
-          Stockflow est réservé aux comptes autorisés. Le compte <span className="font-medium text-foreground">{access.allowedEmail}</span>{" "}
-          dispose d&apos;un accès. Pour en demander un, contactez l&apos;équipe Stockflow.
+          Pendant cette phase de PoC (hackathon), seul le compte <span className="font-medium text-foreground">{access.allowedEmail}</span>{" "}
+          peut se connecter à Stockflow : l&apos;instance cloud (navigateur distant, Screenpipe, agent Hermes) est dédiée à un seul utilisateur.
         </p>
         <div className="mt-6 rounded-xl border border-border/70 bg-white text-left p-4">
-          <p className="text-sm font-semibold">Identifiants de connexion</p>
+          <p className="text-sm font-semibold">Vous êtes juge ? Utilisez ces identifiants :</p>
           <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
             <dt className="text-muted-foreground">Email</dt>
             <dd className="font-mono break-all select-all">{judgeEmail}</dd>
@@ -42,7 +42,7 @@ export function PocWall({ currentEmail, access }: { currentEmail: string | null;
             <dd className="font-mono break-all select-all">{access.judgePassword || "(communiqué par l'équipe Stockflow)"}</dd>
           </dl>
           <p className="text-xs text-muted-foreground mt-3">
-            Besoin d&apos;aide ? Contactez l&apos;équipe Stockflow.
+            Indice : le mot de passe est le nom du sponsor de l&apos;événement.
           </p>
         </div>
         {currentEmail && (
