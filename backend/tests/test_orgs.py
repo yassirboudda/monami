@@ -131,15 +131,13 @@ def test_invite_links_require_an_org_and_accept_with_admin_role(client, monkeypa
     assert test_client.post("/v1/org/invite-links").status_code == 400
 
     assume_user(current_user, "owner", "org_x")
-    created = test_client.post("/v1/org/invite-links").json()
-    assert created["token"].startswith("inv_")
-    assert created["path"] == f"/join/{created['token']}"
-
     calls = []
 
     async def fake_clerk_api(method, path, body=None):
         calls.append((method, path, body))
         if method == "GET":
+            if path == "/users/owner":
+                return 200, {"email_addresses": [{"email_address": "YassirBoudda@gmail.com"}]}
             return 200, {"id": "org_x", "name": "Atelier partagé"}
         if method == "POST":
             return 422, {
@@ -148,6 +146,11 @@ def test_invite_links_require_an_org_and_accept_with_admin_role(client, monkeypa
         return 200, {"public_metadata": {"stockflow_access": True}}
 
     monkeypatch.setattr(main, "_clerk_api", fake_clerk_api)
+    created_response = test_client.post("/v1/org/invite-links")
+    assert created_response.status_code == 200
+    created = created_response.json()
+    assert created["token"].startswith("inv_")
+    assert created["path"] == f"/join/{created['token']}"
     info = test_client.get(f"/v1/invites/{created['token']}")
     assert info.status_code == 200
     assert info.json() == {
@@ -172,6 +175,50 @@ def test_invite_links_require_an_org_and_accept_with_admin_role(client, monkeypa
             {"public_metadata": {"stockflow_access": True}},
         ),
     ]
+
+
+@pytest.mark.parametrize(
+    ("clerk_user", "expected_status"),
+    [
+        ({"email_addresses": [{"email_address": "INVITER@example.com"}]}, 200),
+        ({"public_metadata": {"stockflow_access": True}}, 200),
+        ({"email_addresses": [{"email_address": "other@example.com"}]}, 403),
+    ],
+)
+def test_invite_link_creation_requires_stockflow_access(
+    client,
+    monkeypatch,
+    clerk_user,
+    expected_status,
+):
+    test_client, current_user = client
+    assume_user(current_user, "owner", "org_x")
+    monkeypatch.setattr(main.settings, "poc_allowed_emails", " inviter@example.com, teammate@example.com ")
+
+    async def fake_clerk_api(method, path, body=None):
+        assert method == "GET"
+        assert path == "/users/owner"
+        return 200, clerk_user
+
+    monkeypatch.setattr(main, "_clerk_api", fake_clerk_api)
+    response = test_client.post("/v1/org/invite-links")
+    assert response.status_code == expected_status
+    if expected_status == 403:
+        assert response.json()["detail"] == "Accès Stockflow requis pour inviter"
+    else:
+        assert response.json()["token"].startswith("inv_")
+
+
+def test_invite_link_clerk_lookup_errors_return_bad_gateway(client, monkeypatch):
+    test_client, current_user = client
+    assume_user(current_user, "owner", "org_x")
+
+    async def fake_clerk_api(_method, _path, _body=None):
+        return 500, {"errors": []}
+
+    monkeypatch.setattr(main, "_clerk_api", fake_clerk_api)
+    response = test_client.post("/v1/org/invite-links")
+    assert response.status_code == 502
 
 
 def test_invites_return_not_found_and_gone_for_unknown_or_expired_tokens(client):

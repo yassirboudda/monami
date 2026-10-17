@@ -4,8 +4,74 @@ import { useAuth, useOrganization } from "@clerk/nextjs"
 import { Copy, Link2, Users } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
-import { Badge, Button, Card, PageHeader } from "@/components/ui"
+import { Badge, Button, Card, Input, PageHeader, Textarea } from "@/components/ui"
 import { apiFetch } from "@/lib/api"
+import { useWorkspaceResource } from "@/lib/use-workspace-resource"
+
+type AgentProfile = {
+  displayName: string
+  preferences: Record<string, unknown>
+}
+
+function AgentProfileCard() {
+  const { data, error, isLoading, request, mutate } = useWorkspaceResource<{ profile: AgentProfile }>("/v1/me/profile")
+  const [nameDraft, setNameDraft] = useState<string | undefined>()
+  const [notesDraft, setNotesDraft] = useState<string | undefined>()
+  const [saving, setSaving] = useState(false)
+  const profile = data?.profile
+  const displayName = nameDraft ?? profile?.displayName ?? ""
+  const savedNotes = typeof profile?.preferences?.notes === "string" ? profile.preferences.notes : ""
+  const notes = notesDraft ?? savedNotes
+
+  const saveProfile = async () => {
+    setSaving(true)
+    try {
+      await request("/v1/me/profile", {
+        method: "PUT",
+        body: { displayName, preferences: { notes } },
+      })
+      await mutate()
+      setNameDraft(undefined)
+      setNotesDraft(undefined)
+      toast.success("Profil enregistré")
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Impossible d'enregistrer le profil")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Card className="p-5 mb-5">
+      <h2 className="font-semibold">Mon profil (lu par l&apos;agent)</h2>
+      <p className="text-sm text-muted-foreground mt-1 mb-4">Ton profil reste personnel, même dans une organisation.</p>
+      {error && <p role="alert" className="text-sm text-red-700 mb-3">Impossible de charger le profil : {error.message}</p>}
+      <div className="space-y-3">
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">Nom affiché</span>
+          <Input
+            value={displayName}
+            onChange={(event) => setNameDraft(event.target.value)}
+            disabled={isLoading || saving}
+            placeholder="Ton nom"
+          />
+        </label>
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">Préférences pour l&apos;agent</span>
+          <Textarea
+            value={notes}
+            onChange={(event) => setNotesDraft(event.target.value)}
+            disabled={isLoading || saving}
+            placeholder="Ton, signature, habitudes…"
+          />
+        </label>
+        <Button size="sm" loading={saving} disabled={isLoading} onClick={() => void saveProfile()}>
+          Enregistrer le profil
+        </Button>
+      </div>
+    </Card>
+  )
+}
 
 export default function TeamPage() {
   const { orgId, isLoaded, getToken } = useAuth()
@@ -39,6 +105,7 @@ export default function TeamPage() {
     return (
       <div>
         <PageHeader label="Espace de travail" title="Équipe" />
+        <AgentProfileCard />
         <Card className="p-5">
           <p className="font-semibold">Aucune organisation sélectionnée</p>
           <p className="text-sm text-muted-foreground mt-2">
@@ -62,6 +129,7 @@ export default function TeamPage() {
           </Button>
         }
       />
+      <AgentProfileCard />
       {inviteUrl && (
         <Card className="p-4 mb-5 space-y-2">
           <p className="text-sm font-medium">Lien valable 7 jours</p>

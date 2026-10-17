@@ -697,6 +697,28 @@ async def create_invite_link(user: dict[str, Any] = Depends(workspace_user)):
     org_id = user.get("org_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="Sélectionne une organisation")
+    try:
+        clerk_status, clerk_user = await _clerk_api("GET", f"/users/{user['user_id']}")
+    except (HTTPException, httpx.HTTPError) as exc:
+        raise HTTPException(status_code=502, detail="Impossible de vérifier l'accès Stockflow") from exc
+    if clerk_status >= 400:
+        raise HTTPException(status_code=502, detail="Impossible de vérifier l'accès Stockflow")
+    public_metadata = clerk_user.get("public_metadata")
+    if not isinstance(public_metadata, dict) or public_metadata.get("stockflow_access") is not True:
+        allowed_emails = {
+            email.strip().lower()
+            for email in settings.poc_allowed_emails.split(",")
+            if email.strip()
+        }
+        email_addresses = clerk_user.get("email_addresses")
+        email_allowed = isinstance(email_addresses, list) and any(
+            isinstance(address, dict)
+            and isinstance(address.get("email_address"), str)
+            and address["email_address"].strip().lower() in allowed_emails
+            for address in email_addresses
+        )
+        if not email_allowed:
+            raise HTTPException(status_code=403, detail="Accès Stockflow requis pour inviter")
     created_at = datetime.now(timezone.utc)
     expires_at = created_at + timedelta(days=7)
     token = f"inv_{uuid.uuid4().hex}"
