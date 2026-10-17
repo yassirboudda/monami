@@ -11,7 +11,7 @@ export default function SignUpPage() {
         <span className="font-heading text-3xl text-foreground">OctoHandy</span>
       </Link>
       <p className="text-muted-foreground text-center max-w-sm -mt-2">
-        Crée ton espace : l'octopus surveillera tes marketplaces pour toi.
+        Crée ton espace : l&apos;octopus surveillera tes marketplaces pour toi.
       </p>
       <SignUp
         appearance={clerkAppearance}
