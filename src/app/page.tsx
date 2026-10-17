@@ -142,7 +142,7 @@ export default function HomePage() {
           <div>
             <h2 className="serif text-[clamp(2rem,4vw,3rem)] leading-[1.08]">Il se souvient de ce que vous avez vu.</h2>
             <p className="mt-6 max-w-[30rem] leading-relaxed text-[#E9DDC4]">
-              Stockflow se branche sur screenpipe, qui garde en mémoire, sur votre ordinateur, ce qui passe à l&apos;écran. Les
+              OctoHandy se branche sur screenpipe, qui garde en mémoire, sur votre ordinateur, ce qui passe à l&apos;écran. Les
               escarpins aperçus hier soir dans une story deviennent une recherche en un clic. Les gestes que vous répétez en
               tant que vendeur deviennent une automatisation.
             </p>
@@ -174,7 +174,7 @@ export default function HomePage() {
       <footer className="bg-[var(--paper)]">
         <div className="mx-auto flex max-w-[1240px] flex-col items-start justify-between gap-4 px-4 py-10 text-[0.92rem] text-[var(--ink-soft)] sm:flex-row sm:items-center sm:px-8">
           <p>
-            <span className="serif text-[var(--ink)]">Stockflow</span>, fait à 42 Paris pendant le hackathon screenpipe.
+            <span className="serif text-[var(--ink)]">OctoHandy</span>, fait à 42 Paris pendant le hackathon screenpipe.
           </p>
           <Link href="/dashboard" className="underline underline-offset-4">
             Tableau de bord vendeur

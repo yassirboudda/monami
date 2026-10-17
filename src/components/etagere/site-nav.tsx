@@ -23,7 +23,7 @@ export function SiteNav({ tone = "sky" }: { tone?: "sky" | "butter" | "paper" })
     >
       <nav className="mx-auto flex max-w-[1240px] items-center justify-between gap-4 px-4 py-5 sm:px-8">
         <Link href="/" className="serif text-[1.35rem] leading-none">
-          Stockflow
+          OctoHandy
         </Link>
         <p className="hidden text-[0.95rem] text-[var(--ink-soft)] md:block">Toutes les boutiques, une seule étagère</p>
         <ul className="flex items-center gap-4 text-[0.95rem] sm:gap-7">

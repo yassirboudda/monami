@@ -21,7 +21,7 @@ export function Octopus({ size = 160, className, wave = false }: { size?: number
       height={(size * 200) / 190}
       className={cn("overflow-visible", className)}
       role="img"
-      aria-label="Poulpe, la mascotte Stockflow"
+      aria-label="Poulpe, la mascotte OctoHandy"
     >
       <defs>
         <radialGradient id="octo-body" cx="40%" cy="30%" r="75%">
