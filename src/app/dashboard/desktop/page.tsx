@@ -88,7 +88,7 @@ export default function DesktopPage() {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           <Tile title="Bureau distant" ok={s ? s.gate : null} detail={s?.host ? `${s.host.replace("https://", "")} · noVNC, jeton signé 15 min` : "Chargement…"} icon={MonitorSmartphone} />
-          <Tile title="Screenpipe" ok={s ? !!s.screenpipe?.ok : null} detail={s?.screenpipe ? `état ${s.screenpipe.status} · OCR + fenêtres, 24/7` : "non configuré"} icon={Eye} />
+          <Tile title="Screenpipe" ok={s ? (s.screenpipe?.ok ? true : s.screenpipe?.status === "degraded" ? null : false) : null} detail={s?.screenpipe ? (s.screenpipe.ok ? "OCR + fenêtres, 24/7" : s.screenpipe.status === "degraded" ? "dégradé : captures en retard, redémarrage en cours" : "injoignable sur le A4000") : "non configuré"} icon={Eye} />
           <Tile title="Agent Hermes" ok={s ? s.hermes : null} detail={s?.model ? `NemoClaw sandbox · ${s.model}` : "Chargement…"} icon={Brain} />
           <Tile title="Sortie réseau" ok={s ? s.gate : null} detail="Proxy résidentiel dédié (FR) forcé pour Chrome, aucune sortie directe" icon={ShieldCheck} />
         </div>

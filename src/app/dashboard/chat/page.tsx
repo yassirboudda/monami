@@ -223,6 +223,14 @@ export default function ChatPage() {
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onPaste={(e) => {
+                const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/"))
+                if (!files.length) return
+                e.preventDefault()
+                const dt = new DataTransfer()
+                files.forEach((f) => dt.items.add(f))
+                void onFiles(dt.files)
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault()
