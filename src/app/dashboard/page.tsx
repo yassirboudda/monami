@@ -17,7 +17,6 @@ export default function DashboardHome() {
       <PageHeader
         label="Dashboard"
         title="Vue d'ensemble"
-        subtitle="Tes boutiques, ton stock et tes workflows, exécutés par l'agent Hermes sur ton bureau OctoHandy distant."
       />
       <div className="grid sm:grid-cols-2 gap-4">
         {cards.map((c) => (

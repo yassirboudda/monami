@@ -71,7 +71,6 @@ export default function DesktopPage() {
       <PageHeader
         label="Infrastructure"
         title="Bureau OctoHandy"
-        subtitle="Un vrai Chrome sur une machine GPU (Brev A4000, IP résidentielle), avec Screenpipe comme mémoire visuelle et l'agent Hermes (NemoClaw · Nebius DeepSeek) à côté. Tes sessions marketplace vivent ici, pas sur ton PC."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => void Promise.all([status.mutate(), teach.mutate(), runs.mutate(), screen.mutate()])}>
