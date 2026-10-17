@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -109,6 +110,178 @@ def test_workflow_toggle_is_persistent_and_scoped(client):
 
     assume_user(current_user, "user_b", "org_y")
     assert test_client.get("/v1/workflows").json()["workflows"][0]["enabled"] is False
+
+
+def test_teach_save_persists_intent_and_run_prompt_uses_guardrails(client, monkeypatch):
+    test_client, current_user = client
+    started_at = "2026-01-01T00:00:00Z"
+    draft = {
+        "title": "Répondre aux favoris",
+        "trigger": "Un article est ajouté aux favoris",
+        "steps": ["Lire la demande", "Préparer une réponse"],
+        "tools": [{"tool": "read_thread", "args": {}}],
+        "intent": {
+            "goal": "Répondre à l'acheteur sans dépasser le prix plancher",
+            "actor": "seller",
+            "entities": {"marketplace": "vinted", "prix_plancher": "20 €"},
+            "success_criteria": "La réponse est envoyée après validation",
+            "constraints": ["Ne jamais proposer moins de 20 €"],
+        },
+        "guardrails": ["Ne pas proposer moins de 20 €"],
+        "tone_notes": "Tutoiement, ton chaleureux",
+        "confidence": "high",
+    }
+    with db.connection() as conn:
+        conn.execute(
+            """INSERT INTO teach_sessions
+               (id, workspace, created_by, marketplace, status, started_at, trace_json, draft_json)
+               VALUES (?, ?, ?, ?, 'draft', ?, ?, ?)""",
+            (
+                "teach-intent", current_user["workspace"], current_user["user_id"], "vinted", started_at,
+                json.dumps({"events": [{"t": started_at}, {"t": "2026-01-01T00:00:03Z"}]}),
+                json.dumps(draft, ensure_ascii=False),
+            ),
+        )
+    saved = test_client.post(
+        "/v1/teach/teach-intent/save",
+        json={"title": draft["title"], "steps": draft["steps"], "enabled": True},
+    )
+    assert saved.status_code == 200
+    workflow = saved.json()["workflow"]
+    assert workflow["intent"] == draft["intent"]
+    assert workflow["trigger"] == draft["trigger"]
+    assert workflow["tools"] == draft["tools"]
+    assert workflow["guardrails"] == draft["guardrails"]
+    assert workflow["toneNotes"] == draft["tone_notes"]
+    assert workflow["confidence"] == "high"
+    assert workflow["humanProfile"]["pace"] == 3
+
+    captured = {}
+
+    async def fake_llm(system, user_text, _session_key):
+        captured["system"] = system
+        captured["user_text"] = user_text
+        return {
+            "actions": [{"tool": "read_thread", "args": {}, "needs_approval": False}],
+            "summary": "Lire le fil",
+        }, "test"
+
+    monkeypatch.setattr(main, "_llm_json", fake_llm)
+    response = test_client.post(f"/v1/workflows/{workflow['id']}/run")
+    assert response.status_code == 200
+    prompt = captured["user_text"]
+    assert "Ne pas proposer moins de 20 €" in prompt
+    assert prompt.index("Garde-fous :") < prompt.index("Contexte live du bureau")
+    assert "Répondre à l'acheteur" in prompt
+
+
+def test_desktop_lease_blocks_another_workspace_and_hides_screen(client, monkeypatch):
+    test_client, current_user = client
+    monkeypatch.setattr(main, "_desktop_enabled", lambda: True)
+    monkeypatch.setattr(main, "_screenpipe_enabled", lambda: True)
+    monkeypatch.setattr(main.settings, "desktop_base_url", "https://desktop.example")
+    monkeypatch.setattr(main.settings, "desktop_signing_secret", "test-secret")
+
+    async def opened(_url):
+        return True
+
+    monkeypatch.setattr(main, "_desktop_open", opened)
+    started = test_client.post("/v1/teach/start", json={"marketplace": "vinted"})
+    assert started.status_code == 200
+    assert db.desktop_lease_held(current_user["workspace"])
+
+    assume_user(current_user, "user_b")
+    blocked = test_client.post("/v1/teach/start", json={"marketplace": "vinted"})
+    assert blocked.status_code == 409
+    assert "autre équipe" in blocked.json()["detail"]
+    assert asyncio.run(main._screen_context(current_user["workspace"])) == ""
+
+
+def test_auto_click_keeps_approval_filter_and_never_blind_clicks(client, monkeypatch):
+    test_client, current_user = client
+    workflow_id = test_client.get("/v1/workflows").json()["workflows"][0]["id"]
+    run_id = "run-auto-click"
+    plan = {
+        "actions": [
+            {"tool": "send_message", "args": {}, "preview": "Bonjour", "needs_approval": True, "target_text": "Envoyer"},
+            {"tool": "read_thread", "args": {}, "preview": "", "needs_approval": False, "target_text": "Répondre"},
+        ]
+    }
+    with db.connection() as conn:
+        conn.execute(
+            """INSERT INTO workflow_runs (id, workspace, created_by, workflow_id, status, plan_json)
+               VALUES (?, ?, ?, ?, 'awaiting_approval', ?)""",
+            (run_id, current_user["workspace"], current_user["user_id"], workflow_id, json.dumps(plan)),
+        )
+    db.acquire_desktop_lease(current_user["workspace"], current_user["user_id"], "vinted", 3600)
+    monkeypatch.setattr(main, "_desktop_enabled", lambda: True)
+    monkeypatch.setattr(main, "_desktop_open", lambda _url: asyncio.sleep(0, result=True))
+    monkeypatch.setattr(main, "find_target", lambda _text: asyncio.sleep(0, result=None))
+    monkeypatch.setattr(main, "pre_action_delay", lambda _rng, _profile: 0)
+
+    class FakeDesktop:
+        clicks = 0
+
+        def __init__(self, *_args):
+            pass
+
+        async def connect(self):
+            pass
+
+        async def close(self):
+            pass
+
+        async def click(self, *_args):
+            self.clicks += 1
+
+    monkeypatch.setattr(main, "RemoteDesktop", FakeDesktop)
+    response = test_client.post(
+        f"/v1/workflows/runs/{run_id}/approve",
+        json={"approved_indexes": [1], "mode": "auto_click"},
+    )
+    assert response.status_code == 200
+    log = response.json()["run"]["log"]
+    assert log[0]["detail"] == "non approuvée"
+    assert log[1]["detail"] == "cible introuvable à l'écran"
+    assert FakeDesktop.clicks == 0
+
+
+def test_unverified_vinted_login_url_is_not_opened():
+    assert main._marketplace_start_url("vinted") is None
+
+
+def test_workflow_schema_migration_is_idempotent(client):
+    test_client, current_user = client
+    test_client.get("/v1/workflows")
+    legacy_steps = [
+        "Client met un article en favoris",
+        "Détection via messagerie / notif (backend plus tard)",
+        "Envoi d'un message avec proposition de prix (discount)",
+    ]
+    with db.connection() as conn:
+        conn.execute(
+            "UPDATE workflows SET title=?, steps_json=? WHERE workspace=? AND id=?",
+            (
+                "Favoris → offre discount",
+                json.dumps(legacy_steps, ensure_ascii=False),
+                current_user["workspace"],
+                "vinted-fav-offer",
+            ),
+        )
+    db.initialize_database()
+    db.initialize_database()
+    with db.connection() as conn:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(workflows)")}
+        migrated = conn.execute(
+            "SELECT title, steps_json FROM workflows WHERE workspace=? AND id=?",
+            (current_user["workspace"], "vinted-fav-offer"),
+        ).fetchone()
+    assert {
+        "trigger", "intent_json", "tools_json", "guardrails_json",
+        "tone_notes", "confidence", "human_profile_json",
+    } <= columns
+    assert migrated["title"] == "Favoris → proposition de prix"
+    assert "backend plus tard" not in migrated["steps_json"]
 
 
 def test_patch_and_delete_reject_rows_from_another_workspace(client):
