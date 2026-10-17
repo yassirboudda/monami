@@ -27,7 +27,6 @@ export default function AllListingsPage() {
       <PageHeader
         label="Marketplace"
         title="Toutes les annonces"
-        subtitle={`${visible.length} annonce${visible.length > 1 ? "s" : ""} · boutiques + listings regroupés dans Boutique.`}
         actions={
           <Link href="/dashboard/shops">
             <Button variant="secondary" size="sm">
