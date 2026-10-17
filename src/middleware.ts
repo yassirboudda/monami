@@ -1,7 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 
-const isPublic = createRouteMatcher(["/", "/sign-in(.*)", "/sign-up(.*)", "/backend(.*)"])
+const isPublic = createRouteMatcher(["/", "/chercher(.*)", "/inventaire(.*)", "/sign-in(.*)", "/sign-up(.*)", "/backend(.*)"])
 
 const authorizedParties = [
   "https://octohandy.amirelay.com",
