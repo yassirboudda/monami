@@ -815,9 +815,9 @@ def _screenpipe_enabled() -> bool:
     return bool(settings.screenpipe_api_url and settings.screenpipe_api_key)
 
 
-_SITE_RE = re.compile(r"\b((?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:fr|com|net|org|io|co|eu|de|es|it|be|uk|app))\b", re.I)
+_SITE_RE = re.compile(r"(?<![@\w.-])((?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:fr|com|net|org|io|co|eu|de|es|it|be|uk|app))\b", re.I)
 _SITE_LABELS = {"vinted": "Vinted", "leboncoin": "Leboncoin", "ebay": "eBay", "etsy": "Etsy", "depop": "Depop", "vestiairecollective": "Vestiaire Collective",
-                "wallapop": "Wallapop", "facebook": "Facebook", "google": "Google", "octohandy": "OctoHandy"}
+                "wallapop": "Wallapop", "facebook": "Facebook", "google": "Google", "accounts": "Google", "octohandy": "OctoHandy"}
 
 
 def _guess_site(text: str) -> str:
@@ -933,6 +933,57 @@ async def _screenpipe_events(start_iso: str, end_iso: str) -> dict[str, Any]:
         "frames": len(items), "events": events[:80], "apps": apps,
         "windows": list(dict.fromkeys(event["window"] for event in events if event["window"]))[:20],
     }
+
+
+_SCREEN_SUMMARY_CACHE: dict[str, dict[str, str]] = {}
+_SCREEN_SUMMARY_SYSTEM = """Tu expliques à un vendeur non technicien ce qui se passe sur l'écran de son bureau OctoHandy.
+On te donne des extraits OCR bruts (texte reconnu sur des captures d'écran, souvent abîmé) de pages web, dans l'ordre.
+Pour CHAQUE extrait, réponds avec : "label" (3 à 6 mots : site + ce que c'est, ex. "Leboncoin — page de connexion",
+"Vinted — résultats de recherche", "Google — validation en deux étapes") et "summary" (UNE phrase simple en français, max 25 mots,
+qui dit ce qu'on voit et ce qui se passe, sans jargon, sans citer le texte abîmé ; cite un e-mail/pseudo/article/prix s'il est lisible).
+Réponds UNIQUEMENT en JSON : {"items": [{"i": 0, "label": "...", "summary": "..."}, ...]}"""
+
+
+async def _describe_screen_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Attach `label`/`summary` (plain French) to screen events; one Nebius call for the misses, cached by content."""
+    todo: list[tuple[int, str]] = []
+    for idx, event in enumerate(events):
+        key = hashlib.sha1(f"{event.get('window')}|{event.get('text', '')[:600]}".encode()).hexdigest()
+        event["key"] = key
+        cached = _SCREEN_SUMMARY_CACHE.get(key)
+        if cached:
+            event.update(cached)
+        elif event.get("text"):
+            todo.append((idx, key))
+    if todo and settings.nebius_api_key:
+        payload = "\n\n".join(f"[{n}] ({events[i].get('window') or 'site inconnu'}) {events[i]['text'][:500]}" for n, (i, _) in enumerate(todo))
+        try:
+            async with httpx.AsyncClient(timeout=25) as client:
+                response = await client.post(
+                    f"{settings.nebius_base_url.rstrip('/')}/chat/completions",
+                    headers={"Authorization": f"Bearer {settings.nebius_api_key}"},
+                    json={"model": settings.nebius_model, "temperature": 0.1, "response_format": {"type": "json_object"},
+                          "messages": [{"role": "system", "content": _SCREEN_SUMMARY_SYSTEM}, {"role": "user", "content": payload}]},
+                )
+            parsed = _parse_json_block(response.json()["choices"][0]["message"]["content"]) if response.status_code < 400 else None
+            for item in (parsed or {}).get("items", []):
+                n = int(item.get("i", -1))
+                if 0 <= n < len(todo):
+                    i, key = todo[n]
+                    desc = {"label": str(item.get("label") or "")[:80], "summary": str(item.get("summary") or "")[:220]}
+                    if desc["summary"]:
+                        _SCREEN_SUMMARY_CACHE[key] = desc
+                        events[i].update(desc)
+        except (httpx.HTTPError, KeyError, ValueError, TypeError):
+            pass
+        if len(_SCREEN_SUMMARY_CACHE) > 600:
+            for key in list(_SCREEN_SUMMARY_CACHE)[:200]:
+                _SCREEN_SUMMARY_CACHE.pop(key, None)
+    for event in events:
+        event.setdefault("label", f"Chrome · {event['window']}" if event.get("window") else "Bureau OctoHandy")
+        event.setdefault("summary", "")
+        event.pop("key", None)
+    return events
 
 
 def _parse_json_block(text: str) -> dict[str, Any] | None:
@@ -1819,7 +1870,8 @@ async def desktop_screen(minutes: int = 2, user: dict[str, Any] = Depends(worksp
         )
     except (httpx.HTTPError, ValueError) as e:
         raise HTTPException(502, f"Screenpipe injoignable ({type(e).__name__})")
-    return {"minutes": minutes, "frames": trace["frames"], "windows": trace["windows"], "events": trace["events"][-12:], "checkedAt": _iso_now()}
+    events = await _describe_screen_events(trace["events"][-12:])
+    return {"minutes": minutes, "frames": trace["frames"], "windows": trace["windows"], "events": events, "checkedAt": _iso_now()}
 
 
 class ClipboardIn(BaseModel):
