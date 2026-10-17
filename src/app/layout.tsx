@@ -34,7 +34,13 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider localization={frFR}>
+    <ClerkProvider
+      localization={frFR}
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      afterSignOutUrl="/"
+      // Clerk prod domain is clerk.amirelay.com. Do NOT set proxyUrl to the FAPI host.
+    >
       <html lang="fr" className={`${jakarta.variable} ${jetbrainsMono.variable}`}>
         <body className="antialiased">
           {children}
