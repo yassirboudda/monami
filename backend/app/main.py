@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import base64
+import hashlib
+import hmac
+import json
+import secrets
 import time
 import uuid
-import json
+from urllib.parse import urlencode
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
@@ -243,6 +249,8 @@ def health():
         "backend": True,
         "model": settings.nebius_model,
         "hermes": bool(settings.hermes_api_key),
+        "desktop": bool(settings.desktop_base_url and settings.desktop_signing_secret),
+        "screenpipe": bool(settings.screenpipe_api_url and settings.screenpipe_api_key),
         "hermesUrl": settings.hermes_api_url,
         "hint": "API live on 127.0.0.1:3000 via nginx :80/:8080",
     }
@@ -489,7 +497,7 @@ async def extension_session(body: ExtSessionIn, user: dict[str, Any] = Depends(w
 
 
 class ShopIn(BaseModel):
-    marketplace: Literal["vinted", "leboncoin"]
+    marketplace: str
     displayName: str
     status: Literal["connected", "expired"] = "connected"
     listingCount: int = 0
@@ -502,6 +510,8 @@ class ShopPatch(BaseModel):
 
 @app.post("/v1/shops")
 async def create_shop(body: ShopIn, user: dict[str, Any] = Depends(workspace_user)):
+    if get_marketplace(body.marketplace) is None:
+        raise HTTPException(404, "Marketplace inconnue")
     shop_id = f"s-{uuid.uuid4().hex[:8]}"
     with db.connection() as conn:
         conn.execute(
@@ -563,6 +573,786 @@ async def delete_shop(shop_id: str, user: dict[str, Any] = Depends(workspace_use
         conn.execute("DELETE FROM listings WHERE workspace=? AND shop_id=?", (user["workspace"], shop_id))
         conn.execute("DELETE FROM shops WHERE workspace=? AND id=?", (user["workspace"], shop_id))
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Remote desktop (A4000): the seller logs into the marketplace in a real Chrome
+# that lives next to Screenpipe and Hermes. Access = short-lived HMAC token that
+# the A4000 gate verifies (Caddy forward_auth) on the noVNC websocket.
+
+LOGIN_URLS: dict[str, str] = {
+    "vinted": "https://www.vinted.fr/member/signup/select_type?ref_url=%2F",
+    "leboncoin": "https://auth.leboncoin.fr/login/",
+    "ebay": "https://signin.ebay.fr/",
+    "etsy": "https://www.etsy.com/fr/signin",
+    "depop": "https://www.depop.com/login/",
+    "vestiaire": "https://fr.vestiairecollective.com/login/",
+    "wallapop": "https://fr.wallapop.com/login",
+    "amazon": "https://sellercentral.amazon.fr/",
+    "facebook_marketplace": "https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2Fmarketplace%2F",
+}
+
+
+def _desktop_enabled() -> bool:
+    return bool(settings.desktop_base_url and settings.desktop_signing_secret)
+
+
+def _desktop_token(workspace: str, marketplace: str | None, ttl: int) -> tuple[str, int]:
+    exp = int(time.time()) + ttl
+    raw = json.dumps(
+        {"exp": exp, "ws": workspace, "mp": marketplace or "", "n": secrets.token_hex(6)},
+        separators=(",", ":"),
+    ).encode()
+    payload = base64.urlsafe_b64encode(raw).decode().rstrip("=")
+    sig = hmac.new(settings.desktop_signing_secret.encode(), payload.encode(), hashlib.sha256).hexdigest()[:40]
+    return f"{payload}.{sig}", exp
+
+
+def _marketplace_start_url(marketplace: str | None) -> str | None:
+    if not marketplace:
+        return None
+    if marketplace in LOGIN_URLS:
+        return LOGIN_URLS[marketplace]
+    doc = get_marketplace(marketplace) or {}
+    for key in ("login_url", "url", "website"):
+        if isinstance(doc.get(key), str) and doc[key].startswith("http"):
+            return doc[key]
+    return f"https://www.{marketplace}.fr/"
+
+
+async def _desktop_open(url: str) -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            response = await client.post(
+                f"{settings.desktop_base_url.rstrip('/')}/desktop/open",
+                headers={"X-Gate-Secret": settings.desktop_signing_secret},
+                json={"url": url},
+            )
+            return response.status_code == 200
+    except httpx.HTTPError:
+        return False
+
+
+class DesktopSessionIn(BaseModel):
+    marketplace: str | None = None
+    purpose: Literal["connect", "teach", "browse"] = "connect"
+
+
+@app.get("/v1/desktop")
+async def desktop_status(user: dict[str, Any] = Depends(workspace_user)):
+    return {
+        "enabled": _desktop_enabled(),
+        "host": settings.desktop_base_url or None,
+        "marketplaces": sorted(LOGIN_URLS),
+    }
+
+
+@app.post("/v1/desktop/sessions")
+async def create_desktop_session(body: DesktopSessionIn, user: dict[str, Any] = Depends(workspace_user)):
+    if not _desktop_enabled():
+        raise HTTPException(503, "Bureau distant non configuré (DESKTOP_BASE_URL / DESKTOP_SIGNING_SECRET)")
+    if body.marketplace and get_marketplace(body.marketplace) is None and body.marketplace not in LOGIN_URLS:
+        raise HTTPException(404, "Marketplace inconnue")
+    token, exp = _desktop_token(user["workspace"], body.marketplace, settings.desktop_session_ttl)
+    params = {
+        "autoconnect": "1",
+        "resize": "remote",
+        "reconnect": "1",
+        "reconnect_delay": "1500",
+        "show_dot": "1",
+        "t": token,
+        "path": f"websockify?t={token}",
+    }
+    if settings.desktop_vnc_password:
+        params["password"] = settings.desktop_vnc_password
+    url = f"{settings.desktop_base_url.rstrip('/')}/vnc.html?{urlencode(params)}"
+    start_url = _marketplace_start_url(body.marketplace) if body.purpose == "connect" else None
+    opened = await _desktop_open(start_url) if start_url else False
+    return {
+        "url": url,
+        "expiresAt": datetime.fromtimestamp(exp, tz=timezone.utc).isoformat(),
+        "marketplace": body.marketplace,
+        "purpose": body.purpose,
+        "startUrl": start_url,
+        "opened": opened,
+    }
+
+
+class DesktopConnectedIn(BaseModel):
+    marketplace: str
+    displayName: str | None = None
+
+
+@app.post("/v1/desktop/connected")
+async def desktop_connected(body: DesktopConnectedIn, user: dict[str, Any] = Depends(workspace_user)):
+    doc = get_marketplace(body.marketplace)
+    if doc is None and body.marketplace not in LOGIN_URLS:
+        raise HTTPException(404, "Marketplace inconnue")
+    name = body.displayName or f"{(doc or {}).get('name') or body.marketplace.capitalize()} · bureau distant"
+    with db.connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM shops WHERE workspace=? AND marketplace=? ORDER BY created_at LIMIT 1",
+            (user["workspace"], body.marketplace),
+        ).fetchone()
+        if row is None:
+            shop_id = f"s-{uuid.uuid4().hex[:8]}"
+            conn.execute(
+                """INSERT INTO shops (id, workspace, created_by, marketplace, display_name, status, listing_count)
+                   VALUES (?, ?, ?, ?, ?, 'connected', 0)""",
+                (shop_id, user["workspace"], user["user_id"], body.marketplace, name),
+            )
+        else:
+            shop_id = row["id"]
+            conn.execute(
+                "UPDATE shops SET status='connected', display_name=COALESCE(?, display_name), updated_at=? WHERE workspace=? AND id=?",
+                (body.displayName, _iso_now(), user["workspace"], shop_id),
+            )
+        row = conn.execute(
+            """SELECT s.*, COUNT(l.id) AS listing_count FROM shops s LEFT JOIN listings l
+               ON l.workspace=s.workspace AND l.shop_id=s.id
+               WHERE s.workspace=? AND s.id=? GROUP BY s.workspace, s.id""",
+            (user["workspace"], shop_id),
+        ).fetchone()
+    return {"shop": _shop_dict(row)}
+
+
+# ---------------------------------------------------------------------------
+# Teach by doing: the seller performs the task once on the remote desktop, we
+# pull that time window from Screenpipe (same machine as Chrome) and Hermes
+# compiles the trace into a workflow card built from a fixed tool catalog.
+
+TEACH_TOOLS: list[str] = [
+    "list_unread_messages", "read_thread", "send_message", "list_favorites", "list_offers",
+    "send_offer", "get_listing", "update_price", "republish_listing", "list_notifications",
+    "wait_for_event", "notify_seller",
+]
+
+_WORKFLOW_TONES = {"vinted": "teal", "leboncoin": "amber"}
+
+
+def _teach_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "marketplace": row["marketplace"],
+        "status": row["status"],
+        "startedAt": row["started_at"],
+        "endedAt": row["ended_at"],
+        "trace": json.loads(row["trace_json"]) if row["trace_json"] else None,
+        "draft": json.loads(row["draft_json"]) if row["draft_json"] else None,
+        "workflowId": row["workflow_id"],
+        "error": row["error"],
+        "createdAt": row["created_at"],
+    }
+
+
+def _teach_row(conn: Any, workspace: str, teach_id: str) -> Any:
+    row = conn.execute(
+        "SELECT * FROM teach_sessions WHERE workspace=? AND id=?", (workspace, teach_id)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, "Session d'apprentissage introuvable")
+    return row
+
+
+def _screenpipe_enabled() -> bool:
+    return bool(settings.screenpipe_api_url and settings.screenpipe_api_key)
+
+
+async def _screenpipe_events(start_iso: str, end_iso: str) -> dict[str, Any]:
+    """Fetch the Screenpipe window and compress it into a compact, de-duplicated trace."""
+    items: list[dict[str, Any]] = []
+    headers = {"Authorization": f"Bearer {settings.screenpipe_api_key}"}
+    async with httpx.AsyncClient(timeout=30) as client:
+        for offset in range(0, 600, 200):
+            response = await client.get(
+                f"{settings.screenpipe_api_url.rstrip('/')}/search",
+                headers=headers,
+                params={
+                    "content_type": "all", "start_time": start_iso, "end_time": end_iso,
+                    "limit": 200, "offset": offset,
+                },
+            )
+            response.raise_for_status()
+            page = response.json().get("data", [])
+            items.extend(page)
+            if len(page) < 200:
+                break
+    items.sort(key=lambda item: str((item.get("content") or {}).get("timestamp", "")))
+    events: list[dict[str, Any]] = []
+    seen_lines: set[str] = set()
+    apps: dict[str, int] = {}
+    total_chars = 0
+    for item in items:
+        content = item.get("content") or {}
+        kind = str(item.get("type", "")).lower()
+        app = str(content.get("app_name") or "")
+        window = str(content.get("window_name") or content.get("title") or "")
+        text = str(content.get("text") or content.get("transcription") or "")
+        apps[app or "?"] = apps.get(app or "?", 0) + 1
+        lines: list[str] = []
+        for raw in text.splitlines():
+            line = " ".join(raw.split())
+            if len(line) < 3 or line in seen_lines:
+                continue
+            seen_lines.add(line)
+            lines.append(line)
+        snippet = " | ".join(lines)[:600]
+        if not snippet and (not events or events[-1]["window"] == window):
+            continue
+        if events and events[-1]["window"] == window and events[-1]["kind"] == kind and len(events[-1]["text"]) < 900:
+            events[-1]["text"] = (events[-1]["text"] + " | " + snippet).strip(" |")[:1200]
+        else:
+            events.append({
+                "t": str(content.get("timestamp") or ""), "kind": kind, "app": app,
+                "window": window, "text": snippet,
+            })
+        total_chars += len(snippet)
+        if total_chars > 14000:
+            break
+    return {
+        "frames": len(items), "events": events[:80], "apps": apps,
+        "windows": list(dict.fromkeys(event["window"] for event in events if event["window"]))[:20],
+    }
+
+
+def _parse_json_block(text: str) -> dict[str, Any] | None:
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        text = text[text.find("\n") + 1:] if "\n" in text else text
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end == -1:
+        return None
+    try:
+        data = json.loads(text[start:end + 1])
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _fallback_draft(marketplace: str, trace: dict[str, Any]) -> dict[str, Any]:
+    windows = [w for w in trace.get("windows", []) if w][:4] or ["Action réalisée sur la marketplace"]
+    return {
+        "title": f"Workflow {marketplace.capitalize()} appris le {datetime.now(timezone.utc).strftime('%d/%m %H:%M')}",
+        "trigger": "À définir (déclencheur non détecté dans la démonstration)",
+        "steps": [f"Écran : {w[:90]}" for w in windows],
+        "tools": [], "guardrails": ["Toujours demander validation avant d'envoyer un message"],
+        "tone_notes": "", "confidence": "low",
+    }
+
+
+async def _llm_json(system: str, user_text: str, session_key: str) -> tuple[dict[str, Any] | None, str]:
+    """Hermes first (same OpenAI-compatible gateway as /v1/chat), then Nebius DeepSeek directly."""
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": user_text}]
+    if settings.hermes_api_key:
+        try:
+            async with httpx.AsyncClient(timeout=settings.hermes_timeout) as client:
+                response = await client.post(
+                    f"{settings.hermes_api_url.rstrip('/')}/chat/completions",
+                    headers={"Authorization": f"Bearer {settings.hermes_api_key}", "X-Hermes-Session-Key": session_key},
+                    json={"model": settings.hermes_model, "messages": messages, "stream": False},
+                )
+            if response.status_code < 400:
+                parsed = _parse_json_block(response.json()["choices"][0]["message"]["content"])
+                if parsed:
+                    return parsed, "hermes"
+        except (httpx.HTTPError, KeyError, ValueError):
+            pass
+    if settings.nebius_api_key:
+        try:
+            async with httpx.AsyncClient(timeout=90) as client:
+                response = await client.post(
+                    f"{settings.nebius_base_url.rstrip('/')}/chat/completions",
+                    headers={"Authorization": f"Bearer {settings.nebius_api_key}"},
+                    json={"model": settings.nebius_model, "messages": messages, "temperature": 0.2,
+                          "response_format": {"type": "json_object"}},
+                )
+            if response.status_code < 400:
+                parsed = _parse_json_block(response.json()["choices"][0]["message"]["content"])
+                if parsed:
+                    return parsed, "nebius"
+        except (httpx.HTTPError, KeyError, ValueError):
+            pass
+    return None, "none"
+
+
+_TEACH_SYSTEM = """Tu es le compilateur de workflows d'OctoHandy, un assistant pour vendeurs sur les marketplaces
+(Vinted, Leboncoin, eBay…). On te donne la trace Screenpipe (texte OCR des écrans, titres de fenêtres, ordre
+chronologique) d'un vendeur qui vient de faire UNE FOIS, à la main, la tâche qu'il veut automatiser.
+Déduis le workflow réutilisable et réponds UNIQUEMENT avec un objet JSON (pas de markdown) :
+{
+ "title": "titre court (max 60 caractères), style 'Favoris → offre discount'",
+ "trigger": "l'événement qui déclenche le workflow, une phrase",
+ "steps": ["3 à 6 étapes courtes en français, impératif, style 'Client met un article en favoris'"],
+ "tools": [{"tool": "<un outil du catalogue>", "args": {"...": "..."}}],
+ "guardrails": ["règles de sécurité déduites (prix plancher, ne jamais répondre hors sujet, validation humaine…)"],
+ "tone_notes": "comment le vendeur écrit (tutoiement, emojis, formules), déduit des messages tapés",
+ "confidence": "high|medium|low"
+}
+Catalogue d'outils autorisés (n'en invente pas d'autre) : %s.
+Ignore les bandeaux cookies, publicités, onglets sans rapport. Si la trace est trop pauvre, mets confidence "low"
+et propose quand même le workflow le plus plausible pour cette marketplace.""" % ", ".join(TEACH_TOOLS)
+
+
+async def _compile_teach(marketplace: str, trace: dict[str, Any], user_id: str) -> tuple[dict[str, Any], str]:
+    started = trace.get("events", [{}])[0].get("t", "") if trace.get("events") else ""
+    lines = [f"Marketplace : {marketplace}", f"Frames Screenpipe : {trace.get('frames')}", f"Début : {started}", "Trace :"]
+    for event in trace.get("events", []):
+        lines.append(f"- [{event['t'][11:19]}] {event['app']} / {event['window'][:80]} :: {event['text'][:500]}")
+    draft, via = await _llm_json(_TEACH_SYSTEM, "\n".join(lines)[:16000], f"octohandy-teach-{user_id}")
+    if not draft or not isinstance(draft.get("steps"), list) or not draft.get("title"):
+        return _fallback_draft(marketplace, trace), "fallback"
+    draft["steps"] = [str(step)[:160] for step in draft["steps"]][:8]
+    draft["tools"] = [tool for tool in draft.get("tools", []) if isinstance(tool, dict) and tool.get("tool") in TEACH_TOOLS]
+    draft.setdefault("guardrails", [])
+    draft.setdefault("trigger", "")
+    draft.setdefault("tone_notes", "")
+    return draft, via
+
+
+class TeachStartIn(BaseModel):
+    marketplace: str
+
+
+class TeachSaveIn(BaseModel):
+    title: str | None = None
+    steps: list[str] | None = None
+    enabled: bool = False
+
+
+@app.get("/v1/teach")
+async def list_teach(user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM teach_sessions WHERE workspace=? ORDER BY created_at DESC LIMIT 20",
+            (user["workspace"],),
+        ).fetchall()
+    return {"enabled": _desktop_enabled() and _screenpipe_enabled(), "sessions": [_teach_dict(row) for row in rows]}
+
+
+@app.post("/v1/teach/start")
+async def teach_start(body: TeachStartIn, user: dict[str, Any] = Depends(workspace_user)):
+    if not (_desktop_enabled() and _screenpipe_enabled()):
+        raise HTTPException(503, "Apprentissage indisponible : bureau distant ou Screenpipe non configuré")
+    if get_marketplace(body.marketplace) is None and body.marketplace not in LOGIN_URLS:
+        raise HTTPException(404, "Marketplace inconnue")
+    teach_id = f"t-{uuid.uuid4().hex[:8]}"
+    now = _iso_now()
+    with db.connection() as conn:
+        conn.execute(
+            "UPDATE teach_sessions SET status='abandoned', updated_at=? WHERE workspace=? AND status='recording'",
+            (now, user["workspace"]),
+        )
+        conn.execute(
+            """INSERT INTO teach_sessions (id, workspace, created_by, marketplace, status, started_at)
+               VALUES (?, ?, ?, ?, 'recording', ?)""",
+            (teach_id, user["workspace"], user["user_id"], body.marketplace, now),
+        )
+        row = _teach_row(conn, user["workspace"], teach_id)
+    token, exp = _desktop_token(user["workspace"], body.marketplace, max(settings.desktop_session_ttl, 1800))
+    params = {
+        "autoconnect": "1", "resize": "remote", "reconnect": "1", "reconnect_delay": "1500",
+        "show_dot": "1", "t": token, "path": f"websockify?t={token}",
+    }
+    if settings.desktop_vnc_password:
+        params["password"] = settings.desktop_vnc_password
+    start_url = _marketplace_start_url(body.marketplace)
+    opened = await _desktop_open(start_url) if start_url else False
+    return {
+        "session": _teach_dict(row),
+        "desktop": {
+            "url": f"{settings.desktop_base_url.rstrip('/')}/vnc.html?{urlencode(params)}",
+            "expiresAt": datetime.fromtimestamp(exp, tz=timezone.utc).isoformat(),
+            "opened": opened,
+        },
+    }
+
+
+@app.post("/v1/teach/{teach_id}/stop")
+async def teach_stop(teach_id: str, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        row = _teach_row(conn, user["workspace"], teach_id)
+        if row["status"] != "recording":
+            raise HTTPException(409, "Cette session n'est plus en cours d'enregistrement")
+        ended = _iso_now()
+        conn.execute(
+            "UPDATE teach_sessions SET status='compiling', ended_at=?, updated_at=? WHERE workspace=? AND id=?",
+            (ended, ended, user["workspace"], teach_id),
+        )
+    error = None
+    trace: dict[str, Any] = {"frames": 0, "events": [], "apps": {}, "windows": []}
+    try:
+        # Screenpipe indexes with a few seconds of delay: give it a short grace period.
+        await asyncio.sleep(4)
+        trace = await _screenpipe_events(row["started_at"], ended)
+    except (httpx.HTTPError, ValueError) as e:
+        error = f"Screenpipe indisponible ({type(e).__name__})"
+    draft, via = await _compile_teach(row["marketplace"], trace, user["user_id"])
+    draft["via"] = via
+    with db.connection() as conn:
+        conn.execute(
+            """UPDATE teach_sessions SET status='draft', trace_json=?, draft_json=?, error=?, updated_at=?
+               WHERE workspace=? AND id=?""",
+            (json.dumps({**trace, "events": trace["events"][:40]}, ensure_ascii=False), json.dumps(draft, ensure_ascii=False),
+             error, _iso_now(), user["workspace"], teach_id),
+        )
+        row = _teach_row(conn, user["workspace"], teach_id)
+    return {"session": _teach_dict(row)}
+
+
+@app.post("/v1/teach/{teach_id}/save")
+async def teach_save(teach_id: str, body: TeachSaveIn, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        row = _teach_row(conn, user["workspace"], teach_id)
+        draft = json.loads(row["draft_json"] or "{}")
+        title = (body.title or draft.get("title") or "Workflow appris").strip()[:80]
+        steps = [step.strip() for step in (body.steps or draft.get("steps") or []) if step and step.strip()][:8]
+        if not steps:
+            raise HTTPException(422, "Le workflow doit contenir au moins une étape")
+        workflow_id = row["workflow_id"] or f"w-{uuid.uuid4().hex[:8]}"
+        tone = _WORKFLOW_TONES.get(row["marketplace"], "blue")
+        if row["workflow_id"]:
+            conn.execute(
+                "UPDATE workflows SET title=?, steps_json=?, enabled=?, updated_at=? WHERE workspace=? AND id=?",
+                (title, json.dumps(steps, ensure_ascii=False), int(body.enabled), _iso_now(), user["workspace"], workflow_id),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO workflows (id, workspace, created_by, marketplace, title, steps_json, tone, source, enabled)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'teach', ?)""",
+                (workflow_id, user["workspace"], user["user_id"], row["marketplace"], title,
+                 json.dumps(steps, ensure_ascii=False), tone, int(body.enabled)),
+            )
+        conn.execute(
+            "UPDATE teach_sessions SET status='saved', workflow_id=?, updated_at=? WHERE workspace=? AND id=?",
+            (workflow_id, _iso_now(), user["workspace"], teach_id),
+        )
+        workflow = conn.execute(
+            "SELECT * FROM workflows WHERE workspace=? AND id=?", (user["workspace"], workflow_id)
+        ).fetchone()
+        row = _teach_row(conn, user["workspace"], teach_id)
+    return {"workflow": _workflow_dict(workflow), "session": _teach_dict(row)}
+
+
+@app.delete("/v1/teach/{teach_id}")
+async def teach_discard(teach_id: str, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        _teach_row(conn, user["workspace"], teach_id)
+        conn.execute(
+            "UPDATE teach_sessions SET status='discarded', updated_at=? WHERE workspace=? AND id=?",
+            (_iso_now(), user["workspace"], teach_id),
+        )
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Workflow runs: Hermes turns a workflow card + the live desktop context
+# (Screenpipe, last minutes) into a concrete action plan; the seller approves;
+# the backend executes in "assisted" mode on the A4000 desktop (opens the right
+# marketplace page in Chrome, puts the drafted message in the clipboard, logs
+# every step). Fully autonomous clicking is deliberately out of scope for the PoC.
+
+INBOX_URLS: dict[str, str] = {
+    "vinted": "https://www.vinted.fr/inbox",
+    "leboncoin": "https://www.leboncoin.fr/messages",
+    "ebay": "https://mesg.ebay.fr/mesgweb/ViewMessages/0",
+    "etsy": "https://www.etsy.com/fr/messages",
+    "depop": "https://www.depop.com/messages/",
+    "vestiaire": "https://fr.vestiairecollective.com/my-account/messages/",
+    "wallapop": "https://fr.wallapop.com/app/chat",
+    "facebook_marketplace": "https://www.facebook.com/messages/",
+}
+LISTINGS_URLS: dict[str, str] = {
+    "vinted": "https://www.vinted.fr/member/general/items",
+    "leboncoin": "https://www.leboncoin.fr/compte/part/mes-annonces",
+    "ebay": "https://www.ebay.fr/sh/lst/active",
+    "etsy": "https://www.etsy.com/your/shops/me/tools/listings",
+    "depop": "https://www.depop.com/products/",
+    "vestiaire": "https://fr.vestiairecollective.com/my-account/my-items/",
+    "wallapop": "https://fr.wallapop.com/app/catalog/published",
+    "facebook_marketplace": "https://www.facebook.com/marketplace/you/selling",
+}
+_MESSAGE_TOOLS = {"list_unread_messages", "read_thread", "send_message", "send_offer", "list_offers", "list_favorites", "list_notifications"}
+_LISTING_TOOLS = {"get_listing", "update_price", "republish_listing"}
+
+
+def _run_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "workflowId": row["workflow_id"],
+        "status": row["status"],
+        "mode": row["mode"],
+        "context": json.loads(row["context_json"]) if row["context_json"] else None,
+        "plan": json.loads(row["plan_json"]) if row["plan_json"] else None,
+        "log": json.loads(row["log_json"]) if row["log_json"] else [],
+        "error": row["error"],
+        "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"],
+    }
+
+
+def _run_row(conn: Any, workspace: str, run_id: str) -> Any:
+    row = conn.execute("SELECT * FROM workflow_runs WHERE workspace=? AND id=?", (workspace, run_id)).fetchone()
+    if row is None:
+        raise HTTPException(404, "Exécution introuvable")
+    return row
+
+
+async def _desktop_clipboard(text: str) -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            response = await client.post(
+                f"{settings.desktop_base_url.rstrip('/')}/desktop/clipboard",
+                headers={"X-Gate-Secret": settings.desktop_signing_secret},
+                json={"text": text},
+            )
+            return response.status_code == 200
+    except httpx.HTTPError:
+        return False
+
+
+_RUN_SYSTEM = """Tu es l'agent Hermes d'OctoHandy, qui exécute des workflows pour un vendeur sur une marketplace.
+On te donne : la carte du workflow (étapes, outils, garde-fous, ton du vendeur), et le contexte live de son bureau
+(texte OCR Screenpipe des dernières minutes : ce qui est à l'écran dans Chrome). Prépare le plan d'exécution
+concret pour CETTE occurrence. Réponds UNIQUEMENT avec un objet JSON :
+{
+ "summary": "une phrase : ce que tu vas faire maintenant",
+ "situation": "ce que tu comprends de l'écran (messages non lus, favoris, annonces…), ou 'contexte insuffisant'",
+ "actions": [
+   {"tool": "<outil du catalogue>", "args": {"...": "..."}, "preview": "texte exact du message/offre si l'action en envoie un, dans le ton du vendeur", "needs_approval": true}
+ ],
+ "risks": ["ce qui pourrait mal se passer"],
+ "ask_user": "question au vendeur si une info manque, sinon chaîne vide"
+}
+Catalogue d'outils : %s. Max 5 actions. Toute action qui envoie un message, une offre ou modifie un prix a
+needs_approval=true. Respecte les garde-fous (prix plancher, etc.). Les messages sont en français, courts, sans
+inventer d'informations sur l'article que tu ne vois pas à l'écran.""" % ", ".join(TEACH_TOOLS)
+
+
+def _fallback_plan(workflow: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "summary": f"Ouvrir {workflow['marketplace']} et dérouler « {workflow['title']} » avec toi",
+        "situation": "contexte insuffisant (agent indisponible)",
+        "actions": [{"tool": "list_unread_messages", "args": {"marketplace": workflow["marketplace"]}, "preview": "", "needs_approval": False}],
+        "risks": ["Plan de secours : l'agent n'a pas pu analyser l'écran"],
+        "ask_user": "",
+    }
+
+
+@app.get("/v1/workflows/runs")
+async def list_runs(workflow_id: str | None = None, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        if workflow_id:
+            rows = conn.execute(
+                "SELECT * FROM workflow_runs WHERE workspace=? AND workflow_id=? ORDER BY created_at DESC LIMIT 20",
+                (user["workspace"], workflow_id),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM workflow_runs WHERE workspace=? ORDER BY created_at DESC LIMIT 20", (user["workspace"],)
+            ).fetchall()
+    return {"runs": [_run_dict(row) for row in rows]}
+
+
+@app.post("/v1/workflows/{workflow_id}/run")
+async def run_workflow(workflow_id: str, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM workflows WHERE workspace=? AND id=?", (user["workspace"], workflow_id)
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "Workflow not found")
+        workflow = _workflow_dict(row)
+        run_id = f"r-{uuid.uuid4().hex[:8]}"
+        conn.execute(
+            "INSERT INTO workflow_runs (id, workspace, created_by, workflow_id, status) VALUES (?, ?, ?, ?, 'planning')",
+            (run_id, user["workspace"], user["user_id"], workflow_id),
+        )
+    context: dict[str, Any] = {"frames": 0, "events": [], "windows": []}
+    error = None
+    if _screenpipe_enabled():
+        try:
+            end = datetime.now(timezone.utc)
+            context = await _screenpipe_events(
+                (end - timedelta(minutes=3)).strftime("%Y-%m-%dT%H:%M:%SZ"), end.strftime("%Y-%m-%dT%H:%M:%SZ")
+            )
+        except (httpx.HTTPError, ValueError) as e:
+            error = f"Screenpipe indisponible ({type(e).__name__})"
+    lines = [
+        f"Workflow « {workflow['title']} » ({workflow['marketplace']})",
+        "Étapes : " + " / ".join(workflow["steps"]),
+        "",
+        f"Contexte live du bureau ({context.get('frames', 0)} frames Screenpipe, 3 dernières minutes) :",
+    ]
+    for event in context.get("events", [])[:30]:
+        lines.append(f"- [{event['t'][11:19]}] {event['window'][:80]} :: {event['text'][:400]}")
+    plan, via = await _llm_json(_RUN_SYSTEM, "\n".join(lines)[:14000], f"octohandy-run-{user['user_id']}")
+    if not plan or not isinstance(plan.get("actions"), list):
+        plan, via = _fallback_plan(workflow), "fallback"
+    plan["actions"] = [
+        {
+            "tool": action.get("tool"), "args": action.get("args") or {},
+            "preview": str(action.get("preview") or "")[:1500],
+            "needs_approval": bool(action.get("needs_approval", True)),
+        }
+        for action in plan["actions"] if isinstance(action, dict) and action.get("tool") in TEACH_TOOLS
+    ][:5]
+    plan["via"] = via
+    plan.setdefault("risks", [])
+    plan.setdefault("ask_user", "")
+    plan.setdefault("situation", "")
+    with db.connection() as conn:
+        conn.execute(
+            """UPDATE workflow_runs SET status='awaiting_approval', context_json=?, plan_json=?, error=?, updated_at=?
+               WHERE workspace=? AND id=?""",
+            (json.dumps({"frames": context.get("frames", 0), "windows": context.get("windows", [])[:10]}, ensure_ascii=False),
+             json.dumps(plan, ensure_ascii=False), error, _iso_now(), user["workspace"], run_id),
+        )
+        run = _run_row(conn, user["workspace"], run_id)
+    return {"run": _run_dict(run), "workflow": workflow}
+
+
+class RunDecisionIn(BaseModel):
+    approved_indexes: list[int] | None = None
+
+
+@app.post("/v1/workflows/runs/{run_id}/approve")
+async def approve_run(run_id: str, body: RunDecisionIn, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        run = _run_row(conn, user["workspace"], run_id)
+        if run["status"] != "awaiting_approval":
+            raise HTTPException(409, "Cette exécution n'attend plus d'approbation")
+        workflow = conn.execute(
+            "SELECT * FROM workflows WHERE workspace=? AND id=?", (user["workspace"], run["workflow_id"])
+        ).fetchone()
+        conn.execute("UPDATE workflow_runs SET status='executing', updated_at=? WHERE workspace=? AND id=?",
+                     (_iso_now(), user["workspace"], run_id))
+    plan = json.loads(run["plan_json"] or "{}")
+    marketplace = workflow["marketplace"] if workflow else "vinted"
+    log: list[dict[str, Any]] = []
+    opened_pages: set[str] = set()
+    for index, action in enumerate(plan.get("actions", [])):
+        if body.approved_indexes is not None and index not in body.approved_indexes:
+            log.append({"t": _iso_now(), "tool": action["tool"], "result": "skipped", "detail": "non approuvée"})
+            continue
+        tool = action["tool"]
+        page = INBOX_URLS.get(marketplace) if tool in _MESSAGE_TOOLS else LISTINGS_URLS.get(marketplace) if tool in _LISTING_TOOLS else None
+        detail: list[str] = []
+        ok = True
+        if page and page not in opened_pages and _desktop_enabled():
+            opened = await _desktop_open(page)
+            opened_pages.add(page)
+            detail.append(f"page ouverte dans le Chrome du bureau : {page}" if opened else "ouverture de page impossible")
+            ok = ok and opened
+        if action.get("preview") and _desktop_enabled():
+            copied = await _desktop_clipboard(action["preview"])
+            detail.append("message prêt dans le presse-papiers du bureau (Ctrl+V)" if copied else "presse-papiers indisponible")
+            ok = ok and copied
+        if tool == "notify_seller":
+            detail.append("notification affichée dans le journal")
+        if tool == "wait_for_event":
+            detail.append("déclencheur automatique : à venir (PoC = lancement manuel)")
+        log.append({"t": _iso_now(), "tool": tool, "args": action.get("args", {}), "preview": action.get("preview", ""),
+                    "result": "assisted" if ok else "partial", "detail": " · ".join(detail) or "rien à faire côté bureau"})
+    with db.connection() as conn:
+        conn.execute(
+            "UPDATE workflow_runs SET status='executed', log_json=?, updated_at=? WHERE workspace=? AND id=?",
+            (json.dumps(log, ensure_ascii=False), _iso_now(), user["workspace"], run_id),
+        )
+        run = _run_row(conn, user["workspace"], run_id)
+    return {"run": _run_dict(run)}
+
+
+@app.post("/v1/workflows/runs/{run_id}/reject")
+async def reject_run(run_id: str, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        _run_row(conn, user["workspace"], run_id)
+        conn.execute("UPDATE workflow_runs SET status='rejected', updated_at=? WHERE workspace=? AND id=?",
+                     (_iso_now(), user["workspace"], run_id))
+        run = _run_row(conn, user["workspace"], run_id)
+    return {"run": _run_dict(run)}
+
+
+# ---------------------------------------------------------------------------
+# Desktop status (A4000 health seen from the backend) + "eyes" for the chat.
+
+async def _screen_context(minutes: int = 2) -> str:
+    """What is on the remote desktop screen right now (Screenpipe OCR), for Hermes."""
+    if not _screenpipe_enabled():
+        return ""
+    try:
+        end = datetime.now(timezone.utc)
+        trace = await _screenpipe_events(
+            (end - timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%SZ"), end.strftime("%Y-%m-%dT%H:%M:%SZ")
+        )
+    except (httpx.HTTPError, ValueError):
+        return ""
+    events = trace.get("events", [])
+    if not events:
+        return ""
+    lines = [f"- [{e['t'][11:19]}] {e['window'][:80]} :: {e['text'][:350]}" for e in events[-8:]]
+    return (
+        "\n\nÉcran du bureau OctoHandy (Chrome distant, OCR Screenpipe des 2 dernières minutes, du plus ancien au plus "
+        "récent). Utilise-le si l'utilisateur parle de ce qu'il voit, de ses messages, favoris ou annonces :\n"
+        + "\n".join(lines)
+    )
+
+
+@app.get("/v1/desktop/status")
+async def desktop_status_live(user: dict[str, Any] = Depends(workspace_user)):
+    base = settings.desktop_base_url.rstrip("/")
+    result: dict[str, Any] = {
+        "enabled": _desktop_enabled(), "host": settings.desktop_base_url or None,
+        "gate": False, "screenpipe": None, "hermes": False, "screen": None, "checkedAt": _iso_now(),
+    }
+    if not _desktop_enabled():
+        return result
+
+    async def gate(client: httpx.AsyncClient) -> None:
+        try:
+            response = await client.get(f"{base}/desktop/health")
+            result["gate"] = response.status_code == 200
+        except httpx.HTTPError:
+            pass
+
+    async def screenpipe(client: httpx.AsyncClient) -> None:
+        if not _screenpipe_enabled():
+            return
+        headers = {"Authorization": f"Bearer {settings.screenpipe_api_key}"}
+        try:
+            health = await client.get(f"{settings.screenpipe_api_url.rstrip('/')}/health", headers=headers)
+            result["screenpipe"] = {"status": health.json().get("status"), "ok": health.status_code == 200}
+            latest = await client.get(
+                f"{settings.screenpipe_api_url.rstrip('/')}/search", headers=headers,
+                params={"content_type": "ocr", "limit": 1},
+            )
+            data = latest.json().get("data") or []
+            if data:
+                content = data[0].get("content") or {}
+                result["screen"] = {
+                    "window": content.get("window_name") or content.get("app_name") or "",
+                    "at": content.get("timestamp"),
+                    "excerpt": " ".join(str(content.get("text") or "").split())[:240],
+                }
+        except (httpx.HTTPError, ValueError):
+            result["screenpipe"] = result["screenpipe"] or {"status": "unreachable", "ok": False}
+
+    async def hermes(client: httpx.AsyncClient) -> None:
+        if not settings.hermes_api_key:
+            return
+        try:
+            response = await client.get(
+                f"{settings.hermes_api_url.rstrip('/')}/models",
+                headers={"Authorization": f"Bearer {settings.hermes_api_key}"},
+            )
+            result["hermes"] = response.status_code == 200
+        except httpx.HTTPError:
+            pass
+
+    async with httpx.AsyncClient(timeout=8) as client:
+        await asyncio.gather(gate(client), screenpipe(client), hermes(client))
+    result["model"] = settings.nebius_model
+    return result
 
 
 @app.get("/v1/stock")
@@ -791,7 +1581,7 @@ class ChatIn(BaseModel):
 @app.post("/v1/chat")
 async def chat(body: ChatIn, user: dict[str, Any] = Depends(workspace_user)):
     """Chat via Hermes, then Nebius Token Factory (DeepSeek), or a mock response."""
-    system = _build_chat_system_prompt() + await _chat_context(user)
+    system = _build_chat_system_prompt() + await _chat_context(user) + await _screen_context()
     hermes_user_content: Any = body.message
     if body.images:
         hermes_user_content = [

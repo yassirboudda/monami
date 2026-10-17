@@ -1,18 +1,7 @@
 "use client"
 
 import { OrganizationSwitcher, useClerk, useUser } from "@clerk/nextjs"
-import {
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  MessageSquareText,
-  Package,
-  Puzzle,
-  Store,
-  Users,
-  Workflow,
-  X,
-} from "lucide-react"
+import { LayoutDashboard, LogOut, Menu, MessageSquareText, MonitorSmartphone, Package, Store, Users, Workflow, X } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
@@ -23,7 +12,7 @@ const nav = [
   { href: "/dashboard/chat", label: "Chat", icon: MessageSquareText },
   { href: "/dashboard/shops", label: "Boutique", icon: Store },
   { href: "/dashboard/stock", label: "Stock", icon: Package },
-  { href: "/dashboard/extension", label: "Extension", icon: Puzzle },
+  { href: "/dashboard/desktop", label: "Bureau", icon: MonitorSmartphone },
   { href: "/dashboard/workflows", label: "Workflows", icon: Workflow },
   { href: "/dashboard/team", label: "Équipe", icon: Users },
 ]
