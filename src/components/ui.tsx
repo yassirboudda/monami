@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import { Loader2, X } from "lucide-react"
 import { forwardRef, useEffect } from "react"
 import { twMerge } from "tailwind-merge"
+import { siEbay, siEtsy, siFacebook, siVinted } from "simple-icons"
 
 export const cn = (...c: (string | false | null | undefined)[]) => twMerge(c.filter(Boolean).join(" "))
 
@@ -248,26 +249,49 @@ export function Segmented<T extends string>({
   )
 }
 
+const BRAND_ICONS: Record<string, { path: string; hex: string }> = {
+  vinted: { path: siVinted.path, hex: siVinted.hex },
+  ebay: { path: siEbay.path, hex: siEbay.hex },
+  etsy: { path: siEtsy.path, hex: siEtsy.hex },
+  facebook_marketplace: { path: siFacebook.path, hex: siFacebook.hex },
+  facebook: { path: siFacebook.path, hex: siFacebook.hex },
+}
+const BRAND_DOMAINS: Record<string, string> = {
+  leboncoin: "leboncoin.fr",
+  depop: "depop.com",
+  wallapop: "wallapop.com",
+  vestiaire: "vestiairecollective.com",
+  vestiairecollective: "vestiairecollective.com",
+  amazon: "amazon.fr",
+  zalando: "zalando.fr",
+  farfetch: "farfetch.com",
+}
+
+/** Real brand mark: simple-icons SVG when available, otherwise the site's own favicon. */
 export function MarketplaceLogo({ marketplace, size = 36 }: { marketplace: string; size?: number }) {
-  if (marketplace === "vinted") {
+  const key = marketplace.toLowerCase()
+  const icon = BRAND_ICONS[key]
+  const box = "rounded-xl flex items-center justify-center shrink-0 border border-border bg-white shadow-[0_1px_2px_rgba(67,48,46,0.08)] overflow-hidden"
+  if (icon) {
     return (
-      <span className="rounded-xl flex items-center justify-center font-bold text-white shrink-0 shadow-sm" style={{ width: size, height: size, background: "#09b1ba", fontSize: size * 0.42 }}>
-        V
+      <span className={box} style={{ width: size, height: size }} aria-label={marketplace}>
+        <svg viewBox="0 0 24 24" width={size * 0.6} height={size * 0.6} role="img" aria-hidden>
+          <path d={icon.path} fill={`#${icon.hex}`} />
+        </svg>
       </span>
     )
   }
-  if (marketplace === "leboncoin") {
+  const domain = BRAND_DOMAINS[key]
+  if (domain) {
     return (
-      <span className="rounded-xl flex items-center justify-center font-bold text-white shrink-0 shadow-sm" style={{ width: size, height: size, background: "#ec5a13", fontSize: size * 0.36 }}>
-        lbc
+      <span className={box} style={{ width: size, height: size }} aria-label={marketplace}>
+        <img src={`https://icons.duckduckgo.com/ip3/${domain}.ico`} alt={marketplace} width={size * 0.62} height={size * 0.62} className="object-contain" loading="lazy" />
       </span>
     )
   }
-  const palette = ["#5b57d9", "#d44f82", "#27836e", "#be7425", "#3976b7", "#8056a6", "#3e818e", "#a1473e"]
-  const hash = [...marketplace].reduce((value, char) => (value * 31 + char.charCodeAt(0)) >>> 0, 7)
   const initial = marketplace.replace(/[^a-z0-9]/gi, "").charAt(0).toUpperCase() || "M"
   return (
-    <span className="rounded-xl flex items-center justify-center font-bold text-white shrink-0 shadow-sm" style={{ width: size, height: size, background: palette[hash % palette.length], fontSize: size * 0.42 }}>
+    <span className={cn(box, "font-bold text-foreground bg-butter")} style={{ width: size, height: size }}>
       {initial}
     </span>
   )
