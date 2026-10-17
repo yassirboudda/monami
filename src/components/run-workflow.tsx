@@ -19,6 +19,8 @@ export type WorkflowRun = {
   plan: RunPlan | null
   log: RunLog[]
   error: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export function RunWorkflowModal({

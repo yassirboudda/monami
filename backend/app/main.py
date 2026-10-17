@@ -1273,6 +1273,88 @@ async def reject_run(run_id: str, user: dict[str, Any] = Depends(workspace_user)
     return {"run": _run_dict(run)}
 
 
+# ---------------------------------------------------------------------------
+# Desktop status (A4000 health seen from the backend) + "eyes" for the chat.
+
+async def _screen_context(minutes: int = 2) -> str:
+    """What is on the remote desktop screen right now (Screenpipe OCR), for Hermes."""
+    if not _screenpipe_enabled():
+        return ""
+    try:
+        end = datetime.now(timezone.utc)
+        trace = await _screenpipe_events(
+            (end - timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%SZ"), end.strftime("%Y-%m-%dT%H:%M:%SZ")
+        )
+    except (httpx.HTTPError, ValueError):
+        return ""
+    events = trace.get("events", [])
+    if not events:
+        return ""
+    lines = [f"- [{e['t'][11:19]}] {e['window'][:80]} :: {e['text'][:350]}" for e in events[-8:]]
+    return (
+        "\n\nÉcran du bureau OctoHandy (Chrome distant, OCR Screenpipe des 2 dernières minutes, du plus ancien au plus "
+        "récent). Utilise-le si l'utilisateur parle de ce qu'il voit, de ses messages, favoris ou annonces :\n"
+        + "\n".join(lines)
+    )
+
+
+@app.get("/v1/desktop/status")
+async def desktop_status_live(user: dict[str, Any] = Depends(workspace_user)):
+    base = settings.desktop_base_url.rstrip("/")
+    result: dict[str, Any] = {
+        "enabled": _desktop_enabled(), "host": settings.desktop_base_url or None,
+        "gate": False, "screenpipe": None, "hermes": False, "screen": None, "checkedAt": _iso_now(),
+    }
+    if not _desktop_enabled():
+        return result
+
+    async def gate(client: httpx.AsyncClient) -> None:
+        try:
+            response = await client.get(f"{base}/desktop/health")
+            result["gate"] = response.status_code == 200
+        except httpx.HTTPError:
+            pass
+
+    async def screenpipe(client: httpx.AsyncClient) -> None:
+        if not _screenpipe_enabled():
+            return
+        headers = {"Authorization": f"Bearer {settings.screenpipe_api_key}"}
+        try:
+            health = await client.get(f"{settings.screenpipe_api_url.rstrip('/')}/health", headers=headers)
+            result["screenpipe"] = {"status": health.json().get("status"), "ok": health.status_code == 200}
+            latest = await client.get(
+                f"{settings.screenpipe_api_url.rstrip('/')}/search", headers=headers,
+                params={"content_type": "ocr", "limit": 1},
+            )
+            data = latest.json().get("data") or []
+            if data:
+                content = data[0].get("content") or {}
+                result["screen"] = {
+                    "window": content.get("window_name") or content.get("app_name") or "",
+                    "at": content.get("timestamp"),
+                    "excerpt": " ".join(str(content.get("text") or "").split())[:240],
+                }
+        except (httpx.HTTPError, ValueError):
+            result["screenpipe"] = result["screenpipe"] or {"status": "unreachable", "ok": False}
+
+    async def hermes(client: httpx.AsyncClient) -> None:
+        if not settings.hermes_api_key:
+            return
+        try:
+            response = await client.get(
+                f"{settings.hermes_api_url.rstrip('/')}/models",
+                headers={"Authorization": f"Bearer {settings.hermes_api_key}"},
+            )
+            result["hermes"] = response.status_code == 200
+        except httpx.HTTPError:
+            pass
+
+    async with httpx.AsyncClient(timeout=8) as client:
+        await asyncio.gather(gate(client), screenpipe(client), hermes(client))
+    result["model"] = settings.nebius_model
+    return result
+
+
 @app.get("/v1/stock")
 async def list_stock(user: dict[str, Any] = Depends(workspace_user)):
     with db.connection() as conn:
@@ -1499,7 +1581,7 @@ class ChatIn(BaseModel):
 @app.post("/v1/chat")
 async def chat(body: ChatIn, user: dict[str, Any] = Depends(workspace_user)):
     """Chat via Hermes, then Nebius Token Factory (DeepSeek), or a mock response."""
-    system = _build_chat_system_prompt() + await _chat_context(user)
+    system = _build_chat_system_prompt() + await _chat_context(user) + await _screen_context()
     hermes_user_content: Any = body.message
     if body.images:
         hermes_user_content = [

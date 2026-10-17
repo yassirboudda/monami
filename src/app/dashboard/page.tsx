@@ -1,14 +1,14 @@
 import Link from "next/link"
-import { MessageSquareText, Package, Puzzle, Store, Users, Workflow } from "lucide-react"
+import { MessageSquareText, MonitorSmartphone, Package, Store, Users, Workflow } from "lucide-react"
 import { Card, PageHeader } from "@/components/ui"
 
 const cards = [
   { href: "/dashboard/chat", title: "Chat agent", text: "Échange avec l'agent OctoHandy, partage des images et obtiens des conseils pour tes marketplaces.", icon: MessageSquareText },
-  { href: "/dashboard/shops", title: "Boutique", text: "Boutiques + annonces. Clic boutique → ses annonces.", icon: Store },
-  { href: "/dashboard/extension", title: "Extension", text: "Chrome companion pour cookies Vinted / Leboncoin.", icon: Puzzle },
+  { href: "/dashboard/shops", title: "Boutique", text: "Connecte Vinted, Leboncoin, eBay… en un clic dans le bureau distant. Boutiques + annonces.", icon: Store },
+  { href: "/dashboard/desktop", title: "Bureau OctoHandy", text: "Ton Chrome distant (GPU Brev, IP résidentielle) avec Screenpipe et l'agent Hermes : statut, écran, journal.", icon: MonitorSmartphone },
   { href: "/dashboard/stock", title: "Stock", text: "Inventaire partagé dans l'organisation active.", icon: Package },
   { href: "/dashboard/team", title: "Équipe", text: "Membres de l'organisation et liens d'invitation.", icon: Users },
-  { href: "/dashboard/workflows", title: "Workflows", text: "Templates par marketplace (ex. favoris Vinted → offre).", icon: Workflow },
+  { href: "/dashboard/workflows", title: "Workflows", text: "Templates, apprentissage en le faisant (Screenpipe) et exécution par l'agent avec approbation.", icon: Workflow },
 ]
 
 export default function DashboardHome() {
@@ -17,7 +17,7 @@ export default function DashboardHome() {
       <PageHeader
         label="Dashboard"
         title="Vue d'ensemble"
-        subtitle="Retrouve tes boutiques, annonces, stock et workflows marketplace au même endroit."
+        subtitle="Tes boutiques, ton stock et tes workflows, exécutés par l'agent Hermes sur ton bureau OctoHandy distant."
       />
       <div className="grid sm:grid-cols-2 gap-4">
         {cards.map((c) => (
