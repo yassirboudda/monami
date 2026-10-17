@@ -11,7 +11,7 @@ import { ConnectMarketplaceModal } from "@/components/connect-marketplace"
 import type { Shop } from "@/lib/store"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
-const mpUrl: Record<string, string> = { vinted: "https://www.vinted.fr" }
+const mpUrl: Record<string, string> = { leboncoin: "https://www.leboncoin.fr", vinted: "https://www.vinted.fr" }
 
 export default function ShopsPage() {
   const router = useRouter()
