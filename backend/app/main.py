@@ -1933,7 +1933,7 @@ async def auth_me(user: dict[str, Any] = Depends(require_user)):
 # Real shops: sync accounts + listings from the logged-in desktop Chrome (A4000 gate /sync),
 # download listing images through the desktop proxy and serve them from here (like Comie).
 # ---------------------------------------------------------------------------
-SYNC_MARKETPLACES = ("vinted", "ebay", "leboncoin")
+SYNC_MARKETPLACES = ("vinted", "ebay", "leboncoin", "etsy")
 MOCK_SHOP_IDS = ("s1", "s2")
 
 
