@@ -55,18 +55,20 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
   }
 
   return (
-    <main className="min-h-dvh flex flex-col items-center justify-center gap-6 p-4 bg-background">
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-background p-4">
       <Octopus className="w-16" label="" />
-      <Card className="max-w-lg w-full p-8 text-center">
-        <Users className="w-8 h-8 mx-auto text-foreground mb-4" />
-        <h1 className="font-heading text-2xl">Invitation OctoHandy</h1>
+      <Card className="w-full max-w-lg rounded-2xl p-8 text-center">
+        <span className="mx-auto mb-4 grid size-12 place-items-center rounded-xl bg-butter text-foreground">
+          <Users className="size-6" />
+        </span>
+        <h1 className="font-heading text-2xl text-foreground">Invitation OctoHandy</h1>
         {loading ? (
-          <p className="text-sm text-muted-foreground mt-3">Chargement de l&apos;invitation…</p>
+          <p className="mt-3 text-sm text-muted-foreground">Chargement de l&apos;invitation…</p>
         ) : error ? (
-          <p role="alert" className="text-sm text-destructive mt-4">{error}</p>
+          <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>
         ) : invite ? (
           <>
-            <p className="text-muted-foreground mt-3">
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
               Tu es invité·e à rejoindre <strong className="text-foreground">{invite.orgName}</strong> : stock, boutiques et workflows partagés.
             </p>
             <Button className="mt-6" loading={accepting} onClick={() => void accept()}>
