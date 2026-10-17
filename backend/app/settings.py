@@ -14,6 +14,9 @@ class Settings(BaseSettings):
         "https://stockflow-nine-ashy.vercel.app,"
         "http://localhost:3000"
     )
+    app_session_secret: str = ""
+    app_user_id: str = "user_3JyIq3WyP0BS44BhxVz3zz60Gos"
+    app_user_email: str = "yassirboudda@gmail.com"
     clerk_secret_key: str = ""
     clerk_api_url: str = "https://api.clerk.com/v1"
     poc_allowed_emails: str = "yassirboudda@gmail.com"

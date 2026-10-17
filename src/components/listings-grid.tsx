@@ -1,6 +1,6 @@
 "use client"
 
-import { useUser } from "@clerk/nextjs"
+import { useUser } from "@/lib/auth"
 import { ExternalLink, Tag } from "lucide-react"
 import { Badge, Card, EmptyState } from "@/components/ui"
 import type { Listing } from "@/lib/store"

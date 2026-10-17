@@ -1,6 +1,6 @@
 "use client"
 
-import { useAuth } from "@clerk/nextjs"
+import { useAuth } from "@/lib/auth"
 import { AnimatePresence, motion } from "framer-motion"
 import { ArrowUp, ChevronDown, ChevronUp, ImagePlus } from "lucide-react"
 import { useEffect, useRef, useState } from "react"

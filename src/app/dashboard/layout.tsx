@@ -1,13 +1,10 @@
-import { currentUser } from "@clerk/nextjs/server"
+import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard-shell"
-import { PocWall, isPocAllowed, pocAccess } from "@/components/poc-wall"
+import { SESSION_COOKIE, verifyToken } from "@/lib/session"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const user = await currentUser()
-  const email = user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses[0]?.emailAddress ?? null
-  const access = pocAccess()
-  if (!isPocAllowed(email, access) && user?.publicMetadata?.stockflow_access !== true) {
-    return <PocWall currentEmail={email} access={access} />
-  }
+  const jar = await cookies()
+  if (!verifyToken(jar.get(SESSION_COOKIE)?.value)) redirect("/sign-in")
   return <DashboardShell>{children}</DashboardShell>
 }
