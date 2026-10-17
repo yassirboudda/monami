@@ -1,7 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs"
 import { frFR } from "@clerk/localizations"
 import type { Metadata, Viewport } from "next"
-import { Instrument_Sans, JetBrains_Mono, Plus_Jakarta_Sans, Young_Serif } from "next/font/google"
+import { Fraunces, Hanken_Grotesk, Instrument_Sans, JetBrains_Mono, Plus_Jakarta_Sans, Young_Serif } from "next/font/google"
 import { Toaster } from "sonner"
 import "./globals.css"
 import "./oh.css"
@@ -24,6 +24,19 @@ const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   display: "swap",
   weight: ["400", "500", "600", "700", "800"],
+})
+
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  display: "swap",
+  axes: ["SOFT", "WONK", "opsz"],
+})
+
+const hanken = Hanken_Grotesk({
+  variable: "--font-hanken",
+  subsets: ["latin"],
+  display: "swap",
 })
 
 const jetbrainsMono = JetBrains_Mono({
@@ -55,7 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       afterSignOutUrl="/"
       // Clerk prod domain is clerk.amirelay.com. Do NOT set proxyUrl to the FAPI host.
     >
-      <html lang="fr" className={`${jakarta.variable} ${jetbrainsMono.variable} ${youngSerif.variable} ${instrument.variable}`}>
+      <html lang="fr" className={`${jakarta.variable} ${jetbrainsMono.variable} ${youngSerif.variable} ${instrument.variable} ${fraunces.variable} ${hanken.variable}`}>
         <body className="antialiased">
           {children}
           <Toaster richColors position="top-center" />

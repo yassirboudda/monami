@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { Button, Card, cn, PageHeader } from "@/components/ui"
 import { apiConfigured, apiFetch } from "@/lib/api"
 import { store, type ChatMsg } from "@/lib/store"
+import { Octopus } from "@/components/oh/octopus"
 
 function FanAttachments({
   items,
@@ -51,6 +52,13 @@ function FanAttachments({
     </div>
   )
 }
+
+const SUGGESTIONS = [
+  "Qu'est-ce qu'il y a sur mon bureau en ce moment ?",
+  "Quel compte Vinted est connecté ?",
+  "Liste mes workflows",
+  "Prépare une réponse à mon dernier acheteur",
+]
 
 const VIDEO_URL = /https?:\/\/\S+\.mp4\b/g
 
@@ -182,16 +190,27 @@ export default function ChatPage() {
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {!msgs.length && (
-            <p className="text-sm text-muted-foreground text-center py-10">
-              Salut {user?.firstName || ""}. Pose une question ou joins une photo.
-            </p>
+            <div className="flex flex-col items-center justify-center text-center py-10 sm:py-16">
+              <Octopus still className="w-16" label="" />
+              <h2 className="mt-5 font-heading text-3xl sm:text-[2.5rem] leading-[1.1] text-foreground">
+                Bonjour {user?.firstName || ""}
+              </h2>
+              <p className="mt-2 text-[17px] text-muted-foreground">Que veux-tu confier à OctoHandy ?</p>
+              <div className="mt-6 flex flex-wrap justify-center gap-2 max-w-xl">
+                {SUGGESTIONS.map((sg) => (
+                  <button key={sg} type="button" onClick={() => setDraft(sg)} className="rounded-full border border-border bg-card px-3.5 py-1.5 text-sm text-foreground hover:bg-accent transition-colors">
+                    {sg}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
           {msgs.map((m) => (
             <div key={m.id} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
               <div
                 className={cn(
                   "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-wrap",
-                  m.role === "user" ? "bg-[#0f172a] text-white" : "bg-white border border-border"
+                  m.role === "user" ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted border border-border rounded-bl-md"
                 )}
               >
                 {m.images?.length ? (
@@ -213,7 +232,7 @@ export default function ChatPage() {
           <div ref={endRef} />
         </div>
 
-        <div className="border-t border-border p-3 bg-white/50">
+        <div className="border-t border-border p-3 bg-card">
           <AnimatePresence>{attachments.length > 0 && <FanAttachments items={attachments} onRemove={(id) => setAttachments((a) => a.filter((x) => x.id !== id))} />}</AnimatePresence>
           <div className="flex items-end gap-2">
             <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
@@ -239,7 +258,7 @@ export default function ChatPage() {
               }}
               rows={1}
               placeholder="Écris un message…"
-              className="flex-1 resize-none rounded-xl border border-border bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-secondary/30"
+              className="flex-1 resize-none rounded-xl border border-input bg-card px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring/30"
             />
             <Button onClick={() => void send()} disabled={busy || (!draft.trim() && !attachments.length)} className="shrink-0">
               <ArrowUp className="w-4 h-4" />
