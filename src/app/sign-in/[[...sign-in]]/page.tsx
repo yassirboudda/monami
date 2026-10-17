@@ -22,7 +22,7 @@ function SignInForm() {
     setBusy(false)
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string }
-      setError(res.status === 401 ? "Mot de passe incorrect." : data.error || `Connexion impossible (${res.status}).`)
+      setError(res.status === 401 ? "Incorrect password." : data.error || `Sign-in failed (${res.status}).`)
       return
     }
     router.replace(params.get("next") || "/dashboard")
@@ -33,10 +33,10 @@ function SignInForm() {
     <Card className="w-full max-w-sm p-6">
       <form onSubmit={submit} className="space-y-4">
         <div>
-          <p className="font-heading text-xl">Accès à l&apos;espace</p>
-          <p className="text-sm text-muted-foreground mt-1">Démo mono-utilisateur : entre le mot de passe d&apos;accès communiqué par l&apos;équipe OctoHandy.</p>
+          <p className="font-heading text-xl">Access the workspace</p>
+          <p className="text-sm text-muted-foreground mt-1">Single-user demo: enter the access password shared by the OctoHandy team.</p>
         </div>
-        <Input type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" aria-label="Mot de passe" />
+        <Input type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" aria-label="Password" />
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button type="submit" className="w-full" loading={busy} disabled={!password}>
           <Lock className="w-4 h-4" /> Entrer
@@ -53,7 +53,7 @@ export default function SignInPage() {
         <Octopus className="w-16" label="" />
         <span className="font-heading text-3xl text-foreground">OctoHandy</span>
       </Link>
-      <p className="text-muted-foreground text-center max-w-sm -mt-2">Ton assistant marketplace : il surveille tes boutiques, prépare tes réponses et agit sur ton bureau distant.</p>
+      <p className="text-muted-foreground text-center max-w-sm -mt-2">Your marketplace assistant: it watches your shops, drafts your replies and acts on your remote desktop.</p>
       <Suspense>
         <SignInForm />
       </Suspense>

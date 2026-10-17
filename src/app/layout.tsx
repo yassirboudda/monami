@@ -29,11 +29,11 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://octohandy.amirelay.com"),
   title: "OctoHandy — Gestion marketplace",
-  description: "Gère tes boutiques, annonces et stock partagé avec l'agent OctoHandy.",
+  description: "Manage your shops, listings and shared stock with the OctoHandy agent.",
   applicationName: "OctoHandy",
   openGraph: {
     title: "OctoHandy — Ton assistant marketplace",
-    description: "La pieuvre qui surveille tes boutiques Vinted, eBay, Vestiaire, Depop et agit sur ton bureau distant.",
+    description: "The octopus that watches your Vinted, eBay, Vestiaire and Depop shops and acts on your remote desktop.",
     siteName: "OctoHandy",
     locale: "fr_FR",
     type: "website",
@@ -51,7 +51,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className={`${jetbrainsMono.variable} ${fraunces.variable} ${hanken.variable}`}>
+    <html lang="en" className={`${jetbrainsMono.variable} ${fraunces.variable} ${hanken.variable}`}>
       <body className="antialiased">
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster richColors position="top-center" />

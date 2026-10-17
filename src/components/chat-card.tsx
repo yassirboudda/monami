@@ -34,7 +34,7 @@ export function ModalOrCard({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Fermer"
+          aria-label="Close"
           className="-m-1.5 grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
         >
           <X className="size-4" />

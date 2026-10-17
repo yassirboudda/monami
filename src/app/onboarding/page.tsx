@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
 import { missionHref, type MissionId } from "@/lib/missions"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
-const STEPS = ["Vos marketplaces", "Première boutique", "Première mission"]
+const STEPS = ["Your marketplaces", "First shop", "First mission"]
 const EASE = [0.16, 1, 0.3, 1] as const
 
 // Steps slide in the direction of travel: forward comes from the right, back from the left.
@@ -45,9 +45,9 @@ export default function OnboardingPage() {
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
 
   const missions: { id: MissionId; icon: typeof Reply; title: string; text: string }[] = [
-    { id: "summary", icon: MessageSquareText, title: `Voir mes annonces ${mainName}`, text: "Un résumé de ce qui est en ligne, vendu, à relancer." },
-    { id: "reply", icon: Reply, title: "Répondre à mes acheteurs", text: "Montrez une fois à l'octopus, il répondra ensuite pour vous." },
-    { id: "publish", icon: PackagePlus, title: "Publier un article", text: "Décrivez-le en une phrase, l'octopus prépare l'annonce." },
+    { id: "summary", icon: MessageSquareText, title: `See my ${mainName} listings`, text: "A summary of what is live, sold, or needs a nudge." },
+    { id: "reply", icon: Reply, title: "Reply to my buyers", text: "Show the octopus once, it will reply for you afterwards." },
+    { id: "publish", icon: PackagePlus, title: "Publish an item", text: "Describe it in one sentence, the octopus drafts the listing." },
   ]
 
   return (
@@ -59,7 +59,7 @@ export default function OnboardingPage() {
           <span className="font-heading text-lg">OctoHandy</span>
         </Link>
         <Button variant="ghost" size="sm" onClick={() => void finish()} disabled={leaving}>
-          Passer
+          Skip
         </Button>
       </header>
 
@@ -67,7 +67,7 @@ export default function OnboardingPage() {
         <div className="mb-8">
           <div className="flex justify-between text-caption mb-2">
             <span>
-              Étape {step + 1} sur {STEPS.length} · {STEPS[step]}
+              Step {step + 1} of {STEPS.length} · {STEPS[step]}
             </span>
           </div>
           <Progress value={((step + 1) / STEPS.length) * 100} aria-label="Progression" />
@@ -76,8 +76,8 @@ export default function OnboardingPage() {
         <AnimatePresence mode="wait" custom={dir} initial={false}>
         {step === 0 && (
           <motion.section key={0} custom={dir} variants={slide} initial="enter" animate="center" exit="exit">
-            <h1 className="text-title">Où vendez-vous aujourd&apos;hui ?</h1>
-            <p className="text-body-muted mt-1">L&apos;octopus surveillera ces marketplaces pour vous. Vous pourrez en ajouter plus tard.</p>
+            <h1 className="text-title">Where do you sell today?</h1>
+            <p className="text-body-muted mt-1">The octopus will watch these marketplaces for you. You can add more later.</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6" role="group" aria-label="Marketplaces">
               {CONNECTABLE_MARKETPLACES.map((m) => {
                 const on = picked.includes(m.id)
@@ -113,7 +113,7 @@ export default function OnboardingPage() {
             </div>
             <div className="mt-8 flex justify-end">
               <Button onClick={() => setStep(1)} disabled={!picked.length}>
-                Continuer <ArrowRight />
+                Continue <ArrowRight />
               </Button>
             </div>
           </motion.section>
@@ -121,9 +121,9 @@ export default function OnboardingPage() {
 
         {step === 1 && (
           <motion.section key={1} custom={dir} variants={slide} initial="enter" animate="center" exit="exit">
-            <h1 className="text-title">Connectez votre première boutique</h1>
+            <h1 className="text-title">Connect your first shop</h1>
             <p className="text-body-muted mt-1">
-              Vous vous connectez vous-même dans un navigateur sécurisé. OctoHandy ne voit jamais votre mot de passe.
+              You log in yourself in a secure browser. OctoHandy never sees your password.
             </p>
             <div className="mt-6 grid gap-3">
               {picked.map((id) => {
@@ -133,15 +133,15 @@ export default function OnboardingPage() {
                     <MarketplaceLogo marketplace={id} size={36} />
                     <div className="min-w-0 flex-1">
                       <p className="font-medium">{marketplaceName(id)}</p>
-                      <p className="text-caption truncate">{shop ? `Connectée · ${shop.displayName}` : "Pas encore connectée"}</p>
+                      <p className="text-caption truncate">{shop ? `Connected · ${shop.displayName}` : "Not connected yet"}</p>
                     </div>
                     {shop ? (
                       <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700">
-                        <Check className="size-4" /> Prête
+                        <Check className="size-4" /> Ready
                       </span>
                     ) : (
                       <Button size="sm" onClick={() => setConnecting(id)}>
-                        Connecter
+                        Connect
                       </Button>
                     )}
                   </Card>
@@ -150,10 +150,10 @@ export default function OnboardingPage() {
             </div>
             <div className="mt-8 flex items-center justify-between">
               <Button variant="ghost" onClick={() => setStep(0)}>
-                Retour
+                Back
               </Button>
               <Button onClick={() => setStep(2)} variant={connected.length ? "primary" : "secondary"}>
-                {connected.length ? "Continuer" : "Plus tard"} <ArrowRight />
+                {connected.length ? "Continue" : "Later"} <ArrowRight />
               </Button>
             </div>
           </motion.section>
@@ -166,8 +166,8 @@ export default function OnboardingPage() {
                 <Octopus className="w-14" label="" />
               </div>
               <div>
-                <h1 className="text-title">{connected.length ? "C'est prêt." : "Presque prêt."} Que fait-on en premier ?</h1>
-                <p className="text-body-muted mt-1">Tout se passe dans le chat. Choisissez une première mission, ou écrivez la vôtre.</p>
+                <h1 className="text-title">{connected.length ? "All set." : "Almost there."} What should we do first?</h1>
+                <p className="text-body-muted mt-1">Everything happens in the chat. Pick a first mission, or write your own.</p>
               </div>
             </div>
             <div className="mt-6 grid gap-3">
@@ -196,10 +196,10 @@ export default function OnboardingPage() {
             </div>
             <div className="mt-8 flex items-center justify-between">
               <Button variant="ghost" onClick={() => setStep(1)}>
-                Retour
+                Back
               </Button>
               <Button variant="secondary" onClick={() => void finish()} loading={leaving}>
-                Ouvrir le chat
+                Open the chat
               </Button>
             </div>
           </motion.section>

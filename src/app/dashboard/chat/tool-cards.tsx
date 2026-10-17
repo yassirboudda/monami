@@ -12,12 +12,12 @@ import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
 // Display tools: the whole dashboard page, live, inside the conversation.
 export const EMBEDDED_PAGES: Record<string, { label: string; Page: () => React.ReactNode }> = {
-  "tool-showWorkflows": { label: "tes workflows", Page: WorkflowsPage },
-  "tool-showShops": { label: "tes boutiques", Page: ShopsPage },
-  "tool-showStock": { label: "ton stock", Page: StockPage },
-  "tool-showDesktop": { label: "le bureau", Page: DesktopPage },
-  "tool-showTeam": { label: "ton équipe", Page: TeamPage },
-  "tool-showExtensionSetup": { label: "l'extension", Page: ExtensionPage },
+  "tool-showWorkflows": { label: "your workflows", Page: WorkflowsPage },
+  "tool-showShops": { label: "your shops", Page: ShopsPage },
+  "tool-showStock": { label: "your stock", Page: StockPage },
+  "tool-showDesktop": { label: "the desktop", Page: DesktopPage },
+  "tool-showTeam": { label: "your team", Page: TeamPage },
+  "tool-showExtensionSetup": { label: "the extension", Page: ExtensionPage },
 }
 
 type Flow = { id: string; title: string; marketplace: string }
@@ -29,8 +29,8 @@ export function RunWorkflowCard({ workflowId, onClose }: { workflowId: string; o
   const [workflow, setWorkflow] = useState<Flow | null>(null)
   const found = data?.workflows.find((w) => w.id === workflowId)
   if (found && !workflow) setWorkflow(found)
-  if (error) return <p className="text-[13px] text-muted-foreground">Impossible de charger tes workflows : {error.message}</p>
+  if (error) return <p className="text-[13px] text-muted-foreground">Could not load your workflows: {error.message}</p>
   if (!data) return null
-  if (!workflow) return <p className="text-[13px] text-muted-foreground">Ce workflow n&apos;existe plus.</p>
+  if (!workflow) return <p className="text-[13px] text-muted-foreground">This workflow no longer exists.</p>
   return <RunWorkflowModal inline workflow={workflow} request={request} onClose={onClose} />
 }

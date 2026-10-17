@@ -211,4 +211,4 @@ export function LangProvider({ children }: { children: ReactNode }) {
 export const useT = () => useContext(Ctx)
 
 export const money = (n: number, lang: Lang) =>
-  new Intl.NumberFormat(lang === "fr" ? "fr-FR" : "en-GB", { style: "currency", currency: "EUR", maximumFractionDigits: n % 1 ? 2 : 0 }).format(n)
+  new Intl.NumberFormat(lang === "fr" ? "en-GB" : "en-GB", { style: "currency", currency: "EUR", maximumFractionDigits: n % 1 ? 2 : 0 }).format(n)

@@ -14,7 +14,7 @@ type Profile = { displayName: string; preferences: Record<string, unknown> & { i
 const DEFAULTS: InboxPolicy = {
   autoReply: true,
   maxAutoDiscountPct: 10,
-  tone: "amical et professionnel, tutoiement, réponses courtes",
+  tone: "friendly and professional, short replies, in the buyer's language",
   signature: "",
 }
 
@@ -37,7 +37,7 @@ export default function SettingsPage() {
       })
       await mutate()
       setDraft({})
-      toast.success("Paramètres enregistrés")
+      toast.success("Settings saved")
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Enregistrement impossible")
     } finally {
@@ -47,7 +47,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader label="Compte" title="Paramètres" />
+      <PageHeader label="Account" title="Settings" />
 
       <Card className="p-5 space-y-5 max-w-2xl">
         <div className="flex items-start gap-3">
@@ -55,24 +55,24 @@ export default function SettingsPage() {
           <div>
             <h2 className="font-medium">Messagerie autonome</h2>
             <p className="text-sm text-muted-foreground">
-              L&apos;agent surveille les messageries de tes marketplaces connectées depuis le bureau et répond aux acheteurs
-              à ta place, comme un humain. Au-delà de la remise maximale, il te demande ton accord dans le chat.
+              The agent watches the inboxes of your connected marketplaces from the desktop and replies to buyers
+              on your behalf, like a human would. Above the maximum discount, it asks for your approval in the chat.
             </p>
           </div>
         </div>
 
         {error && (
           <Alert variant="destructive">
-            <AlertDescription>Impossible de charger tes paramètres.</AlertDescription>
+            <AlertDescription>Could not load your settings.</AlertDescription>
           </Alert>
         )}
 
         <label className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3">
-          <span className="text-sm font-medium">Répondre automatiquement aux acheteurs</span>
+          <span className="text-sm font-medium">Reply to buyers automatically</span>
           <Switch checked={policy.autoReply} onCheckedChange={(v) => setPolicy((p) => ({ ...p, autoReply: v }))} disabled={isLoading} />
         </label>
 
-        <Field label="Remise maximale sans mon accord (%)" hint="Par défaut 10 %. Une demande de rabais supérieure déclenche une demande d'approbation dans le chat.">
+        <Field label="Maximum discount without my approval (%)" hint="Default 10%. A bigger discount request triggers an approval card in the chat.">
           <Input
             type="number"
             min={0}
@@ -83,17 +83,17 @@ export default function SettingsPage() {
           />
         </Field>
 
-        <Field label="Ton des réponses">
+        <Field label="Reply tone">
           <Textarea value={policy.tone} onChange={(e) => setPolicy((p) => ({ ...p, tone: e.target.value }))} className="min-h-16" />
         </Field>
 
-        <Field label="Signature (optionnel)">
-          <Input value={policy.signature} placeholder="ex. Yassir — OctoHandy" onChange={(e) => setPolicy((p) => ({ ...p, signature: e.target.value }))} />
+        <Field label="Signature (optional)">
+          <Input value={policy.signature} placeholder="e.g. Yassir — OctoHandy" onChange={(e) => setPolicy((p) => ({ ...p, signature: e.target.value }))} />
         </Field>
 
         <div className="flex justify-end">
           <Button onClick={() => void save()} loading={saving} disabled={isLoading}>
-            Enregistrer
+            Save
           </Button>
         </div>
       </Card>

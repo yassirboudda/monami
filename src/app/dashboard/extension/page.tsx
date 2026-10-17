@@ -57,7 +57,7 @@ export default function ExtensionPage() {
       const onAck = (e: MessageEvent) => {
         if (e.source !== window) return
         if (e.data?.type === "OCTOHANDY_PAIRED") acked = true
-        if (e.data?.type === "OCTOHANDY_PAIR_FAILED") failReason = e.data.error || "Association refusée"
+        if (e.data?.type === "OCTOHANDY_PAIR_FAILED") failReason = e.data.error || "Pairing refused"
       }
       window.addEventListener("message", onAck)
       window.postMessage({ type: "OCTOHANDY_PAIR", token, api: apiUrl }, window.location.origin)
@@ -65,16 +65,16 @@ export default function ExtensionPage() {
       window.removeEventListener("message", onAck)
       if (acked) {
         setPaired(true)
-        toast.success("Extension associée")
+        toast.success("Extension paired")
       } else if (failReason) {
         setManualToken(token)
         toast.error(failReason)
       } else {
         setManualToken(token)
-        toast.message("Extension pas détectée. Installe le zip puis recharge cette page.")
+        toast.message("Extension not detected. Install the zip then reload this page.")
       }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Échec association")
+      toast.error(e instanceof Error ? e.message : "Pairing failed")
     } finally {
       setPairing(false)
     }
@@ -91,7 +91,7 @@ export default function ExtensionPage() {
     if (!manualToken) return
     await navigator.clipboard.writeText(manualToken)
     setCopied(true)
-    toast.success("Code copié")
+    toast.success("Code copied")
     setTimeout(() => setCopied(false), 1500)
   }
 
@@ -102,7 +102,7 @@ export default function ExtensionPage() {
         title="Extension Chrome"
         actions={
           <a href="/octohandy-extension.zip" download className={buttonVariants({ size: "sm" })}>
-            <Download className="w-3.5 h-3.5" /> Télécharger l&apos;extension
+            <Download className="w-3.5 h-3.5" /> Download the extension
           </a>
         }
       />
@@ -115,18 +115,18 @@ export default function ExtensionPage() {
           </div>
           <p className="text-sm inline-flex items-center gap-2">
             <StatusDot tone={version ? "green" : "slate"} live={Boolean(version)} />
-            {version ? `Installée · v${version}` : "Pas détectée dans ce navigateur"}
+            {version ? `Installed · v${version}` : "Not detected in this browser"}
           </p>
           <p className="text-sm inline-flex items-center gap-2">
             <StatusDot tone={paired ? "green" : "amber"} />
-            {paired ? "Associée à ton compte" : "Pas encore associée"}
+            {paired ? "Paired with your account" : "Not paired yet"}
           </p>
           <p className="text-sm text-muted-foreground">
-            L&apos;extension sera associée à : {orgId ? `Organisation ${organization?.name || orgId}` : "Espace personnel"}.
+            The extension will be paired with: {orgId ? `Organisation ${organization?.name || orgId}` : "Personal workspace"}.
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
             <Button size="sm" loading={pairing} onClick={() => void pair()}>
-              <RefreshCw className="w-3.5 h-3.5" /> {paired ? "Réassocier" : "Associer"}
+              <RefreshCw className="w-3.5 h-3.5" /> {paired ? "Pair again" : "Pair"}
             </Button>
             <a href="/octohandy-extension.zip" download className={buttonVariants({ variant: "outline", size: "sm" })}>
               <Download className="w-3.5 h-3.5" /> ZIP
@@ -134,10 +134,10 @@ export default function ExtensionPage() {
           </div>
           {manualToken ? (
             <div className="rounded-lg bg-muted p-3 space-y-2">
-              <p className="text-xs text-muted-foreground">Code manuel (colle-le dans le popup de l&apos;extension)</p>
+              <p className="text-xs text-muted-foreground">Manual code (paste it in the extension popup)</p>
               <code className="block text-xs break-all font-mono">{manualToken}</code>
               <Button variant="ghost" size="sm" onClick={() => void copy()}>
-                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} Copier
+                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} Copy
               </Button>
             </div>
           ) : null}
@@ -147,13 +147,13 @@ export default function ExtensionPage() {
           <p className="font-semibold">Installation (2 min)</p>
           <ol className="text-sm text-muted-foreground space-y-2 list-decimal pl-4">
             <li>
-              Télécharge <Badge tone="blue">octohandy-extension.zip</Badge> puis dézippe-le.
+              Download <Badge tone="blue">octohandy-extension.zip</Badge> then unzip it.
             </li>
             <li>
-              Chrome → <code className="text-xs">chrome://extensions</code> → active le mode développeur.
+              Chrome → <code className="text-xs">chrome://extensions</code> → enable developer mode.
             </li>
-            <li>« Charger l&apos;extension non empaquetée » → choisis le dossier dézippé.</li>
-            <li>Reviens ici, clique Associer, puis ouvre Vinted et Connecter dans le popup.</li>
+            <li>“Load unpacked” → pick the unzipped folder.</li>
+            <li>Come back here, click Pair, then open Vinted and Connect in the popup.</li>
           </ol>
         </Card>
       </div>

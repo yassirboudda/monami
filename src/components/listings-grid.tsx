@@ -12,9 +12,9 @@ const statusTone = {
 }
 
 const statusLabel = {
-  active: "En ligne",
-  reserved: "Réservée",
-  sold: "Vendue",
+  active: "Live",
+  reserved: "Reserved",
+  sold: "Sold",
 }
 
 export function ListingsGrid({ listings, emptyText }: { listings: Listing[]; emptyText?: string }) {
@@ -22,7 +22,7 @@ export function ListingsGrid({ listings, emptyText }: { listings: Listing[]; emp
   if (!listings.length) {
     return (
       <Card>
-        <EmptyState icon={<Tag className="w-6 h-6" />} title="Aucune annonce" text={emptyText || "Pas encore d'annonces pour cette boutique."} />
+        <EmptyState icon={<Tag className="w-6 h-6" />} title="No listings" text={emptyText || "No listings in this shop yet."} />
       </Card>
     )
   }
@@ -45,17 +45,17 @@ export function ListingsGrid({ listings, emptyText }: { listings: Listing[]; emp
           </div>
           <p className="text-xl font-semibold tracking-tight tabular-nums">{l.price.toFixed(0)} €</p>
           <div className="flex items-center gap-3 text-caption tabular-nums">
-            <span>{l.views ?? 0} vues</span>
-            <span>{l.favorites ?? 0} favoris</span>
+            <span>{l.views ?? 0} views</span>
+            <span>{l.favorites ?? 0} favourites</span>
           </div>
           {l.createdBy && (
             <p className="text-caption">
-              Créée par {l.createdBy === user?.id ? "toi" : l.creatorName || "un membre"}
+              Created by {l.createdBy === user?.id ? "you" : l.creatorName || "a team member"}
             </p>
           )}
           {l.url ? (
             <a href={l.url} target="_blank" rel="noreferrer" className="mt-auto inline-flex items-center gap-1.5 border-t pt-3 text-sm font-medium text-foreground hover:underline underline-offset-4">
-              <ExternalLink className="w-3.5 h-3.5" /> Ouvrir sur {l.marketplace}
+              <ExternalLink className="w-3.5 h-3.5" /> Open on {l.marketplace}
             </a>
           ) : null}
         </Card>

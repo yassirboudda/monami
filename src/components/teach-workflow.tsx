@@ -97,7 +97,7 @@ export function TeachWorkflowModal({
       setDesktopOpened(res.desktop.opened)
       setPhase("recording")
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Impossible de démarrer l'apprentissage")
+      toast.error(cause instanceof Error ? cause.message : "Could not start teaching")
     } finally {
       setBusy(false)
     }
@@ -114,7 +114,7 @@ export function TeachWorkflowModal({
       setPhase("review")
       if (res.session.error) toast.warning(res.session.error)
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "La compilation a échoué")
+      toast.error(cause instanceof Error ? cause.message : "Compilation failed")
       setPhase("recording")
     }
   }
@@ -129,11 +129,11 @@ export function TeachWorkflowModal({
         body: { title, steps },
       })
       await request("/v1/desktop/release", { method: "POST" }).catch(() => undefined)
-      toast.success("Workflow enregistré. Active-le quand tu veux.")
+      toast.success("Workflow saved. Enable it whenever you want.")
       onSaved?.({ title, steps })
       onClose()
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Impossible d'enregistrer le workflow")
+      toast.error(cause instanceof Error ? cause.message : "Could not save the workflow")
     } finally {
       setBusy(false)
     }
@@ -143,9 +143,9 @@ export function TeachWorkflowModal({
     if (session && session.status !== "saved") {
       try {
         await request(`/v1/teach/${session.id}`, { method: "DELETE" })
-        toast.info(phase === "recording" ? "Enregistrement annulé, session fermée." : "Brouillon jeté.")
+        toast.info(phase === "recording" ? "Recording cancelled, session closed." : "Draft discarded.")
       } catch {
-        toast.error("Impossible de fermer la session côté serveur")
+        toast.error("Could not close the session on the server")
       }
     }
     await request("/v1/desktop/release", { method: "POST" }).catch(() => undefined)
@@ -155,15 +155,15 @@ export function TeachWorkflowModal({
   const name = marketplace ? marketplaceName(marketplace, marketplaces) : suggested[0]?.name ?? null
   const draft = session?.draft
 
-  const heading = name ? `Apprendre en le faisant · ${name}` : "Apprendre en le faisant"
+  const heading = name ? `Teach by doing · ${name}` : "Teach by doing"
   const body = (
     <>
       {phase === "pick" && (
         <div className="space-y-4">
           {!inline && <p className="text-sm text-muted-foreground">
-            Montre une fois à l&apos;agent comment tu fais : on ouvre ton Chrome du bureau OctoHandy, tu réalises la
-            tâche normalement (répondre à un message, envoyer une offre après un favori…), puis Hermes transforme la
-            démonstration Screenpipe en workflow que tu valides.
+            Show the agent once how you do it: we open your Chrome on the OctoHandy desktop, you perform the
+            task as usual (reply to a message, send an offer after a favourite…), then Hermes turns the
+            Screenpipe recording into a workflow you approve.
           </p>}
           {!(inline && suggested.length) && <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {marketplaces.map((m) => (
@@ -187,24 +187,24 @@ export function TeachWorkflowModal({
         <div className="space-y-3">
           {!desktopOpened && (
             <Alert className="border-amber-200 bg-amber-50 text-amber-900">
-              <AlertDescription className="text-amber-900">La page n&apos;a pas pu s&apos;ouvrir automatiquement. Ouvre-la manuellement dans le navigateur du bureau.</AlertDescription>
+              <AlertDescription className="text-amber-900">The page could not be opened automatically. Open it manually in the desktop browser.</AlertDescription>
             </Alert>
           )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="inline-flex items-center gap-2 text-sm font-medium text-destructive">
               <CircleDot className="w-4 h-4 animate-pulse" /> Enregistrement · {formatElapsed(elapsed)}
             </span>
-            <span className="text-xs text-muted-foreground">Fais l&apos;action une fois, comme d&apos;habitude, puis clique Stop.</span>
+            <span className="text-xs text-muted-foreground">Do the action once, as usual, then click Stop.</span>
           </div>
           <div className="rounded-lg overflow-hidden border bg-black aspect-video">
-            <iframe src={desktopUrl} title="Bureau distant OctoHandy" className="w-full h-full" allow="clipboard-read; clipboard-write" />
+            <iframe src={desktopUrl} title="OctoHandy remote desktop" className="w-full h-full" allow="clipboard-read; clipboard-write" />
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={() => void discard()}>
-              <Trash2 className="w-4 h-4" /> Annuler
+              <Trash2 className="w-4 h-4" /> Cancel
             </Button>
             <Button size="sm" onClick={() => void stop()}>
-              <Square className="w-4 h-4" /> Stop, c&apos;est fait
+              <Square className="w-4 h-4" /> Stop, done
             </Button>
           </div>
         </div>
@@ -213,7 +213,7 @@ export function TeachWorkflowModal({
       {phase === "compiling" && (
         <div className="flex flex-col items-center gap-3 py-12 text-sm text-muted-foreground">
           <Loader2 className="w-8 h-8 animate-spin" />
-          Hermes relit ta démonstration (Screenpipe) et rédige le workflow…
+          Hermes is reviewing your demonstration (Screenpipe) and writing the workflow…
         </div>
       )}
 
@@ -221,17 +221,17 @@ export function TeachWorkflowModal({
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <Sparkles className="w-4 h-4" />
-            {session.trace?.frames ?? 0} écrans analysés
+            {session.trace?.frames ?? 0} screens analysed
             {draft?.confidence && <Badge tone={draft.confidence === "high" ? "teal" : draft.confidence === "medium" ? "amber" : "slate"}>confiance {workflowConfidenceLabel(draft.confidence)}</Badge>}
             {draft?.via && <Badge tone="slate">source : {workflowSourceLabel(draft.via)}</Badge>}
           </div>
-          <Field label="Titre">
+          <Field label="Title">
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </Field>
-          {draft?.trigger && <p className="text-sm"><span className="font-medium">Déclencheur :</span> {draft.trigger}</p>}
+          {draft?.trigger && <p className="text-sm"><span className="font-medium">Trigger:</span> {draft.trigger}</p>}
           {draft?.intent?.goal && <p className="text-sm"><span className="font-medium">Objectif :</span> {draft.intent.goal}</p>}
-          {draft?.intent?.success_criteria && <p className="text-sm"><span className="font-medium">Résultat attendu :</span> {draft.intent.success_criteria}</p>}
-          <Field label="Étapes (une par ligne)">
+          {draft?.intent?.success_criteria && <p className="text-sm"><span className="font-medium">Expected outcome:</span> {draft.intent.success_criteria}</p>}
+          <Field label="Steps (one per line)">
             <Textarea rows={6} value={stepsText} onChange={(e) => setStepsText(e.target.value)} />
           </Field>
           {!!draft?.tools?.length && (
@@ -252,7 +252,7 @@ export function TeachWorkflowModal({
               <Trash2 className="w-4 h-4" /> Jeter
             </Button>
             <Button size="sm" loading={busy} onClick={() => void save()}>
-              <Check className="w-4 h-4" /> Enregistrer le workflow
+              <Check className="w-4 h-4" /> Save workflow
             </Button>
           </div>
         </div>
@@ -273,7 +273,7 @@ export function TeachWorkflowModal({
       )}
       {phase === "pick" && !inline && (
         <p className="mt-4 text-xs text-muted-foreground flex items-center gap-1.5">
-          <GraduationCap className="w-3.5 h-3.5" /> Screenpipe tourne sur le bureau OctoHandy : rien n&apos;est installé sur ton PC.
+          <GraduationCap className="w-3.5 h-3.5" /> Screenpipe runs on the OctoHandy desktop: nothing is installed on your PC.
         </p>
       )}
     </>
@@ -291,8 +291,8 @@ export function TeachWorkflowModal({
             {phase === "recording" ? <CircleDot className="size-[18px] text-destructive" /> : <GraduationCap className="size-[18px]" />}
           </span>
           <div>
-            <h3 className="text-[15px] font-semibold leading-tight">{name ? `Apprendre une tâche sur ${name}` : "Apprendre une tâche"}</h3>
-            <p className="text-[13px] text-muted-foreground">Tu la fais une fois sur le bureau OctoHandy, il la refait pour toi. Rien à installer.</p>
+            <h3 className="text-[15px] font-semibold leading-tight">{name ? `Teach a task on ${name}` : "Teach a task"}</h3>
+            <p className="text-[13px] text-muted-foreground">Do it once on the OctoHandy desktop, it redoes it for you. Nothing to install.</p>
           </div>
         </header>
         {body}

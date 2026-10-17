@@ -26,7 +26,7 @@ export default function ShopsPage() {
       if (e.source !== window || !e.data || typeof e.data !== "object") return
       if (e.data.type === "OCTOHANDY_SHOP_CONNECTED") {
         void mutate()
-        toast.success(`${e.data.marketplace} connecté via extension`)
+        toast.success(`${e.data.marketplace} connected via the extension`)
       }
     }
     window.addEventListener("message", onMsg)
@@ -38,9 +38,9 @@ export default function ShopsPage() {
     try {
       await request(`/v1/shops/${id}`, { method: "PATCH", body: { status: "connected" } })
       await mutate()
-      toast.success("Session marquée valide")
+      toast.success("Session marked as valid")
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Impossible de vérifier la session")
+      toast.error(cause instanceof Error ? cause.message : "Could not check the session")
     }
   }
 
@@ -50,12 +50,12 @@ export default function ShopsPage() {
     <div>
       <PageHeader
         label="Marketplace"
-        title="Boutique"
+        title="Shops"
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" asChild>
               <Link href="/dashboard/shops/all">
-                <Tags className="w-4 h-4" /> Voir toutes les annonces
+                <Tags className="w-4 h-4" /> View all listings
               </Link>
             </Button>
             <Button variant="secondary" asChild>
@@ -72,8 +72,8 @@ export default function ShopsPage() {
                   const r = (await request("/v1/shops/sync", { method: "POST", body: {} })) as { report: { marketplace: string; ok: boolean; loggedIn?: boolean; username?: string | null; listings?: number; error?: string }[] }
                   const done = r.report.filter((x) => x.ok && x.loggedIn)
                   const off = r.report.filter((x) => x.ok && !x.loggedIn).map((x) => x.marketplace)
-                  toast.success(done.length ? `Synchronisé : ${done.map((x) => `${x.marketplace} (${x.username || "?"}, ${x.listings} annonces)`).join(", ")}` : "Aucun compte connecté dans le bureau")
-                  if (off.length) toast.message(`Non connecté dans le bureau : ${off.join(", ")}`)
+                  toast.success(done.length ? `Synced: ${done.map((x) => `${x.marketplace} (${x.username || "?"}, ${x.listings} listings)`).join(", ")}` : "No account logged in on the desktop")
+                  if (off.length) toast.message(`Not logged in on the desktop: ${off.join(", ")}`)
                   await mutate()
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : "Synchronisation impossible")
@@ -82,25 +82,25 @@ export default function ShopsPage() {
                 }
               }}
             >
-              <RefreshCw className="w-4 h-4" /> Synchroniser depuis le bureau
+              <RefreshCw className="w-4 h-4" /> Sync from the desktop
             </Button>
             <Button onClick={() => openConnect()}>
-              <MonitorSmartphone className="w-4 h-4" /> Connecter une marketplace
+              <MonitorSmartphone className="w-4 h-4" /> Connect a marketplace
             </Button>
           </div>
         }
       />
 
       {error ? (
-        <Card className="p-4 text-sm text-destructive">Impossible de charger les boutiques : {error.message}</Card>
+        <Card className="p-4 text-sm text-destructive">Could not load the shops: {error.message}</Card>
       ) : isLoading ? (
-        <Card className="p-4 text-sm text-muted-foreground">Chargement des boutiques…</Card>
+        <Card className="p-4 text-sm text-muted-foreground">Loading shops…</Card>
       ) : !shops.length ? (
         <Card>
           <EmptyState
             icon={<Store className="w-6 h-6" />}
-            title="Aucune boutique"
-            text="Clique « Connecter une marketplace » : tu te connectes à Vinted, eBay, Etsy… dans le Chrome du bureau OctoHandy, et l&apos;agent travaille dans cette session."
+            title="No shops yet"
+            text="Click “Connect a marketplace”: you log in to Vinted, eBay, Etsy… in the Chrome of the OctoHandy desktop, and the agent works in that same session."
             action={
               <Button asChild>
                 <Link href="/dashboard/extension">
@@ -115,7 +115,7 @@ export default function ShopsPage() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="pl-4 text-muted-foreground">Boutique</TableHead>
+                <TableHead className="pl-4 text-muted-foreground">Shop</TableHead>
                 <TableHead className="text-muted-foreground">Session</TableHead>
                 <TableHead className="text-muted-foreground text-right">Annonces</TableHead>
                 <TableHead className="pr-4" />
@@ -153,24 +153,24 @@ export default function ShopsPage() {
                     <TableCell>
                       <span className="inline-flex items-center gap-2 text-sm">
                         <StatusDot tone={ok ? "green" : "red"} live={ok} />
-                        <span className={ok ? "text-foreground" : "text-destructive"}>{ok ? "Session valide" : "Session expirée"}</span>
+                        <span className={ok ? "text-foreground" : "text-destructive"}>{ok ? "Session valid" : "Session expired"}</span>
                       </span>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{s.listingCount}</TableCell>
                     <TableCell className="pr-4">
                       <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <Button variant="secondary" size="sm" onClick={() => openShop(s.id)}>
-                          <Tags className="w-3.5 h-3.5" /> Voir les annonces
+                          <Tags className="w-3.5 h-3.5" /> View listings
                         </Button>
                         <Button variant={ok ? "secondary" : "primary"} size="sm" onClick={() => openConnect(s.marketplace)}>
-                          <MonitorSmartphone className="w-4 h-4" /> {ok ? "Ouvrir le bureau" : "Reconnecter"}
+                          <MonitorSmartphone className="w-4 h-4" /> {ok ? "Open the desktop" : "Reconnect"}
                         </Button>
                         <Button variant="ghost" size="sm" onClick={(e) => void refresh(s.id, e)}>
-                          <RefreshCw className="w-3.5 h-3.5" /> Vérifier
+                          <RefreshCw className="w-3.5 h-3.5" /> Check
                         </Button>
                         <Button variant="ghost" size="sm" asChild>
                           <a href={mpUrl[s.marketplace] ?? `https://www.${s.marketplace}.fr`} target="_blank" rel="noreferrer">
-                            <ExternalLink className="w-3.5 h-3.5" /> Ouvrir
+                            <ExternalLink className="w-3.5 h-3.5" /> Open
                           </a>
                         </Button>
                       </div>

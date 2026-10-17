@@ -26,7 +26,7 @@ export default function AllListingsPage() {
     <div>
       <PageHeader
         label="Marketplace"
-        title="Toutes les annonces"
+        title="All listings"
         actions={
           <Button variant="secondary" size="sm" asChild>
             <Link href="/dashboard/shops">
@@ -38,11 +38,11 @@ export default function AllListingsPage() {
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <Segmented options={options} value={filter} onChange={setFilter} />
         <Link href="/dashboard/shops" className="text-sm text-muted-foreground inline-flex items-center gap-1 hover:text-foreground">
-          <Store className="w-3.5 h-3.5" /> Gérer les boutiques
+          <Store className="w-3.5 h-3.5" /> Manage shops
         </Link>
       </div>
       {listingsResource.error || shopsResource.error ? (
-        <p className="text-sm text-destructive">Impossible de charger les annonces et boutiques.</p>
+        <p className="text-sm text-destructive">Could not load the listings and shops.</p>
       ) : (
         <ListingsGrid listings={visible} />
       )}

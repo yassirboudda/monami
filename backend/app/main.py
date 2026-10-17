@@ -64,11 +64,11 @@ _run_tasks: set[asyncio.Task[None]] = set()
 
 def _build_chat_system_prompt() -> str:
     return (
-        "Tu es OctoHandy, assistant marketplace. Réponds en français, de façon concise et "
-        "utile pour le stock, les prix, les messages clients et les workflows. Tu couvres les "
-        "marketplaces décrites dans la référence ci-dessous. Utilise-la pour décider si une "
-        "action passe par l'API ou un screenpipe_workflow, et quelles confirmations vendeur/"
-        "acheteur sont nécessaires.\n\n"
+        "You are OctoHandy, a marketplace assistant. Reply in the language the user writes in (English by default), concisely and "
+        "helpful about stock, prices, buyer messages and workflows. You cover the "
+        "marketplaces described in the reference below. Use it to decide whether an "
+        "action goes through the API or a screenpipe_workflow, and which seller/"
+        "buyer are needed.\n\n"
         f"{agent_context()}"
     )
 
@@ -219,7 +219,7 @@ async def _clerk_api(
     body: dict[str, Any] | None = None,
 ) -> tuple[int, dict[str, Any]]:
     if not settings.clerk_secret_key:
-        raise HTTPException(status_code=503, detail="Clerk API non configurée")
+        raise HTTPException(status_code=503, detail="Clerk API not configured")
     async with httpx.AsyncClient(timeout=15) as client:
         response = await client.request(
             method,
@@ -242,7 +242,7 @@ async def _organization_name(org_id: str, claims: dict[str, Any] | None = None) 
     if org_id not in _organization_names:
         code, data = await _clerk_api("GET", f"/organizations/{org_id}")
         if code >= 400:
-            raise HTTPException(status_code=502, detail="Impossible de récupérer l'organisation")
+            raise HTTPException(status_code=502, detail="Could not fetch the organisation")
         if data.get("name"):
             _organization_names[org_id] = str(data["name"])
     return _organization_names.get(org_id, org_id)
@@ -250,7 +250,7 @@ async def _organization_name(org_id: str, claims: dict[str, Any] | None = None) 
 
 async def _chat_context(user: dict[str, Any]) -> str:
     profile = _profile(user["user_id"])
-    display_name = profile["displayName"] or "membre sans nom renseigné"
+    display_name = profile["displayName"] or "member without a name"
     preferences = json.dumps(profile["preferences"], ensure_ascii=False, separators=(",", ":"))
     policy = _inbox_policy(user["user_id"])
     org_id = user.get("org_id")
@@ -276,9 +276,9 @@ async def _chat_context(user: dict[str, Any]) -> str:
         workflow_lines.append(f"- {workflow['title']} : {goal[:120]}" + (f" ; garde-fous : {rules[:120]}" if rules else ""))
     return (
         "\n\nContexte utilisateur\n"
-        f"Profil : {display_name}. Préférences : {preferences}.\n"
-        f"Boîte de réception autonome : réponses auto {'activées' if policy['autoReply'] else 'désactivées'}, "
-        f"remise max sans accord {policy['maxAutoDiscountPct']} % (au-delà, demander l'accord du vendeur dans le chat).\n"
+        f"Profile: {display_name}. Preferences: {preferences}.\n"
+        f"Autonomous inbox: auto-replies {'enabled' if policy['autoReply'] else 'disabled'}, "
+        f"max discount without approval {policy['maxAutoDiscountPct']}% (above that, ask the seller for approval in the chat).\n"
         f"Espace : {workspace}."
         + ("\nAutomatisations actives :\n" + "\n".join(workflow_lines) if workflow_lines else "")
     )
@@ -331,7 +331,7 @@ class ProfileIn(BaseModel):
 INBOX_POLICY_DEFAULTS: dict[str, Any] = {
     "autoReply": True,
     "maxAutoDiscountPct": 10,
-    "tone": "amical et professionnel, tutoiement, réponses courtes",
+    "tone": "friendly and professional, short replies, in the buyer's language",
     "signature": "",
 }
 
@@ -417,7 +417,7 @@ async def decide_agent_message(message_id: str, body: AgentDecisionIn, user: dic
         if not row:
             raise HTTPException(404, "Message inconnu")
         if row["kind"] != "approval":
-            raise HTTPException(400, "Ce message n'attend pas de décision")
+            raise HTTPException(400, "This message does not expect a decision")
         if row["status"] != "pending":
             return {"message": _agent_message_dict(row)}
         conn.execute(
@@ -784,7 +784,7 @@ def _acquire_desktop_lease(user: dict[str, Any], marketplace: str | None, ttl: i
         minutes = max(1, (remaining + 59) // 60)
         raise HTTPException(
             409,
-            f"Le bureau est déjà utilisé par une autre équipe, réessaie dans {minutes} minute(s).",
+            f"The desktop is already in use by another team, try again in {minutes} minute(s).",
         )
 
 
@@ -805,7 +805,7 @@ async def desktop_status(user: dict[str, Any] = Depends(workspace_user)):
 @app.post("/v1/desktop/sessions")
 async def create_desktop_session(body: DesktopSessionIn, user: dict[str, Any] = Depends(workspace_user)):
     if not _desktop_enabled():
-        raise HTTPException(503, "Bureau distant non configuré (DESKTOP_BASE_URL / DESKTOP_SIGNING_SECRET)")
+        raise HTTPException(503, "Remote desktop not configured (DESKTOP_BASE_URL / DESKTOP_SIGNING_SECRET)")
     if body.marketplace and get_marketplace(body.marketplace) is None and body.marketplace not in LOGIN_URLS:
         raise HTTPException(404, "Marketplace inconnue")
     _acquire_desktop_lease(user, body.marketplace, settings.desktop_session_ttl)
@@ -1041,10 +1041,10 @@ async def _screenpipe_events(start_iso: str, end_iso: str) -> dict[str, Any]:
 
 
 _SCREEN_SUMMARY_CACHE: dict[str, dict[str, str]] = {}
-_SCREEN_SUMMARY_SYSTEM = """Tu expliques à un vendeur non technicien ce qui se passe sur l'écran de son bureau OctoHandy.
+_SCREEN_SUMMARY_SYSTEM = """You explain to a non-technical seller what is happening on the screen of their OctoHandy desktop.
 On te donne des extraits OCR bruts (texte reconnu sur des captures d'écran, souvent abîmé) de pages web, dans l'ordre.
-Pour CHAQUE extrait, réponds avec : "label" (3 à 6 mots : site + ce que c'est, ex. "Leboncoin — page de connexion",
-"Vinted — résultats de recherche", "Google — validation en deux étapes") et "summary" (UNE phrase simple en français, max 25 mots,
+For EACH excerpt answer with: "label" (3 to 6 English words: site + what it is, e.g. "Leboncoin — login page",
+"Vinted — search results", "Google — two-step verification") and "summary" (ONE simple sentence in English, max 25 words,
 qui dit ce qu'on voit et ce qui se passe, sans jargon, sans citer le texte abîmé ; cite un e-mail/pseudo/article/prix s'il est lisible).
 Réponds UNIQUEMENT en JSON : {"items": [{"i": 0, "label": "...", "summary": "..."}, ...]}"""
 
@@ -1107,11 +1107,11 @@ def _parse_json_block(text: str) -> dict[str, Any] | None:
 
 
 def _fallback_draft(marketplace: str, trace: dict[str, Any]) -> dict[str, Any]:
-    windows = [w for w in trace.get("windows", []) if w][:4] or ["Action réalisée sur la marketplace"]
+    windows = [w for w in trace.get("windows", []) if w][:4] or ["Action performed on the marketplace"]
     return {
         "title": f"Workflow {marketplace.capitalize()} appris le {datetime.now(timezone.utc).strftime('%d/%m %H:%M')}",
         "trigger": "",
-        "steps": [f"Écran : {w[:90]}" for w in windows],
+        "steps": [f"Screen: {w[:90]}" for w in windows],
         "tools": [], "guardrails": ["Toujours demander validation avant d'envoyer un message"],
         "tone_notes": "", "confidence": "low",
         "intent": {
@@ -1164,19 +1164,19 @@ _TEACH_SYSTEM = """Tu es le compilateur de workflows d'OctoHandy, un assistant p
 chronologique) d'un vendeur qui vient de faire UNE FOIS, à la main, la tâche qu'il veut automatiser.
 Déduis le workflow réutilisable et réponds UNIQUEMENT avec un objet JSON valide (pas de markdown, pas de texte avant ou après) :
 {
- "title": "titre court (max 60 caractères), style 'Favoris → proposition de prix'",
- "trigger": "l'événement qui déclenche le workflow, une phrase",
- "steps": ["3 à 6 étapes courtes en français, impératif, style 'Client met un article en favoris'"],
+ "title": "short English title (max 60 chars), e.g. 'Favourite → price offer'",
+ "trigger": "the event that starts the workflow, one English sentence",
+ "steps": ["3 to 6 short steps in English, imperative, e.g. 'Buyer favourites an item'"],
  "tools": [{"tool": "<un outil du catalogue>", "args": {"...": "..."}}],
  "intent": {
    "goal": "ce que le vendeur veut obtenir, en une phrase",
    "actor": "seller|buyer",
    "entities": {"marketplace": "...", "article": "...", "prix_plancher": "...", "delai": "..."},
-   "success_criteria": "comment reconnaître que le résultat est atteint",
-   "constraints": ["limites et conditions à respecter"]
+   "success_criteria": "how to tell the goal is reached (English)",
+   "constraints": ["limits and conditions to respect (English)"]
  },
- "guardrails": ["règles de sécurité déduites (prix plancher, ne jamais répondre hors sujet, validation humaine…)"],
- "tone_notes": "comment le vendeur écrit (tutoiement, emojis, formules), déduit des messages tapés",
+ "guardrails": ["inferred safety rules in English (floor price, never answer off-topic, human approval…)"],
+ "tone_notes": "how the seller writes (formality, emojis, phrases), inferred from the typed messages — described in English",
  "confidence": "high|medium|low"
 }
 Catalogue d'outils autorisés (n'en invente pas d'autre) : %s.
@@ -1186,7 +1186,7 @@ et propose quand même le workflow le plus plausible pour cette marketplace.""" 
 
 async def _compile_teach(marketplace: str, trace: dict[str, Any], user_id: str) -> tuple[dict[str, Any], str]:
     started = trace.get("events", [{}])[0].get("t", "") if trace.get("events") else ""
-    lines = [f"Marketplace : {marketplace}", f"Frames Screenpipe : {trace.get('frames')}", f"Début : {started}", "Trace :"]
+    lines = [f"Marketplace: {marketplace}", f"Screenpipe frames: {trace.get('frames')}", f"Start: {started}", "Trace:"]
     for event in trace.get("events", []):
         lines.append(f"- [{event['t'][11:19]}] {event['app']} / {event['window'][:80]} :: {event['text'][:500]}")
     draft, via = await _llm_json(_TEACH_SYSTEM, "\n".join(lines)[:16000], f"octohandy-teach-{user_id}")
@@ -1238,7 +1238,7 @@ async def list_teach(user: dict[str, Any] = Depends(workspace_user)):
 @app.post("/v1/teach/start")
 async def teach_start(body: TeachStartIn, user: dict[str, Any] = Depends(workspace_user)):
     if not (_desktop_enabled() and _screenpipe_enabled()):
-        raise HTTPException(503, "Apprentissage indisponible : bureau distant ou Screenpipe non configuré")
+        raise HTTPException(503, "Teaching unavailable: remote desktop or Screenpipe not configured")
     if get_marketplace(body.marketplace) is None and body.marketplace not in LOGIN_URLS:
         raise HTTPException(404, "Marketplace inconnue")
     session_ttl = max(settings.desktop_session_ttl, 1800)
@@ -1319,7 +1319,7 @@ async def teach_save(teach_id: str, body: TeachSaveIn, user: dict[str, Any] = De
         title = (body.title or draft.get("title") or "Workflow appris").strip()[:80]
         steps = [step.strip() for step in (body.steps or draft.get("steps") or []) if step and step.strip()][:8]
         if not steps:
-            raise HTTPException(422, "Le workflow doit contenir au moins une étape")
+            raise HTTPException(422, "The workflow needs at least one step")
         workflow_id = row["workflow_id"] or f"w-{uuid.uuid4().hex[:8]}"
         tone = _WORKFLOW_TONES.get(row["marketplace"], "blue")
         intent = draft.get("intent") if isinstance(draft.get("intent"), dict) else {}
@@ -1424,7 +1424,7 @@ def _run_dict(row: Any) -> dict[str, Any]:
 def _run_row(conn: Any, workspace: str, run_id: str) -> Any:
     row = conn.execute("SELECT * FROM workflow_runs WHERE workspace=? AND id=?", (workspace, run_id)).fetchone()
     if row is None:
-        raise HTTPException(404, "Exécution introuvable")
+        raise HTTPException(404, "Run not found")
     return row
 
 
@@ -1448,24 +1448,24 @@ Prépare le plan d'exécution
 concret pour CETTE occurrence. Réponds UNIQUEMENT avec un objet JSON :
 {
  "summary": "une phrase : ce que tu vas faire maintenant",
- "situation": "ce que tu comprends de l'écran (messages non lus, favoris, annonces…), ou 'contexte insuffisant'",
+ "situation": "what you understand from the screen (unread messages, favourites, listings…), in English, or 'insufficient context'",
  "actions": [
-   {"tool": "<outil du catalogue>", "args": {"...": "..."}, "preview": "texte exact du message/offre si l'action en envoie un, dans le ton du vendeur", "needs_approval": true, "target_text": "libellé visible exact à cliquer", "input_text": "texte à saisir après le clic, sinon chaîne vide", "submit": false}
+   {"tool": "<outil du catalogue>", "args": {"...": "..."}, "preview": "exact text of the message/offer if the action sends one, in the seller's tone and the buyer's language", "needs_approval": true, "target_text": "exact visible label to click", "input_text": "text to type after the click, else empty string", "submit": false}
  ],
  "risks": ["ce qui pourrait mal se passer"],
- "ask_user": "question au vendeur si une info manque, sinon chaîne vide"
+ "ask_user": "question for the seller (English) if information is missing, else empty string"
 }
 Catalogue d'outils : %s. Max 5 actions. Indique target_text uniquement si le libellé est visible dans l'OCR.
 Toute action qui envoie un message, une offre ou modifie un prix a needs_approval=true. Respecte les garde-fous
-(prix plancher, etc.). Les messages sont en français, courts, sans inventer d'informations sur l'article.""" % ", ".join(TEACH_TOOLS)
+(floor price, etc.). Messages to buyers are written in the buyer's language, short, without inventing details about the item; everything addressed to the seller is in English.""" % ", ".join(TEACH_TOOLS)
 
 
 def _fallback_plan(workflow: dict[str, Any]) -> dict[str, Any]:
     return {
-        "summary": f"Ouvrir {workflow['marketplace']} et dérouler « {workflow['title']} » avec toi",
+        "summary": f"Open {workflow['marketplace']} and walk through “{workflow['title']}” with you",
         "situation": "contexte insuffisant (agent indisponible)",
         "actions": [{"tool": "list_unread_messages", "args": {"marketplace": workflow["marketplace"]}, "preview": "", "needs_approval": False}],
-        "risks": ["Plan de secours : l'agent n'a pas pu analyser l'écran"],
+        "risks": ["Fallback plan: the agent could not analyse the screen"],
         "ask_user": "",
     }
 
@@ -1511,19 +1511,19 @@ async def run_workflow(workflow_id: str, user: dict[str, Any] = Depends(workspac
             error = f"Screenpipe indisponible ({type(e).__name__})"
     lines = [
         f"Workflow « {workflow['title']} » ({workflow['marketplace']})",
-        "Étapes : " + " / ".join(workflow["steps"]),
+        "Steps: " + " / ".join(workflow["steps"]),
     ]
     intent = workflow.get("intent") or {}
     allowed_tools = [item.get("tool") for item in workflow.get("tools", []) if isinstance(item, dict) and item.get("tool")]
     lines.extend([
-        f"Objectif : {intent.get('goal') or 'non précisé'}",
-        f"Critères de réussite : {intent.get('success_criteria') or 'non précisés'}",
-        "Contraintes : " + (" / ".join(intent.get("constraints", [])) or "aucune précisée"),
-        "Garde-fous : " + (" / ".join(workflow.get("guardrails") or []) or "aucun précisé"),
-        f"Ton du vendeur : {workflow.get('toneNotes') or 'non précisé'}",
-        "Outils autorisés pour ce workflow : " + (", ".join(allowed_tools) or "aucun outil déclaré"),
+        f"Goal: {intent.get('goal') or 'not specified'}",
+        f"Success criteria: {intent.get('success_criteria') or 'not specified'}",
+        "Constraints: " + (" / ".join(intent.get("constraints", [])) or "none specified"),
+        "Guardrails: " + (" / ".join(workflow.get("guardrails") or []) or "none specified"),
+        f"Seller tone: {workflow.get('toneNotes') or 'not specified'}",
+        "Allowed tools for this workflow: " + (", ".join(allowed_tools) or "no tool declared"),
         "",
-        f"Contexte live du bureau ({context.get('frames', 0)} frames Screenpipe, 3 dernières minutes) :",
+        f"Live desktop context ({context.get('frames', 0)} Screenpipe frames, last 3 minutes):",
     ])
     for event in context.get("events", [])[:30]:
         lines.append(f"- [{event['t'][11:19]}] {event['window'][:80]} :: {event['text'][:400]}")
@@ -1566,7 +1566,7 @@ async def _screen_excerpt() -> str:
     try:
         frame_id = await latest_frame_id()
     except ScreenpipeFrameStaleError:
-        return "écran Screenpipe pas à jour"
+        return "Screenpipe screen not up to date"
     if frame_id is None:
         return ""
     elements = await frame_elements(frame_id)
@@ -1635,7 +1635,7 @@ def _finish_workflow_run(
 
 def _execution_error(exc: BaseException) -> str:
     detail = str(exc).strip() or type(exc).__name__
-    return f"Échec de l'exécution : {detail[:400]}"
+    return f"Run failed: {detail[:400]}"
 
 
 async def _execute_run_actions(
@@ -1665,7 +1665,7 @@ async def _execute_run_actions(
         for index, action in enumerate(plan.get("actions", [])):
             tool = action["tool"]
             if approved_indexes is not None and index not in approved_indexes:
-                record({"t": _iso_now(), "tool": tool, "result": "skipped", "detail": "non approuvée"})
+                record({"t": _iso_now(), "tool": tool, "result": "skipped", "detail": "not approved"})
                 continue
             if mode == "auto_click":
                 try:
@@ -1679,7 +1679,7 @@ async def _execute_run_actions(
             if not db.desktop_lease_held(workspace):
                 record({
                     "t": _iso_now(), "tool": tool, "result": "failed",
-                    "detail": "réservation du bureau expirée ; aucune action effectuée",
+                    "detail": "desktop reservation expired; no action performed",
                 })
                 if mode == "auto_click":
                     break
@@ -1702,12 +1702,12 @@ async def _execute_run_actions(
                 ok = page_ok
                 if action.get("preview") and _desktop_enabled():
                     copied = await _desktop_clipboard(action["preview"])
-                    details.append("message prêt dans le presse-papiers du bureau" if copied else "presse-papiers indisponible")
+                    details.append("message ready in the desktop clipboard" if copied else "clipboard unavailable")
                     ok = ok and copied
                 if tool == "notify_seller":
-                    details.append("notification affichée dans le journal")
+                    details.append("notification shown in the log")
                 if tool == "wait_for_event":
-                    details.append("déclencheur automatique à configurer")
+                    details.append("automatic trigger to configure")
                 record({
                     "t": _iso_now(), "tool": tool, "args": action.get("args", {}),
                     "preview": action.get("preview", ""), "result": "assisted" if ok else "partial",
@@ -1726,7 +1726,7 @@ async def _execute_run_actions(
                 record(entry)
                 continue
             if not target_text:
-                entry.update(result="failed", outcome="cible non précisée dans le plan", detail="cible non précisée dans le plan")
+                entry.update(result="failed", outcome="target not specified in the plan", detail="target not specified in the plan")
                 record(entry)
                 continue
             if not desktop_attempted:
@@ -1752,8 +1752,8 @@ async def _execute_run_actions(
                 continue
             if target is None:
                 entry.update(
-                    result="failed", outcome="cible introuvable à l'écran",
-                    detail="cible introuvable à l'écran",
+                    result="failed", outcome="target not found on screen",
+                    detail="target not found on screen",
                 )
                 record(entry)
                 continue
@@ -1777,7 +1777,7 @@ async def _execute_run_actions(
                     await desktop.key(enter, False)
                 await asyncio.sleep(rng.uniform(1.5, 3.0))
                 entry["evidence"] = await _screen_excerpt()
-                entry.update(result="clicked", outcome="clic exécuté", detail=" · ".join(details) or "clic exécuté")
+                entry.update(result="clicked", outcome="click executed", detail=" · ".join(details) or "click executed")
             except DesktopInputError as exc:
                 entry.update(result="partial" if clicked else "failed", outcome=str(exc), detail=str(exc))
                 if clicked:
@@ -1804,7 +1804,7 @@ async def _run_auto_click_background(
         )
         _finish_workflow_run(workspace, run_id, "executed", log)
     except asyncio.CancelledError:
-        error = "Exécution interrompue avant la fin."
+        error = "Run interrupted before completion."
         log.append({"t": _iso_now(), "tool": "execution", "result": "failed", "detail": error})
         _finish_workflow_run(workspace, run_id, "failed", log, error)
     except Exception as exc:
@@ -1818,7 +1818,7 @@ async def approve_run(run_id: str, body: RunDecisionIn, user: dict[str, Any] = D
     with db.connection() as conn:
         run = _run_row(conn, user["workspace"], run_id)
         if run["status"] != "awaiting_approval":
-            raise HTTPException(409, "Cette exécution n'attend plus d'approbation")
+            raise HTTPException(409, "This run no longer awaits approval")
         workflow_row = conn.execute(
             "SELECT * FROM workflows WHERE workspace=? AND id=?", (user["workspace"], run["workflow_id"])
         ).fetchone()
@@ -1827,7 +1827,7 @@ async def approve_run(run_id: str, body: RunDecisionIn, user: dict[str, Any] = D
         actions = plan.get("actions", [])
         approved = [action for index, action in enumerate(actions) if body.approved_indexes is None or index in body.approved_indexes]
         if body.mode == "auto_click" and approved and not db.desktop_lease_held(user["workspace"]):
-            raise HTTPException(409, "Réserve le bureau distant avant de lancer les clics.")
+            raise HTTPException(409, "Reserve the remote desktop before launching the clicks.")
         conn.execute(
             "UPDATE workflow_runs SET status='executing', mode=?, updated_at=? WHERE workspace=? AND id=?",
             (body.mode, _iso_now(), user["workspace"], run_id),
@@ -1893,8 +1893,8 @@ async def _screen_context(workspace: str | None = None, minutes: int = 2) -> str
         return ""
     lines = [f"- [{e['t'][11:19]}] {e['window'][:80]} :: {e['text'][:350]}" for e in events[-8:]]
     return (
-        "\n\nÉcran du bureau OctoHandy (Chrome distant, OCR Screenpipe des 2 dernières minutes, du plus ancien au plus "
-        "récent). Utilise-le si l'utilisateur parle de ce qu'il voit, de ses messages, favoris ou annonces :\n"
+        "\n\nOctoHandy desktop screen (remote Chrome, Screenpipe OCR of the last 2 minutes, oldest to "
+        "newest). Use it when the user talks about what they see, their messages, favourites or listings:\n"
         + "\n".join(lines)
     )
 
@@ -1966,7 +1966,7 @@ async def desktop_status_live(user: dict[str, Any] = Depends(workspace_user)):
 async def desktop_screen(minutes: int = 2, user: dict[str, Any] = Depends(workspace_user)):
     """Proof that Screenpipe sees the remote desktop: the compressed trace of the last N minutes."""
     if not _screenpipe_enabled():
-        raise HTTPException(503, "Screenpipe non configuré")
+        raise HTTPException(503, "Screenpipe not configured")
     minutes = max(1, min(minutes, 30))
     end = datetime.now(timezone.utc)
     try:
@@ -1987,7 +1987,7 @@ class ClipboardIn(BaseModel):
 async def desktop_clipboard_get(user: dict[str, Any] = Depends(workspace_user)):
     """Presse-papiers du bureau distant → PC (noVNC ne le synchronise pas)."""
     if not _desktop_enabled():
-        raise HTTPException(503, "Bureau non configuré")
+        raise HTTPException(503, "Desktop not configured")
     try:
         async with httpx.AsyncClient(timeout=8) as client:
             response = await client.get(
@@ -2003,7 +2003,7 @@ async def desktop_clipboard_get(user: dict[str, Any] = Depends(workspace_user)):
 async def desktop_clipboard_set(body: ClipboardIn, user: dict[str, Any] = Depends(workspace_user)):
     """PC → presse-papiers du bureau distant (Ctrl+V dans le Chrome du bureau)."""
     if not _desktop_enabled():
-        raise HTTPException(503, "Bureau non configuré")
+        raise HTTPException(503, "Desktop not configured")
     if not await _desktop_clipboard(body.text[:20000]):
         raise HTTPException(502, "Bureau indisponible")
     return {"ok": True}
@@ -2018,7 +2018,7 @@ async def auth_login(body: LoginIn):
     """Mono-user access: password checked here (Hetzner .env), returns the signed app token the web app stores as cookie."""
     want = settings.app_access_password.strip()
     if not want or not settings.app_session_secret:
-        raise HTTPException(503, "Accès non configuré sur le serveur (APP_ACCESS_PASSWORD / APP_SESSION_SECRET)")
+        raise HTTPException(503, "Access not configured on the server (APP_ACCESS_PASSWORD / APP_SESSION_SECRET)")
     got = body.password.strip()
     if not hmac.compare_digest(got.encode(), want.encode()):
         raise HTTPException(401, "Mot de passe incorrect")
@@ -2081,7 +2081,7 @@ class ShopsSyncIn(BaseModel):
 async def shops_sync(body: ShopsSyncIn, user: dict[str, Any] = Depends(workspace_user)):
     """Replace the demo data with the seller's real accounts/listings read from the remote desktop Chrome."""
     if not _desktop_enabled():
-        raise HTTPException(503, "Bureau non configuré")
+        raise HTTPException(503, "Desktop not configured")
     wanted = [m for m in (body.marketplaces or SYNC_MARKETPLACES) if m in SYNC_MARKETPLACES]
     report: list[dict[str, Any]] = []
     for marketplace in wanted:
@@ -2091,7 +2091,7 @@ async def shops_sync(body: ShopsSyncIn, user: dict[str, Any] = Depends(workspace
             report.append({"marketplace": marketplace, "ok": False, "error": f"bureau injoignable ({type(e).__name__})"})
             continue
         if not data.get("ok"):
-            report.append({"marketplace": marketplace, "ok": False, "error": data.get("error") or "échec"})
+            report.append({"marketplace": marketplace, "ok": False, "error": data.get("error") or "failed"})
             continue
         account = data.get("account") or {}
         listings = data.get("listings") or []
@@ -2260,7 +2260,7 @@ class WorkflowCreateIn(BaseModel):
 async def create_workflow(body: WorkflowCreateIn, user: dict[str, Any] = Depends(workspace_user)):
     steps = [step.strip() for step in body.steps if step and step.strip()][:12]
     if not steps:
-        raise HTTPException(422, "Le workflow doit contenir au moins une étape")
+        raise HTTPException(422, "The workflow needs at least one step")
     marketplace = body.marketplace.strip().lower()[:40] or "multi"
     workflow_id = f"w-{uuid.uuid4().hex[:8]}"
     with db.connection() as conn:
@@ -2287,12 +2287,12 @@ class RunLogIn(BaseModel):
 async def log_run(body: RunLogIn, user: dict[str, Any] = Depends(workspace_user)):
     """Journal d'une exécution faite par l'agent Hermes sur le bureau (vidéo incluse)."""
     if db.desktop_lease_held_by_other(user["workspace"]) is not None:
-        raise HTTPException(409, "Le bureau est utilisé par une autre équipe.")
+        raise HTTPException(409, "The desktop is in use by another team.")
     recording = body.recordingId if body.recordingId and RECORDING_ID.fullmatch(body.recordingId) else None
     log = [{"t": _iso_now(), "step": step[:300], "ok": True} for step in body.stepsDone[:20]]
     log.append({"t": _iso_now(), "step": body.summary[:2000], "ok": body.status != "failed", "kind": "summary"})
     if recording:
-        log.append({"t": _iso_now(), "step": "Vidéo de l'exécution", "ok": True, "kind": "recording",
+        log.append({"t": _iso_now(), "step": "Run video", "ok": True, "kind": "recording",
                     "recordingId": recording, "url": f"/v1/desktop/recordings/{recording}.mp4"})
     run_id = f"r-{uuid.uuid4().hex[:8]}"
     with db.connection() as conn:
@@ -2313,7 +2313,7 @@ RECORDING_ID = re.compile(r"[0-9a-f]{16}")
 async def desktop_recording(recording_id: str):
     """Vidéo d'une exécution sur le bureau A4000. L'id est un secret aléatoire de 64 bits (lien type pièce jointe)."""
     if not RECORDING_ID.fullmatch(recording_id) or not _desktop_enabled():
-        raise HTTPException(404, "Vidéo introuvable")
+        raise HTTPException(404, "Video not found")
     try:
         async with httpx.AsyncClient(timeout=60) as client:
             response = await client.get(
@@ -2323,7 +2323,7 @@ async def desktop_recording(recording_id: str):
     except httpx.HTTPError as e:
         raise HTTPException(502, f"Bureau indisponible ({type(e).__name__})") from e
     if response.status_code != 200:
-        raise HTTPException(404, "Vidéo introuvable")
+        raise HTTPException(404, "Video not found")
     return Response(content=response.content, media_type="video/mp4",
                     headers={"Cache-Control": "private, max-age=86400", "Accept-Ranges": "none"})
 
@@ -2369,13 +2369,13 @@ async def create_invite_link(user: dict[str, Any] = Depends(workspace_user)):
             )
         return {"token": token, "path": f"/join/{token}", "expiresAt": (created_at + timedelta(days=7)).isoformat()}
     if not org_id:
-        raise HTTPException(status_code=400, detail="Sélectionne une organisation")
+        raise HTTPException(status_code=400, detail="Select an organisation")
     try:
         clerk_status, clerk_user = await _clerk_api("GET", f"/users/{user['user_id']}")
     except (HTTPException, httpx.HTTPError) as exc:
-        raise HTTPException(status_code=502, detail="Impossible de vérifier l'accès OctoHandy") from exc
+        raise HTTPException(status_code=502, detail="Could not verify OctoHandy access") from exc
     if clerk_status >= 400:
-        raise HTTPException(status_code=502, detail="Impossible de vérifier l'accès OctoHandy")
+        raise HTTPException(status_code=502, detail="Could not verify OctoHandy access")
     public_metadata = clerk_user.get("public_metadata")
     if not isinstance(public_metadata, dict) or public_metadata.get("stockflow_access") is not True:
         allowed_emails = {
@@ -2391,7 +2391,7 @@ async def create_invite_link(user: dict[str, Any] = Depends(workspace_user)):
             for address in email_addresses
         )
         if not email_allowed:
-            raise HTTPException(status_code=403, detail="Accès OctoHandy requis pour inviter")
+            raise HTTPException(status_code=403, detail="OctoHandy access required to invite")
     created_at = datetime.now(timezone.utc)
     expires_at = created_at + timedelta(days=7)
     token = f"inv_{uuid.uuid4().hex}"
@@ -2415,7 +2415,7 @@ def _invite(token: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Lien d'invitation introuvable")
     expires_at = datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00"))
     if expires_at <= datetime.now(timezone.utc):
-        raise HTTPException(status_code=410, detail="Ce lien d'invitation a expiré")
+        raise HTTPException(status_code=410, detail="This invitation link has expired")
     return dict(row)
 
 
@@ -2423,7 +2423,7 @@ def _invite(token: str) -> dict[str, Any]:
 async def invite_info(token: str, _user: dict[str, Any] = Depends(workspace_user)):
     invite = _invite(token)
     if str(invite["org_id"]).startswith("user:"):
-        return {"orgId": invite["org_id"], "orgName": f"Équipe OctoHandy de {settings.app_user_email}", "expiresAt": invite["expires_at"], "shared": True}
+        return {"orgId": invite["org_id"], "orgName": f"{settings.app_user_email}'s OctoHandy team", "expiresAt": invite["expires_at"], "shared": True}
     org_name = await _organization_name(invite["org_id"])
     return {"orgId": invite["org_id"], "orgName": org_name, "expiresAt": invite["expires_at"]}
 
@@ -2440,7 +2440,7 @@ async def accept_invite(token: str, user: dict[str, Any] = Depends(workspace_use
     invite = _invite(token)
     if str(invite["org_id"]).startswith("user:"):
         if invite["org_id"] != user["workspace"]:
-            raise HTTPException(status_code=403, detail="Cette invitation ne correspond pas à ton espace")
+            raise HTTPException(status_code=403, detail="This invitation does not match your workspace")
         return {"ok": True, "orgId": invite["org_id"], "joined": True}
     if user.get("via") != "clerk":
         raise HTTPException(status_code=401, detail="Connexion Clerk requise")
@@ -2458,7 +2458,7 @@ async def accept_invite(token: str, user: dict[str, Any] = Depends(workspace_use
         {"public_metadata": {"stockflow_access": True}},
     )
     if metadata_status >= 400:
-        raise HTTPException(status_code=502, detail="Impossible de mettre à jour l'accès OctoHandy")
+        raise HTTPException(status_code=502, detail="Could not update OctoHandy access")
     return {"orgId": org_id}
 
 
@@ -2523,7 +2523,7 @@ async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dic
     if not settings.nebius_api_key:
         result = {
             "role": "assistant",
-            "content": f"J'ai bien reçu ton message : « {body.message[:200]} ». L'agent n'est pas configuré sur ce serveur.",
+            "content": f"Got your message: “{body.message[:200]}”. The agent is not configured on this server.",
             "model": "mock",
         }
         if hermes_error:
@@ -2534,7 +2534,7 @@ async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dic
     if body.images:
         nebius_user_content = [
             {"type": "text", "text": body.message},
-            *[{"type": "text", "text": f"[image attachée: {u[:80]}]"} for u in body.images[:4]],
+            *[{"type": "text", "text": f"[attached image: {u[:80]}]"} for u in body.images[:4]],
         ]
 
     payload = {
@@ -2588,9 +2588,9 @@ async def chat(body: ChatIn, user: dict[str, Any] = Depends(workspace_user)):
         if busy_seconds is not None:
             minutes = max(1, (busy_seconds + 59) // 60)
             system += (
-                "\n\nLe bureau OctoHandy est utilisé par une autre équipe en ce moment : "
-                "ne lance aucune action ni aucun workflow sur le bureau, ne crée pas d'exécution. "
-                f"Dis à l'utilisateur que le bureau est occupé et qu'il pourra réessayer dans environ {minutes} minute(s)."
+                "\n\nThe OctoHandy desktop is currently in use by another team: "
+                "do not start any action or workflow on the desktop, do not create a run. "
+                f"Tell the user the desktop is busy and they can retry in about {minutes} minute(s)."
             )
         return await _chat_response(body, user, system)
     finally:
