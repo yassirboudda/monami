@@ -3,7 +3,9 @@
 import { Settings2 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
-import { Alert, Button, Card, Field, Input, PageHeader, Switch, Textarea } from "@/components/ui"
+import { Button, Card, Field, Input, PageHeader, Textarea } from "@/components/ui"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Switch } from "@/components/ui/switch"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
 type InboxPolicy = { autoReply: boolean; maxAutoDiscountPct: number; tone: string; signature: string }
@@ -59,14 +61,16 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {error && <Alert variant="destructive">Impossible de charger tes paramètres.</Alert>}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>Impossible de charger tes paramètres.</AlertDescription>
+          </Alert>
+        )}
 
-        <Switch
-          checked={policy.autoReply}
-          onCheckedChange={(v) => setPolicy((p) => ({ ...p, autoReply: v }))}
-          disabled={isLoading}
-          label="Répondre automatiquement aux acheteurs"
-        />
+        <label className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3">
+          <span className="text-sm font-medium">Répondre automatiquement aux acheteurs</span>
+          <Switch checked={policy.autoReply} onCheckedChange={(v) => setPolicy((p) => ({ ...p, autoReply: v }))} disabled={isLoading} />
+        </label>
 
         <Field label="Remise maximale sans mon accord (%)" hint="Par défaut 10 %. Une demande de rabais supérieure déclenche une demande d'approbation dans le chat.">
           <Input
