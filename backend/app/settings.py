@@ -15,6 +15,7 @@ class Settings(BaseSettings):
         "http://localhost:3000"
     )
     app_session_secret: str = ""
+    app_access_password: str = ""
     app_user_id: str = "user_3JyIq3WyP0BS44BhxVz3zz60Gos"
     app_user_email: str = "yassirboudda@gmail.com"
     clerk_secret_key: str = ""

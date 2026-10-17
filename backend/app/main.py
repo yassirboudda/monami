@@ -1904,6 +1904,29 @@ async def desktop_clipboard_set(body: ClipboardIn, user: dict[str, Any] = Depend
     return {"ok": True}
 
 
+class LoginIn(BaseModel):
+    password: str
+
+
+@app.post("/v1/auth/login")
+async def auth_login(body: LoginIn):
+    """Mono-user access: password checked here (Hetzner .env), returns the signed app token the web app stores as cookie."""
+    want = settings.app_access_password.strip()
+    if not want or not settings.app_session_secret:
+        raise HTTPException(503, "Accès non configuré sur le serveur (APP_ACCESS_PASSWORD / APP_SESSION_SECRET)")
+    got = body.password.strip()
+    if not hmac.compare_digest(got.encode(), want.encode()):
+        raise HTTPException(401, "Mot de passe incorrect")
+    exp = str(int(time.time()) + 30 * 24 * 3600)
+    sig = hmac.new(settings.app_session_secret.encode(), exp.encode(), hashlib.sha256).hexdigest()
+    return {"token": f"oh.{exp}.{sig}", "expiresAt": int(exp), "email": settings.app_user_email}
+
+
+@app.get("/v1/auth/me")
+async def auth_me(user: dict[str, Any] = Depends(require_user)):
+    return {"userId": user["user_id"], "email": (user.get("claims") or {}).get("email") or settings.app_user_email, "via": user.get("via")}
+
+
 @app.get("/v1/stock")
 async def list_stock(user: dict[str, Any] = Depends(workspace_user)):
     with db.connection() as conn:

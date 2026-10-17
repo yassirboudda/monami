@@ -1,23 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server"
+import { SESSION_COOKIE, tokenLooksValid } from "@/lib/session"
 
-const COOKIE = "oh_session"
 const PUBLIC = [/^\/$/, /^\/explore/, /^\/profile/, /^\/chercher/, /^\/inventaire/, /^\/sign-in/, /^\/backend/, /^\/api\/(login|logout)/]
 
-// Web Crypto so this runs in any runtime; mirrors lib/session.ts (oh.<exp>.<hmacSha256(secret, exp)>).
-async function verify(token: string | undefined) {
-  const secret = process.env.APP_SESSION_SECRET
-  if (!token || !secret) return false
-  const [p, exp, sig] = token.split(".")
-  if (p !== "oh" || !exp || !sig || Number(exp) < Date.now() / 1000) return false
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"])
-  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(exp)))
-  const hex = Array.from(mac, (b) => b.toString(16).padStart(2, "0")).join("")
-  return hex === sig
-}
-
-export default async function proxy(req: NextRequest) {
+// Gate on cookie shape/expiry only; the Hetzner API verifies the HMAC on every data call.
+export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
-  const authed = await verify(req.cookies.get(COOKIE)?.value)
+  const authed = tokenLooksValid(req.cookies.get(SESSION_COOKIE)?.value)
   if (authed && (pathname === "/" || pathname.startsWith("/sign-in"))) {
     return NextResponse.redirect(new URL("/dashboard", req.url))
   }
