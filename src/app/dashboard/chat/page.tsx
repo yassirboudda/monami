@@ -2,10 +2,11 @@
 
 import { useAuth, useUser } from "@/lib/auth"
 import { AnimatePresence, motion } from "framer-motion"
-import { ArrowUp, ImagePlus, Loader2, Trash2, X } from "lucide-react"
+import { ArrowUp, Check, ImagePlus, Loader2, ShieldAlert, Trash2, X } from "lucide-react"
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { toast } from "sonner"
-import { Button, Card, cn, PageHeader } from "@/components/ui"
+import { Badge, Button, Card, cn, MarketplaceLogo, PageHeader } from "@/components/ui"
+import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 import { apiConfigured, apiFetch } from "@/lib/api"
 import { store, type ChatMsg } from "@/lib/store"
 import { Octopus } from "@/components/oh/octopus"
@@ -76,6 +77,48 @@ function renderContent(content: string) {
   )
 }
 
+type AgentMessage = {
+  id: string
+  kind: "info" | "approval" | "sent"
+  marketplace: string | null
+  title: string
+  body: string
+  status: "pending" | "approved" | "rejected" | "seen"
+  created_at: string
+  decided_at: string | null
+}
+
+type TimelineItem = { at: string; chat?: ChatMsg; agent?: AgentMessage }
+
+function AgentCard({ m, onDecide, busy }: { m: AgentMessage; onDecide: (id: string, decision: "approved" | "rejected") => void; busy: boolean }) {
+  const pending = m.kind === "approval" && m.status === "pending"
+  return (
+    <div className="flex justify-start">
+      <div className={cn("max-w-[85%] rounded-2xl rounded-bl-md border px-3.5 py-2.5 text-sm space-y-2", pending ? "border-amber-300 bg-amber-50" : "bg-muted border-border")}>
+        <div className="flex items-center gap-2">
+          {m.marketplace ? <MarketplaceLogo marketplace={m.marketplace} size={20} /> : <ShieldAlert className="w-4 h-4 text-amber-600" />}
+          <span className="font-medium">{m.title}</span>
+          {m.kind === "sent" && <Badge tone="teal">Envoyé</Badge>}
+          {m.kind === "approval" && m.status === "approved" && <Badge tone="teal">Approuvé</Badge>}
+          {m.kind === "approval" && m.status === "rejected" && <Badge tone="red">Refusé</Badge>}
+          {pending && <Badge tone="amber">Ton accord ?</Badge>}
+        </div>
+        {m.body && <p className="whitespace-pre-wrap text-foreground/90">{m.body}</p>}
+        {pending && (
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" loading={busy} onClick={() => onDecide(m.id, "approved")}>
+              <Check className="w-3.5 h-3.5" /> Approuver et envoyer
+            </Button>
+            <Button size="sm" variant="secondary" disabled={busy} onClick={() => onDecide(m.id, "rejected")}>
+              Refuser
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function ChatPage() {
   const { user } = useUser()
   const { getToken, userId, orgId } = useAuth()
@@ -91,10 +134,33 @@ export default function ChatPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const hasApi = apiConfigured()
+  const agentFeed = useWorkspaceResource<{ messages: AgentMessage[] }>("/v1/agent/messages?limit=40")
+  const [deciding, setDeciding] = useState<string | null>(null)
+  useEffect(() => {
+    if (!hasApi) return
+    const id = setInterval(() => void agentFeed.mutate(), 15000)
+    return () => clearInterval(id)
+  }, [hasApi, agentFeed])
+  const decide = async (id: string, decision: "approved" | "rejected") => {
+    setDeciding(id)
+    try {
+      await agentFeed.request(`/v1/agent/messages/${id}/decide`, { method: "POST", body: { decision } })
+      await agentFeed.mutate()
+      toast.success(decision === "approved" ? "L'agent envoie la réponse sur le bureau." : "Refusé — rien ne sera envoyé.")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Décision impossible")
+    } finally {
+      setDeciding(null)
+    }
+  }
+  const timeline: TimelineItem[] = [
+    ...msgs.map((m) => ({ at: m.at, chat: m })),
+    ...(agentFeed.data?.messages ?? []).map((a) => ({ at: a.created_at, agent: a })),
+  ].sort((a, b) => a.at.localeCompare(b.at))
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [msgs, busy])
+  }, [msgs, busy, agentFeed.data])
 
   const persist = (next: ChatMsg[]) => {
     store.setChat(next, userId ?? "", activeOrgId)
@@ -189,7 +255,7 @@ export default function ChatPage() {
 
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {!msgs.length && (
+          {!timeline.length && (
             <div className="flex flex-col items-center justify-center text-center py-10 sm:py-16">
               <Octopus still className="w-16" label="" />
               <h2 className="mt-5 font-heading text-3xl sm:text-[2.5rem] leading-[1.1] text-foreground">
@@ -204,6 +270,11 @@ export default function ChatPage() {
                 ))}
               </div>
             </div>
+          )}
+          {timeline.map((item) =>
+            item.agent ? (
+              <AgentCard key={item.agent.id} m={item.agent} onDecide={(id, d) => void decide(id, d)} busy={deciding === item.agent.id} />
+            ) : null
           )}
           {msgs.map((m) => (
             <div key={m.id} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>

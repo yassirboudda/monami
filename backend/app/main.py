@@ -251,6 +251,7 @@ async def _chat_context(user: dict[str, Any]) -> str:
     profile = _profile(user["user_id"])
     display_name = profile["displayName"] or "membre sans nom renseigné"
     preferences = json.dumps(profile["preferences"], ensure_ascii=False, separators=(",", ":"))
+    policy = _inbox_policy(user["user_id"])
     org_id = user.get("org_id")
     workspace = "Espace perso"
     if org_id:
@@ -275,6 +276,8 @@ async def _chat_context(user: dict[str, Any]) -> str:
     return (
         "\n\nContexte utilisateur\n"
         f"Profil : {display_name}. Préférences : {preferences}.\n"
+        f"Boîte de réception autonome : réponses auto {'activées' if policy['autoReply'] else 'désactivées'}, "
+        f"remise max sans accord {policy['maxAutoDiscountPct']} % (au-delà, demander l'accord du vendeur dans le chat).\n"
         f"Espace : {workspace}."
         + ("\nAutomatisations actives :\n" + "\n".join(workflow_lines) if workflow_lines else "")
     )
@@ -322,6 +325,106 @@ async def me(user: dict[str, Any] = Depends(workspace_user)):
 class ProfileIn(BaseModel):
     displayName: str = ""
     preferences: dict[str, Any] = Field(default_factory=dict)
+
+
+INBOX_POLICY_DEFAULTS: dict[str, Any] = {
+    "autoReply": True,
+    "maxAutoDiscountPct": 10,
+    "tone": "amical et professionnel, tutoiement, réponses courtes",
+    "signature": "",
+}
+
+
+def _inbox_policy(user_id: str) -> dict[str, Any]:
+    prefs = _profile(user_id).get("preferences", {})
+    raw = prefs.get("inbox") if isinstance(prefs.get("inbox"), dict) else {}
+    policy = {**INBOX_POLICY_DEFAULTS, **raw}
+    try:
+        policy["maxAutoDiscountPct"] = max(0, min(90, int(policy["maxAutoDiscountPct"])))
+    except (TypeError, ValueError):
+        policy["maxAutoDiscountPct"] = INBOX_POLICY_DEFAULTS["maxAutoDiscountPct"]
+    policy["autoReply"] = bool(policy.get("autoReply", True))
+    return policy
+
+
+class AgentMessageIn(BaseModel):
+    kind: Literal["info", "approval", "sent"] = "info"
+    marketplace: str | None = None
+    title: str = Field(min_length=1, max_length=200)
+    body: str = ""
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentDecisionIn(BaseModel):
+    decision: Literal["approved", "rejected"]
+    note: str = ""
+
+
+def _agent_message_dict(row: Any) -> dict[str, Any]:
+    d = dict(row)
+    d["payload"] = json.loads(d.get("payload") or "{}")
+    return d
+
+
+@app.get("/v1/agent/policy")
+async def get_agent_policy(user: dict[str, Any] = Depends(workspace_user)):
+    return {"policy": _inbox_policy(user["user_id"])}
+
+
+@app.get("/v1/agent/messages")
+async def list_agent_messages(
+    status: str | None = None,
+    since: str | None = None,
+    limit: int = 50,
+    user: dict[str, Any] = Depends(workspace_user),
+):
+    q = "SELECT * FROM agent_messages WHERE workspace = ?"
+    args: list[Any] = [user["workspace"]]
+    if status:
+        q += " AND status = ?"
+        args.append(status)
+    if since:
+        q += " AND created_at > ?"
+        args.append(since)
+    q += " ORDER BY created_at DESC LIMIT ?"
+    args.append(max(1, min(200, limit)))
+    with db.connection() as conn:
+        rows = conn.execute(q, args).fetchall()
+    return {"messages": [_agent_message_dict(r) for r in rows]}
+
+
+@app.post("/v1/agent/messages")
+async def create_agent_message(body: AgentMessageIn, user: dict[str, Any] = Depends(workspace_user)):
+    mid = "am-" + uuid.uuid4().hex[:10]
+    status = "pending" if body.kind == "approval" else "seen"
+    with db.connection() as conn:
+        conn.execute(
+            "INSERT INTO agent_messages (id, workspace, kind, marketplace, title, body, payload, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            (mid, user["workspace"], body.kind, body.marketplace, body.title, body.body,
+             json.dumps(body.payload, ensure_ascii=False), status, _iso_now()),
+        )
+        row = conn.execute("SELECT * FROM agent_messages WHERE id = ?", (mid,)).fetchone()
+    return {"message": _agent_message_dict(row)}
+
+
+@app.post("/v1/agent/messages/{message_id}/decide")
+async def decide_agent_message(message_id: str, body: AgentDecisionIn, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM agent_messages WHERE id = ? AND workspace = ?", (message_id, user["workspace"])
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Message inconnu")
+        if row["kind"] != "approval":
+            raise HTTPException(400, "Ce message n'attend pas de décision")
+        if row["status"] != "pending":
+            return {"message": _agent_message_dict(row)}
+        conn.execute(
+            "UPDATE agent_messages SET status = ?, decision_note = ?, decided_at = ? WHERE id = ?",
+            (body.decision, body.note or None, _iso_now(), message_id),
+        )
+        row = conn.execute("SELECT * FROM agent_messages WHERE id = ?", (message_id,)).fetchone()
+    return {"message": _agent_message_dict(row)}
 
 
 @app.get("/v1/me/profile")
