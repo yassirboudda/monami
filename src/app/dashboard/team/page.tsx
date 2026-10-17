@@ -14,7 +14,7 @@ export default function TeamPage() {
       <PageHeader label="Espace de travail" title="Équipe" />
       <div className="mb-5 flex items-start gap-3 rounded-xl border border-sky/70 bg-sky/30 p-4 text-sm">
         <Users className="mt-0.5 size-4 shrink-0" />
-        <p>Un espace partagé en mode mono-utilisateur avec le mot de passe d&apos;accès. Les invitations et organisations arriveront après le PoC.</p>
+        <p>Un espace partagé : les personnes invitées se connectent avec le mot de passe d&apos;accès et partagent ton stock, tes boutiques et tes workflows.</p>
       </div>
       <Card className="overflow-hidden rounded-2xl">
         <div className="flex items-center gap-3 border-b p-5">
