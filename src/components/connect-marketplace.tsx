@@ -17,6 +17,9 @@ export const CONNECTABLE_MARKETPLACES = [
   { id: "facebook_marketplace", name: "Facebook Marketplace" },
 ]
 
+type MarketplaceOption = { id: string; name: string }
+type MarketplaceRecord = { marketplace_id?: string; id?: string; name?: string }
+
 export type DesktopSession = {
   url: string
   expiresAt: string
@@ -28,8 +31,33 @@ export type DesktopSession = {
 
 type Requester = <R>(path: string, options?: { method?: string; body?: unknown }) => Promise<R>
 
-export function marketplaceName(id: string) {
-  return CONNECTABLE_MARKETPLACES.find((m) => m.id === id)?.name ?? id
+export function useMarketplaceOptions(request: Requester, enabled: boolean): MarketplaceOption[] {
+  const [marketplaces, setMarketplaces] = useState<MarketplaceOption[]>(CONNECTABLE_MARKETPLACES)
+  useEffect(() => {
+    if (!enabled) return
+    let cancelled = false
+    request<MarketplaceRecord[] | { marketplaces?: MarketplaceRecord[] }>("/v1/marketplaces")
+      .then((payload) => {
+        const records = Array.isArray(payload) ? payload : payload.marketplaces ?? []
+        if (!records.length || cancelled) return
+        const known = new Map(CONNECTABLE_MARKETPLACES.map((marketplace) => [marketplace.id, marketplace.name]))
+        const options = records.flatMap((record) => {
+          const id = record.marketplace_id ?? record.id
+          if (!id) return []
+          return [{ id, name: known.get(id) ?? record.name ?? id }]
+        })
+        if (options.length) setMarketplaces(options)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [enabled, request])
+  return marketplaces
+}
+
+export function marketplaceName(id: string, options: MarketplaceOption[] = CONNECTABLE_MARKETPLACES) {
+  return options.find((marketplace) => marketplace.id === id)?.name ?? id.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
 export function ConnectMarketplaceModal({
@@ -49,6 +77,7 @@ export function ConnectMarketplaceModal({
   const [session, setSession] = useState<DesktopSession | null>(null)
   const [loading, setLoading] = useState(Boolean(initialMarketplace))
   const [confirming, setConfirming] = useState(false)
+  const marketplaces = useMarketplaceOptions(request, open)
 
   const start = useCallback(
     async (mp: string) => {
@@ -99,8 +128,9 @@ export function ConnectMarketplaceModal({
         method: "POST",
         body: { marketplace },
       })
-      toast.success(`${marketplaceName(marketplace)} connecté sur le bureau OctoHandy`)
+      toast.success(`${marketplaceName(marketplace, marketplaces)} connecté sur le bureau OctoHandy`)
       onConnected?.(shop)
+      await request("/v1/desktop/release", { method: "POST" }).catch(() => undefined)
       onClose()
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "Impossible d'enregistrer la connexion")
@@ -109,20 +139,25 @@ export function ConnectMarketplaceModal({
     }
   }
 
-  const name = marketplace ? marketplaceName(marketplace) : null
+  const close = async () => {
+    await request("/v1/desktop/release", { method: "POST" }).catch(() => undefined)
+    onClose()
+  }
+
+  const name = marketplace ? marketplaceName(marketplace, marketplaces) : null
   const expires = session ? new Date(session.expiresAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : null
 
   return (
-    <Modal open={open} onClose={onClose} title={name ? `Connecter ${name}` : "Connecter une marketplace"} wide>
+    <Modal open={open} onClose={() => void close()} title={name ? `Connecter ${name}` : "Connecter une marketplace"} wide>
       {!session ? (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Choisis la marketplace. Tu te connectes toi-même dans un vrai Chrome hébergé sur le bureau OctoHandy
-            (IP résidentielle française). Tes identifiants et cookies restent sur ce bureau, jamais sur ton PC, et
+            Choisis la marketplace. Tu te connectes toi-même dans Chrome sur le bureau OctoHandy.
+            Tes identifiants et cookies restent sur ce bureau, jamais sur ton PC, et
             l&apos;agent Hermes travaille ensuite dans cette même session.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {CONNECTABLE_MARKETPLACES.map((m) => (
+            {marketplaces.map((m) => (
               <button
                 key={m.id}
                 type="button"
@@ -136,11 +171,16 @@ export function ConnectMarketplaceModal({
             ))}
           </div>
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5" /> Accès chiffré, jeton temporaire, bureau privé mono-utilisateur (PoC).
+            <ShieldCheck className="w-3.5 h-3.5" /> Connexion chiffrée, jeton temporaire et accès réservé à un membre à la fois.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
+          {!session.opened && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              La page n&apos;a pas pu s&apos;ouvrir automatiquement. Ouvre la page de connexion dans le navigateur du bureau.
+            </p>
+          )}
           <p className="text-sm text-muted-foreground">
             Connecte-toi à <strong>{name}</strong> dans la fenêtre ci-dessous
             {session.opened ? " (la page de connexion vient de s'ouvrir dans Chrome)" : ""}. Quand ta boutique

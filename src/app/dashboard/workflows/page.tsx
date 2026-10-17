@@ -14,6 +14,8 @@ type Flow = {
   steps: string[]
   tone: "teal" | "amber" | "blue" | "slate"
   enabled: boolean
+  intent: { goal?: string; success_criteria?: string } | null
+  guardrails: string[]
 }
 
 export default function WorkflowsPage() {
@@ -62,6 +64,13 @@ export default function WorkflowsPage() {
                 </div>
                 <Badge tone={flow.tone}>{flow.marketplace}</Badge>
               </div>
+              {flow.intent?.goal && <p className="text-sm mb-2"><span className="font-medium">Objectif :</span> {flow.intent.goal}</p>}
+              {flow.intent?.success_criteria && <p className="text-xs text-muted-foreground mb-2"><span className="font-medium">Résultat attendu :</span> {flow.intent.success_criteria}</p>}
+              {!!flow.guardrails?.length && (
+                <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5 mb-3">
+                  {flow.guardrails.map((guardrail) => <li key={guardrail}>{guardrail}</li>)}
+                </ul>
+              )}
               <ol className="space-y-2 text-sm flex-1 mb-4">
                 {flow.steps.map((step, index) => (
                   <li key={step} className="flex gap-2">

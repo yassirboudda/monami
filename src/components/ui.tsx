@@ -263,9 +263,12 @@ export function MarketplaceLogo({ marketplace, size = 36 }: { marketplace: strin
       </span>
     )
   }
+  const palette = ["#5b57d9", "#d44f82", "#27836e", "#be7425", "#3976b7", "#8056a6", "#3e818e", "#a1473e"]
+  const hash = [...marketplace].reduce((value, char) => (value * 31 + char.charCodeAt(0)) >>> 0, 7)
+  const initial = marketplace.replace(/[^a-z0-9]/gi, "").charAt(0).toUpperCase() || "M"
   return (
-    <span className="rounded-xl flex items-center justify-center font-bold text-white bg-slate-500 shrink-0" style={{ width: size, height: size }}>
-      ?
+    <span className="rounded-xl flex items-center justify-center font-bold text-white shrink-0 shadow-sm" style={{ width: size, height: size, background: palette[hash % palette.length], fontSize: size * 0.42 }}>
+      {initial}
     </span>
   )
 }

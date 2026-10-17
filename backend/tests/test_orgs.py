@@ -1,4 +1,6 @@
 import asyncio
+import json
+import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -109,6 +111,263 @@ def test_workflow_toggle_is_persistent_and_scoped(client):
 
     assume_user(current_user, "user_b", "org_y")
     assert test_client.get("/v1/workflows").json()["workflows"][0]["enabled"] is False
+
+
+def test_teach_save_persists_intent_and_run_prompt_uses_guardrails(client, monkeypatch):
+    test_client, current_user = client
+    started_at = "2026-01-01T00:00:00Z"
+    draft = {
+        "title": "Répondre aux favoris",
+        "trigger": "Un article est ajouté aux favoris",
+        "steps": ["Lire la demande", "Préparer une réponse"],
+        "tools": [{"tool": "read_thread", "args": {}}],
+        "intent": {
+            "goal": "Répondre à l'acheteur sans dépasser le prix plancher",
+            "actor": "seller",
+            "entities": {"marketplace": "vinted", "prix_plancher": "20 €"},
+            "success_criteria": "La réponse est envoyée après validation",
+            "constraints": ["Ne jamais proposer moins de 20 €"],
+        },
+        "guardrails": ["Ne pas proposer moins de 20 €"],
+        "tone_notes": "Tutoiement, ton chaleureux",
+        "confidence": "high",
+    }
+    with db.connection() as conn:
+        conn.execute(
+            """INSERT INTO teach_sessions
+               (id, workspace, created_by, marketplace, status, started_at, trace_json, draft_json)
+               VALUES (?, ?, ?, ?, 'draft', ?, ?, ?)""",
+            (
+                "teach-intent", current_user["workspace"], current_user["user_id"], "vinted", started_at,
+                json.dumps({"events": [{"t": started_at}, {"t": "2026-01-01T00:00:03Z"}]}),
+                json.dumps(draft, ensure_ascii=False),
+            ),
+        )
+    saved = test_client.post(
+        "/v1/teach/teach-intent/save",
+        json={"title": draft["title"], "steps": draft["steps"], "enabled": True},
+    )
+    assert saved.status_code == 200
+    workflow = saved.json()["workflow"]
+    assert workflow["intent"] == draft["intent"]
+    assert workflow["trigger"] == draft["trigger"]
+    assert workflow["tools"] == draft["tools"]
+    assert workflow["guardrails"] == draft["guardrails"]
+    assert workflow["toneNotes"] == draft["tone_notes"]
+    assert workflow["confidence"] == "high"
+    assert workflow["humanProfile"]["pace"] == 3
+
+    captured = {}
+
+    async def fake_llm(system, user_text, _session_key):
+        captured["system"] = system
+        captured["user_text"] = user_text
+        return {
+            "actions": [{"tool": "read_thread", "args": {}, "needs_approval": False}],
+            "summary": "Lire le fil",
+        }, "test"
+
+    monkeypatch.setattr(main, "_llm_json", fake_llm)
+    response = test_client.post(f"/v1/workflows/{workflow['id']}/run")
+    assert response.status_code == 200
+    prompt = captured["user_text"]
+    assert "Ne pas proposer moins de 20 €" in prompt
+    assert prompt.index("Garde-fous :") < prompt.index("Contexte live du bureau")
+    assert "Répondre à l'acheteur" in prompt
+
+
+def test_desktop_lease_blocks_another_workspace_and_hides_screen(client, monkeypatch):
+    test_client, current_user = client
+    monkeypatch.setattr(main, "_desktop_enabled", lambda: True)
+    monkeypatch.setattr(main, "_screenpipe_enabled", lambda: True)
+    monkeypatch.setattr(main.settings, "desktop_base_url", "https://desktop.example")
+    monkeypatch.setattr(main.settings, "desktop_signing_secret", "test-secret")
+
+    async def opened(_url):
+        return True
+
+    monkeypatch.setattr(main, "_desktop_open", opened)
+    started = test_client.post("/v1/teach/start", json={"marketplace": "vinted"})
+    assert started.status_code == 200
+    assert db.desktop_lease_held(current_user["workspace"])
+
+    assume_user(current_user, "user_b")
+    blocked = test_client.post("/v1/teach/start", json={"marketplace": "vinted"})
+    assert blocked.status_code == 409
+    assert "autre équipe" in blocked.json()["detail"]
+    assert asyncio.run(main._screen_context(current_user["workspace"])) == ""
+
+
+def test_auto_click_keeps_approval_filter_and_logs_stale_screen_without_click(client, monkeypatch):
+    test_client, current_user = client
+    workflow_id = test_client.get("/v1/workflows").json()["workflows"][0]["id"]
+    run_id = "run-auto-click"
+    plan = {
+        "actions": [
+            {"tool": "send_message", "args": {}, "preview": "Bonjour", "needs_approval": True, "target_text": "Envoyer"},
+            {"tool": "read_thread", "args": {}, "preview": "", "needs_approval": False, "target_text": "Répondre"},
+        ]
+    }
+    with db.connection() as conn:
+        conn.execute(
+            """INSERT INTO workflow_runs (id, workspace, created_by, workflow_id, status, plan_json)
+               VALUES (?, ?, ?, ?, 'awaiting_approval', ?)""",
+            (run_id, current_user["workspace"], current_user["user_id"], workflow_id, json.dumps(plan)),
+        )
+    db.acquire_desktop_lease(current_user["workspace"], current_user["user_id"], "vinted", 3600)
+    monkeypatch.setattr(main, "_desktop_enabled", lambda: True)
+    monkeypatch.setattr(main, "_desktop_open", lambda _url: asyncio.sleep(0, result=True))
+    async def stale_target(_text, **_kwargs):
+        raise main.ScreenpipeFrameStaleError()
+
+    monkeypatch.setattr(main, "find_target", stale_target)
+    monkeypatch.setattr(main, "pre_action_delay", lambda _rng, _profile: 0)
+
+    class FakeDesktop:
+        clicks = 0
+
+        def __init__(self, *_args):
+            self.width = 1600
+            self.height = 900
+
+        async def connect(self):
+            pass
+
+        async def close(self):
+            pass
+
+        async def click(self, *_args, **_kwargs):
+            type(self).clicks += 1
+
+    monkeypatch.setattr(main, "RemoteDesktop", FakeDesktop)
+    async def approve_and_wait():
+        response = await main.approve_run(
+            run_id,
+            main.RunDecisionIn(approved_indexes=[1], mode="auto_click"),
+            current_user,
+        )
+        assert response["run"]["status"] == "executing"
+        tasks = [task for task in main._run_tasks if not task.done()]
+        assert len(tasks) == 1
+        await tasks[0]
+
+    asyncio.run(approve_and_wait())
+    with db.connection() as conn:
+        run = main._run_row(conn, current_user["workspace"], run_id)
+    log = json.loads(run["log_json"])
+    assert log[0]["detail"] == "non approuvée"
+    assert log[1]["detail"] == "écran Screenpipe pas à jour : aucun clic"
+    assert FakeDesktop.clicks == 0
+
+
+def test_screen_excerpt_flags_stale_frame(monkeypatch):
+    async def stale_frame():
+        raise main.ScreenpipeFrameStaleError()
+
+    monkeypatch.setattr(main, "latest_frame_id", stale_frame)
+    assert asyncio.run(main._screen_excerpt()) == "écran Screenpipe pas à jour"
+
+
+def test_auto_click_approval_returns_before_background_execution_and_persists_result(client, monkeypatch):
+    test_client, current_user = client
+    workflow_id = test_client.get("/v1/workflows").json()["workflows"][0]["id"]
+    run_id = "run-background-click"
+    plan = {"actions": [{"tool": "read_thread", "args": {}, "preview": "", "needs_approval": False}]}
+    with db.connection() as conn:
+        conn.execute(
+            """INSERT INTO workflow_runs (id, workspace, created_by, workflow_id, status, plan_json)
+               VALUES (?, ?, ?, ?, 'awaiting_approval', ?)""",
+            (run_id, current_user["workspace"], current_user["user_id"], workflow_id, json.dumps(plan)),
+        )
+    db.acquire_desktop_lease(current_user["workspace"], current_user["user_id"], "vinted", 3600)
+    calls = []
+
+    async def fake_execute_run_actions(
+        _run_id, _workspace, _user, _workflow, _plan, _approved_indexes, _mode, log,
+    ):
+        calls.append("started")
+        log.append({"t": main._iso_now(), "tool": "read_thread", "result": "clicked", "detail": "test terminé"})
+
+    monkeypatch.setattr(main, "_execute_run_actions", fake_execute_run_actions)
+
+    async def approve_and_wait():
+        response = await main.approve_run(
+            run_id,
+            main.RunDecisionIn(approved_indexes=[0], mode="auto_click"),
+            current_user,
+        )
+        assert response["run"]["status"] == "executing"
+        assert calls == []
+        tasks = [task for task in main._run_tasks if not task.done()]
+        assert len(tasks) == 1
+        await tasks[0]
+
+    asyncio.run(approve_and_wait())
+    with db.connection() as conn:
+        run = main._run_row(conn, current_user["workspace"], run_id)
+    assert calls == ["started"]
+    assert run["status"] == "executed"
+    assert json.loads(run["log_json"])[0]["detail"] == "test terminé"
+
+
+def test_vinted_start_url_uses_homepage():
+    assert main._marketplace_start_url("vinted") == "https://www.vinted.fr/"
+
+
+def test_created_workflow_defaults_nullable_metadata(client):
+    test_client, _current_user = client
+    created = test_client.post(
+        "/v1/workflows",
+        json={
+            "title": "Workflow créé par le chat",
+            "marketplace": "vinted",
+            "steps": ["Vérifier le nouvel article"],
+        },
+    )
+    assert created.status_code == 200
+    workflow_id = created.json()["workflow"]["id"]
+    assert created.json()["workflow"]["intent"] == {}
+    assert created.json()["workflow"]["guardrails"] == []
+
+    listed = test_client.get("/v1/workflows")
+    assert listed.status_code == 200
+    workflow = next(item for item in listed.json()["workflows"] if item["id"] == workflow_id)
+    assert workflow["intent"] == {}
+    assert workflow["guardrails"] == []
+
+
+def test_workflow_schema_migration_is_idempotent(client):
+    test_client, current_user = client
+    test_client.get("/v1/workflows")
+    legacy_steps = [
+        "Client met un article en favoris",
+        "Détection via messagerie / notif (backend plus tard)",
+        "Envoi d'un message avec proposition de prix (discount)",
+    ]
+    with db.connection() as conn:
+        conn.execute(
+            "UPDATE workflows SET title=?, steps_json=? WHERE workspace=? AND id=?",
+            (
+                "Favoris → offre discount",
+                json.dumps(legacy_steps, ensure_ascii=False),
+                current_user["workspace"],
+                "vinted-fav-offer",
+            ),
+        )
+    db.initialize_database()
+    db.initialize_database()
+    with db.connection() as conn:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(workflows)")}
+        migrated = conn.execute(
+            "SELECT title, steps_json FROM workflows WHERE workspace=? AND id=?",
+            (current_user["workspace"], "vinted-fav-offer"),
+        ).fetchone()
+    assert {
+        "trigger", "intent_json", "tools_json", "guardrails_json",
+        "tone_notes", "confidence", "human_profile_json",
+    } <= columns
+    assert migrated["title"] == "Favoris → proposition de prix"
+    assert "backend plus tard" not in migrated["steps_json"]
 
 
 def test_patch_and_delete_reject_rows_from_another_workspace(client):
@@ -272,3 +531,153 @@ def test_require_user_derives_workspace_from_clerk_claims(
     user = asyncio.run(main.require_user(f"Bearer {token}"))
     assert user["workspace"] == expected_workspace
     assert user["org_id"] == expected_org
+
+
+def _install_fake_hermes(monkeypatch, on_post=None):
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"choices": [{"message": {"content": "Réponse test"}, "finish_reason": "stop"}]}
+
+    class FakeClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def post(self, _url, headers, json):
+            captured["messages"] = json["messages"]
+            if on_post:
+                on_post(json)
+            return FakeResponse()
+
+    async def empty_context(*_args):
+        return ""
+
+    monkeypatch.setattr(main.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(main.settings, "hermes_api_key", "test-key")
+    monkeypatch.setattr(main.settings, "nebius_api_key", "")
+    monkeypatch.setattr(main, "_chat_context", empty_context)
+    monkeypatch.setattr(main, "_screen_context", empty_context)
+    return captured
+
+
+def test_chat_with_other_workspace_lease_instructs_hermes_and_keeps_lease(client, monkeypatch):
+    _test_client, current_user = client
+    other_workspace = "org:team-b"
+    lease_id, remaining = db.acquire_desktop_lease(other_workspace, "user_b", "vinted", 600)
+    assert lease_id and remaining is None
+    captured = _install_fake_hermes(monkeypatch)
+
+    asyncio.run(main.chat(main.ChatIn(message="Vérifie mes annonces"), current_user))
+
+    system = captured["messages"][0]["content"]
+    assert "ne crée pas d'exécution" in system
+    assert "environ" in system
+    with db.connection() as conn:
+        lease = conn.execute("SELECT lease_id FROM desktop_leases WHERE id=1").fetchone()
+    assert lease["lease_id"] == lease_id
+    assert db.desktop_lease_held(other_workspace)
+
+
+def test_chat_temporarily_acquires_and_releases_lease(client, monkeypatch):
+    _test_client, current_user = client
+    observed = []
+
+    def assert_lease_during_request(_payload):
+        with db.connection() as conn:
+            lease = conn.execute("SELECT lease_id FROM desktop_leases WHERE id=1").fetchone()
+        observed.append(lease["lease_id"])
+        assert db.desktop_lease_held(current_user["workspace"])
+
+    _install_fake_hermes(monkeypatch, assert_lease_during_request)
+    asyncio.run(main.chat(main.ChatIn(message="Aide-moi"), current_user))
+
+    assert observed and observed[0]
+    assert not db.desktop_lease_held(current_user["workspace"])
+
+
+def test_chat_keeps_existing_teach_lease_and_id(client, monkeypatch):
+    _test_client, current_user = client
+    lease_id, _remaining = db.acquire_desktop_lease(
+        current_user["workspace"], current_user["user_id"], "vinted", 3600
+    )
+    observed = []
+
+    def assert_same_lease(_payload):
+        with db.connection() as conn:
+            lease = conn.execute("SELECT lease_id FROM desktop_leases WHERE id=1").fetchone()
+        observed.append(lease["lease_id"])
+
+    _install_fake_hermes(monkeypatch, assert_same_lease)
+    asyncio.run(main.chat(main.ChatIn(message="Aide-moi"), current_user))
+
+    assert observed == [lease_id]
+    with db.connection() as conn:
+        lease = conn.execute("SELECT lease_id FROM desktop_leases WHERE id=1").fetchone()
+    assert lease["lease_id"] == lease_id
+
+
+def test_run_log_is_blocked_by_other_workspace_lease_but_accepted_when_free(client):
+    test_client, _current_user = client
+    workflow_id = test_client.get("/v1/workflows").json()["workflows"][0]["id"]
+    body = {"workflowId": workflow_id, "status": "done", "summary": "Fini"}
+    db.acquire_desktop_lease("org:team-b", "user_b", "vinted", 600)
+
+    blocked = test_client.post("/v1/workflows/runs/log", json=body)
+    assert blocked.status_code == 409
+    assert blocked.json()["detail"] == "Le bureau est utilisé par une autre équipe."
+
+    with db.connection() as conn:
+        conn.execute("UPDATE desktop_leases SET expires_at='2000-01-01T00:00:00Z' WHERE id=1")
+    accepted = test_client.post("/v1/workflows/runs/log", json=body)
+    assert accepted.status_code == 200
+
+
+def test_desktop_lease_id_is_stable_and_expiry_never_shortens(client):
+    test_client, current_user = client
+    test_client.get("/v1/workflows")
+    first_lease_id, _remaining = db.acquire_desktop_lease(
+        current_user["workspace"], current_user["user_id"], "vinted", 3600
+    )
+    with db.connection() as conn:
+        first_expiry = conn.execute("SELECT expires_at FROM desktop_leases WHERE id=1").fetchone()["expires_at"]
+
+    second_lease_id, _remaining = db.acquire_desktop_lease(
+        current_user["workspace"], current_user["user_id"], "vinted", 1
+    )
+    with db.connection() as conn:
+        second_expiry = conn.execute("SELECT expires_at FROM desktop_leases WHERE id=1").fetchone()["expires_at"]
+    assert second_lease_id == first_lease_id
+    assert second_expiry >= first_expiry
+
+
+def test_legacy_desktop_lease_migration_is_idempotent():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        """CREATE TABLE desktop_leases (
+            id INTEGER PRIMARY KEY, workspace TEXT NOT NULL, user_id TEXT NOT NULL,
+            marketplace TEXT, acquired_at TEXT NOT NULL, expires_at TEXT NOT NULL
+        )"""
+    )
+    conn.execute(
+        "INSERT INTO desktop_leases VALUES (1, 'workspace-a', 'user-a', 'vinted', 'now', 'later')"
+    )
+
+    db.migrate_desktop_lease_id(conn)
+    first_id = conn.execute("SELECT lease_id FROM desktop_leases WHERE id=1").fetchone()["lease_id"]
+    db.migrate_desktop_lease_id(conn)
+    second_id = conn.execute("SELECT lease_id FROM desktop_leases WHERE id=1").fetchone()["lease_id"]
+
+    assert len(first_id) == 32
+    assert second_id == first_id
+    conn.close()

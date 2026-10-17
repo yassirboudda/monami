@@ -20,6 +20,8 @@ export type Listing = {
   views?: number
   favorites?: number
   updatedAt: string
+  createdBy?: string
+  creatorName?: string | null
 }
 
 export type StockItem = {
@@ -30,6 +32,8 @@ export type StockItem = {
   price?: number
   marketplace?: string
   ownerLabel: string
+  createdBy?: string
+  creatorName?: string | null
 }
 
 export type ChatMsg = {

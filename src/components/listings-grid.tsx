@@ -1,5 +1,6 @@
 "use client"
 
+import { useUser } from "@clerk/nextjs"
 import { ExternalLink, Tag } from "lucide-react"
 import { Badge, Card, EmptyState } from "@/components/ui"
 import type { Listing } from "@/lib/store"
@@ -17,6 +18,7 @@ const statusLabel = {
 }
 
 export function ListingsGrid({ listings, emptyText }: { listings: Listing[]; emptyText?: string }) {
+  const { user } = useUser()
   if (!listings.length) {
     return (
       <Card>
@@ -41,6 +43,11 @@ export function ListingsGrid({ listings, emptyText }: { listings: Listing[]; emp
             <span>{l.views ?? 0} vues</span>
             <span>{l.favorites ?? 0} favoris</span>
           </div>
+          {l.createdBy && (
+            <p className="text-caption">
+              Créée par {l.createdBy === user?.id ? "toi" : l.creatorName || "un membre"}
+            </p>
+          )}
           {l.url ? (
             <a href={l.url} target="_blank" rel="noreferrer" className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-secondary hover:underline">
               <ExternalLink className="w-3.5 h-3.5" /> Ouvrir sur {l.marketplace}

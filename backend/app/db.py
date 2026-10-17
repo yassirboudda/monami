@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import uuid
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -13,34 +15,86 @@ DEFAULT_WORKFLOWS = (
     {
         "id": "vinted-fav-offer",
         "marketplace": "vinted",
-        "title": "Favoris → offre discount",
+        "title": "Favoris → proposition de prix",
         "steps": [
-            "Client met un article en favoris",
-            "Détection via messagerie / notif (backend plus tard)",
-            "Envoi d'un message avec proposition de prix (discount)",
+            "Repérer un nouvel article ajouté aux favoris",
+            "Vérifier le contexte de la conversation",
+            "Préparer une proposition de prix à valider par le vendeur",
         ],
         "tone": "teal",
+        "trigger": "Un acheteur ajoute un article aux favoris",
+        "intent": {
+            "goal": "Préparer une proposition de prix adaptée à l'article favori",
+            "actor": "seller",
+            "entities": {},
+            "success_criteria": "Le vendeur approuve la proposition avant son envoi",
+            "constraints": ["Respecter le prix plancher défini par le vendeur"],
+        },
+        "tools": [{"tool": "list_favorites"}, {"tool": "read_thread"}, {"tool": "send_offer"}],
+        "guardrails": ["Ne jamais envoyer une offre sans approbation du vendeur"],
+        "tone_notes": "Réponse courte et chaleureuse",
     },
     {
         "id": "vinted-bump",
         "marketplace": "vinted",
-        "title": "Annonce dormante → baisse auto",
-        "steps": ["Annonce sans vue depuis N jours", "Calcul d'une baisse X%", "Mise à jour prix + message optionnel"],
+        "title": "Annonce peu consultée → révision du prix",
+        "steps": [
+            "Consulter les performances d'une annonce active",
+            "Suggérer une baisse à valider par le vendeur",
+            "Préparer une mise à jour du prix",
+        ],
         "tone": "teal",
+        "trigger": "Une annonce active reçoit peu de consultations",
+        "intent": {
+            "goal": "Examiner les performances et préparer une révision du prix",
+            "actor": "seller",
+            "entities": {},
+            "success_criteria": "Le vendeur approuve tout changement de prix",
+            "constraints": ["Ne pas passer sous le prix plancher du vendeur"],
+        },
+        "tools": [{"tool": "get_listing"}, {"tool": "update_price"}],
+        "guardrails": ["Ne jamais modifier le prix sans approbation du vendeur"],
+        "tone_notes": "Conseil factuel, sans pression",
     },
     {
         "id": "lbc-first-msg",
         "marketplace": "leboncoin",
         "title": "Premier message → réponse type",
-        "steps": ["Nouveau message acheteur", "Classement intent (dispo / prix / RDV)", "Réponse template + plancher vendeur"],
+        "steps": [
+            "Repérer un nouveau message d'acheteur",
+            "Identifier sa question sur la disponibilité, le prix ou un rendez-vous",
+            "Préparer une réponse selon les consignes du vendeur",
+        ],
         "tone": "amber",
+        "trigger": "Un acheteur envoie un premier message",
+        "intent": {
+            "goal": "Préparer une réponse claire à la question de l'acheteur",
+            "actor": "seller",
+            "entities": {},
+            "success_criteria": "Le vendeur vérifie le texte avant son envoi",
+            "constraints": ["Ne pas inventer de disponibilité ni de conditions"],
+        },
+        "tools": [{"tool": "list_unread_messages"}, {"tool": "read_thread"}, {"tool": "send_message"}],
+        "guardrails": ["Ne pas envoyer de message sans approbation du vendeur"],
+        "tone_notes": "Poli, naturel et concis",
     },
     {
         "id": "multi-restock",
         "marketplace": "multi",
-        "title": "Stock équipe → republish",
-        "steps": ["Article ajouté au stock partagé", "Choix marketplace", "Création / republication de l'annonce"],
+        "title": "Stock partagé → nouvelle annonce",
+        "steps": ["Article ajouté au stock partagé", "Choisir une marketplace", "Préparer une annonce à valider"],
         "tone": "blue",
+        "trigger": "Un article est ajouté au stock partagé",
+        "intent": {
+            "goal": "Préparer la remise en ligne d'un article disponible",
+            "actor": "seller",
+            "entities": {},
+            "success_criteria": "Le vendeur valide l'annonce avant sa publication",
+            "constraints": ["Utiliser uniquement les informations présentes dans le stock"],
+        },
+        "tools": [{"tool": "republish_listing"}],
+        "guardrails": ["Ne jamais publier une annonce sans approbation du vendeur"],
+        "tone_notes": "Description précise et fidèle à l'article",
     },
 )
 
@@ -97,6 +151,13 @@ CREATE TABLE IF NOT EXISTS workflows (
     tone TEXT NOT NULL,
     source TEXT NOT NULL DEFAULT 'screenpipe',
     enabled INTEGER NOT NULL DEFAULT 0,
+    "trigger" TEXT,
+    intent_json TEXT,
+    tools_json TEXT,
+    guardrails_json TEXT,
+    tone_notes TEXT,
+    confidence TEXT,
+    human_profile_json TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     PRIMARY KEY (workspace, id)
@@ -171,6 +232,15 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     PRIMARY KEY (workspace, id)
 );
+CREATE TABLE IF NOT EXISTS desktop_leases (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    workspace TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    marketplace TEXT,
+    lease_id TEXT NOT NULL,
+    acquired_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_workflows_workspace ON workflows(workspace);
 """
 
@@ -196,6 +266,171 @@ def connection() -> Iterator[sqlite3.Connection]:
 def initialize_database() -> None:
     with connection() as conn:
         conn.executescript(_SCHEMA)
+        migrate_workflow_columns(conn)
+        migrate_desktop_lease_id(conn)
+        migrate_default_workflow_copy(conn)
+
+
+def migrate_workflow_columns(conn: sqlite3.Connection) -> None:
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(workflows)")}
+    missing = {
+        "trigger": "TEXT",
+        "intent_json": "TEXT",
+        "tools_json": "TEXT",
+        "guardrails_json": "TEXT",
+        "tone_notes": "TEXT",
+        "confidence": "TEXT",
+        "human_profile_json": "TEXT",
+    }
+    for name, column_type in missing.items():
+        if name not in columns:
+            quoted_name = f'"{name}"'
+            conn.execute(f"ALTER TABLE workflows ADD COLUMN {quoted_name} {column_type}")
+
+
+def migrate_desktop_lease_id(conn: sqlite3.Connection) -> None:
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(desktop_leases)")}
+    if "lease_id" not in columns:
+        conn.execute("ALTER TABLE desktop_leases ADD COLUMN lease_id TEXT")
+    rows = conn.execute("SELECT id FROM desktop_leases WHERE lease_id IS NULL").fetchall()
+    for row in rows:
+        conn.execute("UPDATE desktop_leases SET lease_id=? WHERE id=?", (uuid.uuid4().hex, row["id"]))
+
+
+def migrate_default_workflow_copy(conn: sqlite3.Connection) -> None:
+    legacy = {
+        "vinted-fav-offer": (
+            "Favoris → offre discount",
+            [
+                "Client met un article en favoris",
+                "Détection via messagerie / notif (backend plus tard)",
+                "Envoi d'un message avec proposition de prix (discount)",
+            ],
+        ),
+        "vinted-bump": (
+            "Annonce dormante → baisse auto",
+            ["Annonce sans vue depuis N jours", "Calcul d'une baisse X%", "Mise à jour prix + message optionnel"],
+        ),
+        "lbc-first-msg": (
+            "Premier message → réponse type",
+            [
+                "Nouveau message acheteur",
+                "Classement intent (dispo / prix / RDV)",
+                "Réponse template + plancher vendeur",
+            ],
+        ),
+        "multi-restock": (
+            "Stock équipe → republish",
+            ["Article ajouté au stock partagé", "Choix marketplace", "Création / republication de l'annonce"],
+        ),
+    }
+    for workflow in DEFAULT_WORKFLOWS:
+        old = legacy.get(workflow["id"])
+        if old is None:
+            continue
+        old_title, old_steps = old
+        rows = conn.execute(
+            "SELECT workspace, title, steps_json FROM workflows WHERE id=?",
+            (workflow["id"],),
+        ).fetchall()
+        for row in rows:
+            try:
+                steps = json.loads(row["steps_json"])
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if row["title"] != old_title or steps != old_steps:
+                continue
+            conn.execute(
+                """UPDATE workflows SET title=?, steps_json=?, "trigger"=?, intent_json=?, tools_json=?,
+                   guardrails_json=?, tone_notes=? WHERE workspace=? AND id=?""",
+                (
+                    workflow["title"],
+                    json.dumps(workflow["steps"], ensure_ascii=False),
+                    workflow["trigger"],
+                    json.dumps(workflow["intent"], ensure_ascii=False),
+                    json.dumps(workflow["tools"], ensure_ascii=False),
+                    json.dumps(workflow["guardrails"], ensure_ascii=False),
+                    workflow["tone_notes"],
+                    row["workspace"],
+                    workflow["id"],
+                ),
+            )
+
+
+def _lease_expiry(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def acquire_desktop_lease(
+    workspace: str,
+    user_id: str,
+    marketplace: str | None,
+    ttl: int,
+) -> tuple[str | None, int | None]:
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat().replace("+00:00", "Z")
+    expires_iso = (now + timedelta(seconds=max(1, ttl))).isoformat().replace("+00:00", "Z")
+    with connection() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        lease = conn.execute("SELECT * FROM desktop_leases WHERE id=1").fetchone()
+        if lease is not None and _lease_expiry(lease["expires_at"]) > now:
+            if lease["workspace"] != workspace:
+                return None, max(0, int((_lease_expiry(lease["expires_at"]) - now).total_seconds()))
+            lease_id = lease["lease_id"] or uuid.uuid4().hex
+            extended_expiry = max(_lease_expiry(lease["expires_at"]), _lease_expiry(expires_iso))
+            conn.execute(
+                """UPDATE desktop_leases
+                   SET user_id=?, marketplace=?, lease_id=?, expires_at=? WHERE id=1""",
+                (
+                    user_id,
+                    marketplace,
+                    lease_id,
+                    extended_expiry.isoformat().replace("+00:00", "Z"),
+                ),
+            )
+            return lease_id, None
+        else:
+            lease_id = uuid.uuid4().hex
+            conn.execute(
+                """INSERT INTO desktop_leases (id, workspace, user_id, marketplace, lease_id, acquired_at, expires_at)
+                   VALUES (1, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET workspace=excluded.workspace, user_id=excluded.user_id,
+                     marketplace=excluded.marketplace, lease_id=excluded.lease_id, acquired_at=excluded.acquired_at,
+                     expires_at=excluded.expires_at""",
+                (workspace, user_id, marketplace, lease_id, now_iso, expires_iso),
+            )
+            return lease_id, None
+
+
+def desktop_lease_held(workspace: str) -> bool:
+    now = datetime.now(timezone.utc)
+    with connection() as conn:
+        lease = conn.execute("SELECT workspace, expires_at FROM desktop_leases WHERE id=1").fetchone()
+    return bool(lease and lease["workspace"] == workspace and _lease_expiry(lease["expires_at"]) > now)
+
+
+def desktop_lease_held_by_other(workspace: str) -> int | None:
+    now = datetime.now(timezone.utc)
+    with connection() as conn:
+        lease = conn.execute("SELECT workspace, expires_at FROM desktop_leases WHERE id=1").fetchone()
+    if lease is None or lease["workspace"] == workspace:
+        return None
+    expires_at = _lease_expiry(lease["expires_at"])
+    if expires_at <= now:
+        return None
+    return max(0, int((expires_at - now).total_seconds()))
+
+
+def release_desktop_lease(workspace: str, lease_id: str | None = None) -> bool:
+    with connection() as conn:
+        if lease_id is None:
+            result = conn.execute("DELETE FROM desktop_leases WHERE id=1 AND workspace=?", (workspace,))
+        else:
+            result = conn.execute(
+                "DELETE FROM desktop_leases WHERE id=1 AND workspace=? AND lease_id=?",
+                (workspace, lease_id),
+            )
+    return result.rowcount > 0
 
 
 def seed_workspace(
@@ -252,12 +487,15 @@ def seed_workspace(
             )
         conn.executemany(
             """INSERT INTO workflows
-               (id, workspace, created_by, marketplace, title, steps_json, tone, source, enabled)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'screenpipe', 0)""",
+               (id, workspace, created_by, marketplace, title, steps_json, tone, source, enabled,
+                "trigger", intent_json, tools_json, guardrails_json, tone_notes, confidence)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'screenpipe', 0, ?, ?, ?, ?, ?, 'medium')""",
             [
                 (
                     flow["id"], workspace, created_by, flow["marketplace"], flow["title"],
-                    json.dumps(flow["steps"], ensure_ascii=False), flow["tone"],
+                    json.dumps(flow["steps"], ensure_ascii=False), flow["tone"], flow["trigger"],
+                    json.dumps(flow["intent"], ensure_ascii=False), json.dumps(flow["tools"], ensure_ascii=False),
+                    json.dumps(flow["guardrails"], ensure_ascii=False), flow["tone_notes"],
                 )
                 for flow in DEFAULT_WORKFLOWS
             ],
