@@ -1,6 +1,6 @@
 "use client"
 
-import { useAuth, useOrganization } from "@clerk/nextjs"
+import { useAuth } from "@/lib/auth"
 import { Check, Copy, Download, Puzzle, RefreshCw } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -32,7 +32,7 @@ function useExtensionPresence() {
 
 export default function ExtensionPage() {
   const { getToken, orgId } = useAuth()
-  const { organization } = useOrganization()
+  const organization = null as { name: string } | null
   const { version, paired, setPaired } = useExtensionPresence()
   const [pairing, setPairing] = useState(false)
   const [manualToken, setManualToken] = useState<string | null>(null)

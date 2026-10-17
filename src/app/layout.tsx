@@ -1,5 +1,3 @@
-import { ClerkProvider } from "@clerk/nextjs"
-import { frFR } from "@clerk/localizations"
 import type { Metadata, Viewport } from "next"
 import { Fraunces, Hanken_Grotesk, Instrument_Sans, JetBrains_Mono, Plus_Jakarta_Sans, Young_Serif } from "next/font/google"
 import { Toaster } from "sonner"
@@ -61,19 +59,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider
-      localization={frFR}
-      signInUrl="/sign-in"
-      signUpUrl="/sign-up"
-      afterSignOutUrl="/"
-      // Clerk prod domain is clerk.amirelay.com. Do NOT set proxyUrl to the FAPI host.
-    >
-      <html lang="fr" className={`${jakarta.variable} ${jetbrainsMono.variable} ${youngSerif.variable} ${instrument.variable} ${fraunces.variable} ${hanken.variable}`}>
-        <body className="antialiased">
-          {children}
-          <Toaster richColors position="top-center" />
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="fr" className={`${jakarta.variable} ${jetbrainsMono.variable} ${youngSerif.variable} ${instrument.variable} ${fraunces.variable} ${hanken.variable}`}>
+      <body className="antialiased">
+        {children}
+        <Toaster richColors position="top-center" />
+      </body>
+    </html>
   )
 }

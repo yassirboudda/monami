@@ -1,6 +1,6 @@
 "use client"
 
-import { OrganizationSwitcher, useClerk, useUser } from "@clerk/nextjs"
+import { useClerk, useUser } from "@/lib/auth"
 import { LogOut, Menu, MessageSquareText, MonitorSmartphone, Package, Store, Users, Workflow, X } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -90,14 +90,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <Menu className="w-5 h-5" />
           </button>
           <Link href="/dashboard/chat" className="lg:hidden font-heading text-lg">OctoHandy</Link>
-          <div className="ml-auto">
-            <OrganizationSwitcher
-              hidePersonal={false}
-              afterCreateOrganizationUrl="/dashboard"
-              afterSelectOrganizationUrl="/dashboard"
-              afterSelectPersonalUrl="/dashboard"
-            />
-          </div>
+          <div className="ml-auto text-xs text-muted-foreground truncate max-w-[220px]">{email}</div>
         </header>
         <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-6 lg:px-8">{children}</main>
       </div>

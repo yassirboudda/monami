@@ -1,6 +1,6 @@
 "use client"
 
-import { useAuth } from "@clerk/nextjs"
+import { useAuth } from "@/lib/auth"
 import { useCallback } from "react"
 import useSWR from "swr"
 import { apiFetch } from "@/lib/api"

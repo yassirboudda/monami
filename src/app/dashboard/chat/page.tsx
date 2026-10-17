@@ -1,6 +1,6 @@
 "use client"
 
-import { useAuth, useUser } from "@clerk/nextjs"
+import { useAuth, useUser } from "@/lib/auth"
 import { AnimatePresence, motion } from "framer-motion"
 import { ArrowUp, ImagePlus, Loader2, Trash2, X } from "lucide-react"
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"

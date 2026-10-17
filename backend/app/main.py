@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import json
 import random
 import re
@@ -119,6 +121,19 @@ async def require_user(authorization: str | None = Header(default=None)) -> dict
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(401, "Missing bearer token")
     token = authorization.split(" ", 1)[1].strip()
+
+    # Mono-user app session (password login on the web app): oh.<exp>.<hmac>
+    if token.startswith("oh."):
+        parts = token.split(".")
+        secret = settings.app_session_secret
+        if len(parts) != 3 or not secret:
+            raise HTTPException(401, "Invalid app token")
+        _, exp, sig = parts
+        good = hmac.new(secret.encode(), exp.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, good) or not exp.isdigit() or int(exp) < time.time():
+            raise HTTPException(401, "Expired app token")
+        uid = settings.app_user_id
+        return {"user_id": uid, "workspace": f"user:{uid}", "org_id": None, "via": "app", "claims": {"email": settings.app_user_email}}
 
     # Extension long-lived token (sfx_…)
     if token.startswith("sfx_"):
