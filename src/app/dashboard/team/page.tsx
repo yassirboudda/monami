@@ -1,17 +1,63 @@
 "use client"
 
-import { Users } from "lucide-react"
-import { Badge, Card, PageHeader } from "@/components/ui"
+import { Check, Copy, Link2, Users } from "lucide-react"
+import { useState } from "react"
+import { toast } from "sonner"
+import { Badge, Button, Card, PageHeader } from "@/components/ui"
 import { useUser } from "@/lib/auth"
+import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
 export default function TeamPage() {
   const { user } = useUser()
+  const { request } = useWorkspaceResource<{ shops: unknown[] }>("/v1/shops")
+  const [inviteUrl, setInviteUrl] = useState("")
+  const [creating, setCreating] = useState(false)
+  const [copied, setCopied] = useState(false)
   const name = user?.firstName || "Vendeur"
   const email = user?.primaryEmailAddress?.emailAddress || "—"
 
+  const createInvite = async () => {
+    setCreating(true)
+    try {
+      const result = await request<{ path: string }>("/v1/org/invite-links", { method: "POST", body: {} })
+      setInviteUrl(`${window.location.origin}${result.path}`)
+      setCopied(false)
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Impossible de créer le lien")
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const copyInvite = async () => {
+    await navigator.clipboard.writeText(inviteUrl)
+    setCopied(true)
+    toast.success("Lien d'invitation copié")
+  }
+
   return (
     <div>
-      <PageHeader label="Espace de travail" title="Équipe" />
+      <PageHeader
+        label="Espace de travail"
+        title="Équipe"
+        actions={
+          <Button loading={creating} onClick={() => void createInvite()}>
+            <Link2 className="size-4" /> Générer un lien d&apos;invitation
+          </Button>
+        }
+      />
+      {inviteUrl && (
+        <Card className="mb-4 rounded-2xl p-5">
+          <p className="mb-3 text-sm font-medium">Lien d&apos;invitation (valable 7 jours) — la personne se connecte avec le mot de passe d&apos;accès et partage ton stock, tes boutiques et tes workflows.</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <code className="min-w-0 flex-1 break-all rounded-lg bg-muted px-3 py-2 text-xs">{inviteUrl}</code>
+            <Button variant="secondary" size="sm" onClick={() => void copyInvite()}>
+              {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+              {copied ? "Copié" : "Copier le lien"}
+            </Button>
+          </div>
+        </Card>
+      )}
       <div className="mb-5 flex items-start gap-3 rounded-xl border border-sky/70 bg-sky/30 p-4 text-sm">
         <Users className="mt-0.5 size-4 shrink-0" />
         <p>Un espace partagé : les personnes invitées se connectent avec le mot de passe d&apos;accès et partagent ton stock, tes boutiques et tes workflows.</p>
