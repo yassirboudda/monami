@@ -656,7 +656,7 @@ async def create_desktop_session(body: DesktopSessionIn, user: dict[str, Any] = 
     token, exp = _desktop_token(user["workspace"], body.marketplace, settings.desktop_session_ttl)
     params = {
         "autoconnect": "1",
-        "resize": "remote",
+        "resize": "scale",
         "reconnect": "1",
         "reconnect_delay": "1500",
         "show_dot": "1",
@@ -951,7 +951,7 @@ async def teach_start(body: TeachStartIn, user: dict[str, Any] = Depends(workspa
         row = _teach_row(conn, user["workspace"], teach_id)
     token, exp = _desktop_token(user["workspace"], body.marketplace, max(settings.desktop_session_ttl, 1800))
     params = {
-        "autoconnect": "1", "resize": "remote", "reconnect": "1", "reconnect_delay": "1500",
+        "autoconnect": "1", "resize": "scale", "reconnect": "1", "reconnect_delay": "1500",
         "show_dot": "1", "t": token, "path": f"websockify?t={token}",
     }
     if settings.desktop_vnc_password:
