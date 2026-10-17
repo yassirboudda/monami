@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import random
 import struct
 import zlib
 from urllib.parse import urlencode, urlsplit
@@ -234,9 +235,12 @@ class RemoteDesktop:
     async def button_up(self, mask: int = 0) -> None:
         await self._send(pointer_event(mask, self._x, self._y))
 
-    async def click(self, x: int, y: int, button: int = 1) -> None:
+    async def click(self, x: int, y: int, button: int = 1, rng: random.Random | None = None) -> None:
+        rng = rng or random.Random()
         await self.move(x, y)
+        await asyncio.sleep(rng.uniform(0.04, 0.09))
         await self.button_down(button)
+        await asyncio.sleep(rng.uniform(0.05, 0.13))
         await self.button_up(0)
 
     async def key(self, keysym: int, down: bool) -> None:

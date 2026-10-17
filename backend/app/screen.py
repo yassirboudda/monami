@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import unicodedata
 from typing import Any
 from urllib.parse import quote
@@ -8,9 +9,29 @@ import httpx
 
 from .settings import settings
 
+SCREENPIPE_FRAME_MAX_AGE_SECONDS = 20.0
+SCREENPIPE_STALE_OUTCOME = "écran Screenpipe pas à jour : aucun clic"
+
+
+class ScreenpipeFrameStaleError(Exception):
+    pass
+
 
 def _headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {settings.screenpipe_api_key}"}
+
+
+def _frame_is_stale(timestamp: Any, now: datetime | None = None) -> bool:
+    if not isinstance(timestamp, str) or not timestamp:
+        return True
+    try:
+        frame_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    if frame_time.tzinfo is None:
+        frame_time = frame_time.replace(tzinfo=timezone.utc)
+    current_time = now or datetime.now(timezone.utc)
+    return (current_time - frame_time).total_seconds() > SCREENPIPE_FRAME_MAX_AGE_SECONDS
 
 
 async def latest_frame_id() -> str | None:
@@ -29,7 +50,13 @@ async def latest_frame_id() -> str | None:
             return None
         content = rows[0].get("content") or {}
         frame_id = content.get("frame_id") or rows[0].get("frame_id")
-        return str(frame_id) if frame_id is not None else None
+        if frame_id is None:
+            return None
+        if _frame_is_stale(content.get("timestamp") or rows[0].get("timestamp")):
+            raise ScreenpipeFrameStaleError(SCREENPIPE_STALE_OUTCOME)
+        return str(frame_id)
+    except ScreenpipeFrameStaleError:
+        raise
     except (httpx.HTTPError, ValueError, TypeError):
         return None
 

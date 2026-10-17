@@ -198,7 +198,7 @@ def test_desktop_lease_blocks_another_workspace_and_hides_screen(client, monkeyp
     assert asyncio.run(main._screen_context(current_user["workspace"])) == ""
 
 
-def test_auto_click_keeps_approval_filter_and_never_blind_clicks(client, monkeypatch):
+def test_auto_click_keeps_approval_filter_and_logs_stale_screen_without_click(client, monkeypatch):
     test_client, current_user = client
     workflow_id = test_client.get("/v1/workflows").json()["workflows"][0]["id"]
     run_id = "run-auto-click"
@@ -217,7 +217,10 @@ def test_auto_click_keeps_approval_filter_and_never_blind_clicks(client, monkeyp
     db.acquire_desktop_lease(current_user["workspace"], current_user["user_id"], "vinted", 3600)
     monkeypatch.setattr(main, "_desktop_enabled", lambda: True)
     monkeypatch.setattr(main, "_desktop_open", lambda _url: asyncio.sleep(0, result=True))
-    monkeypatch.setattr(main, "find_target", lambda _text, **_kwargs: asyncio.sleep(0, result=None))
+    async def stale_target(_text, **_kwargs):
+        raise main.ScreenpipeFrameStaleError()
+
+    monkeypatch.setattr(main, "find_target", stale_target)
     monkeypatch.setattr(main, "pre_action_delay", lambda _rng, _profile: 0)
 
     class FakeDesktop:
@@ -233,7 +236,7 @@ def test_auto_click_keeps_approval_filter_and_never_blind_clicks(client, monkeyp
         async def close(self):
             pass
 
-        async def click(self, *_args):
+        async def click(self, *_args, **_kwargs):
             type(self).clicks += 1
 
     monkeypatch.setattr(main, "RemoteDesktop", FakeDesktop)
@@ -253,8 +256,16 @@ def test_auto_click_keeps_approval_filter_and_never_blind_clicks(client, monkeyp
         run = main._run_row(conn, current_user["workspace"], run_id)
     log = json.loads(run["log_json"])
     assert log[0]["detail"] == "non approuvée"
-    assert log[1]["detail"] == "cible introuvable à l'écran"
+    assert log[1]["detail"] == "écran Screenpipe pas à jour : aucun clic"
     assert FakeDesktop.clicks == 0
+
+
+def test_screen_excerpt_flags_stale_frame(monkeypatch):
+    async def stale_frame():
+        raise main.ScreenpipeFrameStaleError()
+
+    monkeypatch.setattr(main, "latest_frame_id", stale_frame)
+    assert asyncio.run(main._screen_excerpt()) == "écran Screenpipe pas à jour"
 
 
 def test_auto_click_approval_returns_before_background_execution_and_persists_result(client, monkeypatch):

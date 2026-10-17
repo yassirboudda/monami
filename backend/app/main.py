@@ -27,7 +27,13 @@ from .desktop import _desktop_enabled, _desktop_token
 from .human import HumanProfile, click_point, from_trace, key_delays, move_path, pre_action_delay, typos
 from .marketplaces import agent_context, get_doc, get_marketplace
 from .rfb import DesktopInputError, RemoteDesktop, keysym_for_key
-from .screen import find_target, frame_elements, latest_frame_id
+from .screen import (
+    SCREENPIPE_STALE_OUTCOME,
+    ScreenpipeFrameStaleError,
+    find_target,
+    frame_elements,
+    latest_frame_id,
+)
 from .settings import settings
 
 
@@ -1323,7 +1329,10 @@ class RunDecisionIn(BaseModel):
 
 
 async def _screen_excerpt() -> str:
-    frame_id = await latest_frame_id()
+    try:
+        frame_id = await latest_frame_id()
+    except ScreenpipeFrameStaleError:
+        return "écran Screenpipe pas à jour"
     if frame_id is None:
         return ""
     elements = await frame_elements(frame_id)
@@ -1501,7 +1510,12 @@ async def _execute_run_actions(
                 continue
 
             await asyncio.sleep(pre_action_delay(rng, profile))
-            target = await find_target(target_text, screen_size=(desktop.width, desktop.height))
+            try:
+                target = await find_target(target_text, screen_size=(desktop.width, desktop.height))
+            except ScreenpipeFrameStaleError:
+                entry.update(result="failed", outcome=SCREENPIPE_STALE_OUTCOME, detail=SCREENPIPE_STALE_OUTCOME)
+                record(entry)
+                continue
             if target is None:
                 entry.update(
                     result="failed", outcome="cible introuvable à l'écran",
@@ -1519,7 +1533,7 @@ async def _execute_run_actions(
                 for x, y, delay in path:
                     await asyncio.sleep(delay)
                     await desktop.move(round(x), round(y))
-                await desktop.click(*point)
+                await desktop.click(*point, rng=rng)
                 clicked = True
                 if action.get("input_text"):
                     await _type_human_text(desktop, action["input_text"], rng, profile)

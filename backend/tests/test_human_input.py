@@ -2,10 +2,11 @@ import asyncio
 import random
 import struct
 import zlib
+from datetime import datetime, timedelta, timezone
 
 from app.human import HumanProfile, click_point, from_trace, key_delays, move_path, pre_action_delay, typos
 from app.rfb import RemoteDesktop, key_event, keysym_for_character, keysym_for_key, pointer_event, vnc_key
-from app.screen import find_target
+from app.screen import ScreenpipeFrameStaleError, find_target, latest_frame_id
 
 
 def test_profile_is_stable_and_uses_screen_change_pacing():
@@ -87,6 +88,82 @@ def test_rfb_message_encodings_vnc_key_and_keysyms():
     assert keysym_for_character("é") == (0x010000E9, False)
     assert keysym_for_key("Enter") == 0xFF0D
     assert keysym_for_character("\n") == (0xFF0D, False)
+
+
+def test_rfb_click_waits_before_press_and_holds_button(monkeypatch):
+    class FakeSocket:
+        def __init__(self):
+            self.sent = []
+
+        async def send(self, message):
+            self.sent.append(message)
+
+    delays = []
+
+    async def capture_delay(delay):
+        delays.append(delay)
+
+    monkeypatch.setattr("app.rfb.asyncio.sleep", capture_delay)
+
+    async def click():
+        desktop = RemoteDesktop("workspace", None)
+        desktop.websocket = FakeSocket()
+        desktop.width = 100
+        desktop.height = 80
+        await desktop.click(24, 39, rng=random.Random(17))
+        return desktop.websocket.sent
+
+    messages = asyncio.run(click())
+    assert messages == [
+        pointer_event(0, 24, 39),
+        pointer_event(1, 24, 39),
+        pointer_event(0, 24, 39),
+    ]
+    assert len(delays) == 2
+    assert 0.04 <= delays[0] <= 0.09
+    assert 0.05 <= delays[1] <= 0.13
+
+
+def test_latest_frame_id_rejects_stale_ocr_timestamp(monkeypatch):
+    now = datetime.now(timezone.utc)
+    row = {
+        "content": {
+            "frame_id": 641,
+            "timestamp": (now - timedelta(seconds=21)).isoformat(),
+        }
+    }
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"data": [row]}
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def get(self, *_args, **_kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr("app.screen.settings.screenpipe_api_url", "https://screenpipe.example")
+    monkeypatch.setattr("app.screen.settings.screenpipe_api_key", "test-key")
+    monkeypatch.setattr("app.screen.httpx.AsyncClient", lambda **_kwargs: FakeClient())
+
+    async def check_stale_frame():
+        try:
+            await latest_frame_id()
+        except ScreenpipeFrameStaleError:
+            return
+        raise AssertionError("stale OCR frame was accepted")
+
+    asyncio.run(check_stale_frame())
+    row["content"]["timestamp"] = (datetime.now(timezone.utc) - timedelta(seconds=19)).isoformat()
+    assert asyncio.run(latest_frame_id()) == "641"
 
 
 def test_framebuffer_capture_requests_raw_pixels_and_returns_png():
