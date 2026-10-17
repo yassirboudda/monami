@@ -241,6 +241,20 @@ CREATE TABLE IF NOT EXISTS desktop_leases (
     acquired_at TEXT NOT NULL,
     expires_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS agent_messages (
+    id TEXT PRIMARY KEY,
+    workspace TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'info',
+    marketplace TEXT,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    payload TEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'pending',
+    decision_note TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    decided_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_agent_messages_ws ON agent_messages(workspace, created_at);
 CREATE INDEX IF NOT EXISTS idx_workflows_workspace ON workflows(workspace);
 """
 

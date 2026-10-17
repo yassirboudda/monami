@@ -3,8 +3,8 @@
 import { useChat } from "@ai-sdk/react"
 import { lastAssistantMessageIsCompleteWithToolCalls, type FileUIPart } from "ai"
 import { AnimatePresence, motion, MotionConfig } from "framer-motion"
-import { ArrowUp, Check, ChevronRight, GraduationCap, ImagePlus, Play, Sparkles, Square, SquarePen } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react"
+import { ArrowUp, Check, ChevronRight, GraduationCap, ImagePlus, Play, ShieldAlert, Sparkles, Square, SquarePen } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { toast } from "sonner"
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation"
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message"
@@ -26,11 +26,12 @@ import { Octopus } from "@/components/oh/octopus"
 import { EmbeddedPage, RAISED } from "@/components/chat-card"
 import { ConnectMarketplaceModal } from "@/components/connect-marketplace"
 import { TeachWorkflowModal } from "@/components/teach-workflow"
-import { cn } from "@/components/ui"
+import { Badge, Button, cn, MarketplaceLogo } from "@/components/ui"
 import { apiFetch } from "@/lib/api"
 import { useAuth, useUser } from "@/lib/auth"
 import { missionPrompt } from "@/lib/missions"
 import { chatKey, store } from "@/lib/store"
+import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 import styles from "./chat.module.css"
 import { EMBEDDED_PAGES, RunWorkflowCard } from "./tool-cards"
 
@@ -83,6 +84,47 @@ type ConnectOutput = { connected: true; shop: string } | { connected: false }
 const note = "text-[13px] text-muted-foreground"
 const interrupted = <p className={note}>Session interrompue. Redemande-moi si tu veux reprendre.</p>
 
+// Messages posted by the inbox autopilot (A4000): approvals to decide, replies it sent.
+type AgentMessage = {
+  id: string
+  kind: "info" | "approval" | "sent"
+  marketplace: string | null
+  title: string
+  body: string
+  status: "pending" | "approved" | "rejected" | "seen"
+  created_at: string
+  decided_at: string | null
+}
+
+function AgentCard({ m, onDecide, busy }: { m: AgentMessage; onDecide: (id: string, decision: "approved" | "rejected") => void; busy: boolean }) {
+  const pending = m.kind === "approval" && m.status === "pending"
+  return (
+    <div className="flex justify-start">
+      <div className={cn("max-w-[85%] rounded-2xl rounded-bl-md border px-3.5 py-2.5 text-sm space-y-2", pending ? "border-amber-300 bg-amber-50" : "bg-muted border-border")}>
+        <div className="flex items-center gap-2 flex-wrap">
+          {m.marketplace ? <MarketplaceLogo marketplace={m.marketplace} size={20} /> : <ShieldAlert className="w-4 h-4 text-amber-600" />}
+          <span className="font-medium">{m.title}</span>
+          {m.kind === "sent" && <Badge tone="green">Envoyé</Badge>}
+          {m.kind === "approval" && m.status === "approved" && <Badge tone="green">Approuvé</Badge>}
+          {m.kind === "approval" && m.status === "rejected" && <Badge tone="red">Refusé</Badge>}
+          {pending && <Badge tone="amber">Ton accord ?</Badge>}
+        </div>
+        {m.body && <p className="whitespace-pre-wrap text-foreground/90">{m.body}</p>}
+        {pending && (
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" loading={busy} onClick={() => onDecide(m.id, "approved")}>
+              <Check className="w-3.5 h-3.5" /> Approuver et envoyer
+            </Button>
+            <Button size="sm" variant="secondary" disabled={busy} onClick={() => onDecide(m.id, "rejected")}>
+              Refuser
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function ChatPage() {
   const { user } = useUser()
   const { getToken, userId, orgId } = useAuth()
@@ -99,6 +141,26 @@ export default function ChatPage() {
     },
     [getToken]
   )
+
+  const agentFeed = useWorkspaceResource<{ messages: AgentMessage[] }>("/v1/agent/messages?limit=40")
+  const [deciding, setDeciding] = useState<string | null>(null)
+  useEffect(() => {
+    const id = setInterval(() => void agentFeed.mutate(), 15000)
+    return () => clearInterval(id)
+  }, [agentFeed])
+  const decide = async (id: string, decision: "approved" | "rejected") => {
+    setDeciding(id)
+    try {
+      await agentFeed.request(`/v1/agent/messages/${id}/decide`, { method: "POST", body: { decision } })
+      await agentFeed.mutate()
+      toast.success(decision === "approved" ? "L'agent envoie la réponse sur le bureau." : "Refusé — rien ne sera envoyé.")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Décision impossible")
+    } finally {
+      setDeciding(null)
+    }
+  }
+  const agentMessages = [...(agentFeed.data?.messages ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at))
 
   // The default transport posts to /api/chat with the OctoHandy session cookie.
   const { messages, sendMessage, setMessages, addToolOutput, status, error, stop } = useChat({
@@ -169,7 +231,7 @@ export default function ChatPage() {
 
         <Conversation className="flex-1 min-h-0">
           <ConversationContent className="mx-auto w-full max-w-[44rem] gap-7 px-1 pb-44 pt-12">
-            {!messages.length && (
+            {!messages.length && !agentMessages.length && (
               <div className="flex min-h-[calc(100dvh-22rem)] flex-col items-center justify-center text-center">
                 <Octopus still className="size-16" />
                 <h1 className="mt-5 font-heading text-[2.5rem] leading-[1.1] text-foreground">
@@ -324,6 +386,14 @@ export default function ChatPage() {
                 </motion.div>
               ))}
             </AnimatePresence>
+
+            {agentMessages.length > 0 && (
+              <div className="space-y-3">
+                {agentMessages.map((a) => (
+                  <AgentCard key={a.id} m={a} onDecide={(id, d) => void decide(id, d)} busy={deciding === a.id} />
+                ))}
+              </div>
+            )}
 
             {waiting && (
               <p className={cn("text-[15px]", styles.shimmer)} role="status">

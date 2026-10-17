@@ -1,7 +1,7 @@
 "use client"
 
 import { useClerk, useUser } from "@/lib/auth"
-import { LogOut, MessageSquareText, MonitorSmartphone, Package, Store, Users, Workflow } from "lucide-react"
+import { LogOut, MessageSquareText, MonitorSmartphone, Package, Settings, Store, Users, Workflow } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Octopus } from "./oh/octopus"
@@ -28,6 +28,7 @@ const nav = [
   { href: "/dashboard/desktop", label: "Bureau", icon: MonitorSmartphone },
   { href: "/dashboard/workflows", label: "Workflows", icon: Workflow },
   { href: "/dashboard/team", label: "Équipe", icon: Users },
+  { href: "/dashboard/settings", label: "Paramètres", icon: Settings },
 ]
 
 function NavLinks() {
