@@ -3,7 +3,7 @@
 import { Activity, Brain, Eye, ExternalLink, GraduationCap, MonitorSmartphone, RefreshCw, Rocket, ShieldCheck } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
-import { Badge, Button, Card, PageHeader, StatusDot } from "@/components/ui"
+import { Badge, Button, Card, PageHeader, StatusDot, Alert } from "@/components/ui"
 import type { TeachSession } from "@/components/teach-workflow"
 import type { WorkflowRun } from "@/components/run-workflow"
 import { marketplaceName } from "@/components/connect-marketplace"
@@ -85,7 +85,7 @@ export default function DesktopPage() {
       />
 
       {status.error ? (
-        <Card className="p-4 text-sm text-red-700">Statut indisponible : {status.error.message}</Card>
+        <Alert variant="destructive">Statut indisponible : {status.error.message}</Alert>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           <Tile title="Bureau distant" ok={s ? s.gate : null} detail={s?.host ? `${s.host.replace("https://", "")} · noVNC, jeton signé 15 min` : "Chargement…"} icon={MonitorSmartphone} />
@@ -124,7 +124,7 @@ export default function DesktopPage() {
           </div>
         </div>
         {screen.error ? (
-          <p className="text-sm text-red-700">Screenpipe injoignable : {screen.error.message}</p>
+          <Alert variant="destructive">Screenpipe injoignable : {screen.error.message}</Alert>
         ) : !screen.data ? (
           <p className="text-sm text-muted-foreground">Lecture…</p>
         ) : !screen.data.events.length ? (

@@ -4,7 +4,7 @@ import { useUser } from "@clerk/nextjs"
 import { Minus, Package, Plus, Trash2 } from "lucide-react"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
-import { Badge, Button, Card, EmptyState, Input, PageHeader } from "@/components/ui"
+import { Badge, Button, Card, EmptyState, Input, PageHeader, Alert, Table, THead, TBody, TR, TH, TD } from "@/components/ui"
 import type { StockItem } from "@/lib/store"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
@@ -88,7 +88,7 @@ export default function StockPage() {
       </Card>
 
       {error ? (
-        <Card className="p-4 text-sm text-red-700">Impossible de charger le stock : {error.message}</Card>
+        <Alert variant="destructive">Impossible de charger le stock : {error.message}</Alert>
       ) : isLoading ? (
         <Card className="p-4 text-sm text-muted-foreground">Chargement du stock…</Card>
       ) : !items.length ? (
@@ -96,34 +96,46 @@ export default function StockPage() {
           <EmptyState icon={<Package className="w-6 h-6" />} title="Stock vide" text="Ajoute un article à l'inventaire." />
         </Card>
       ) : (
-        <div className="space-y-2">
-          {items.map((item) => (
-            <Card key={item.id} className="px-4 py-3 flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="font-medium truncate">{item.title}</p>
-                <p className="text-caption truncate">
-                  {item.createdBy === user?.id
-                    ? "toi"
-                    : item.creatorName || (item.ownerLabel === "toi" ? "un membre" : item.ownerLabel)}
-                  {item.marketplace ? ` · ${item.marketplace}` : ""}
-                  {item.price != null ? ` · ${item.price} €` : ""}
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" aria-label={`Retirer une unité de ${item.title}`} onClick={() => void updateQuantity(item, -1)}>
-                  <Minus className="w-3.5 h-3.5" />
-                </Button>
-                <Badge tone="blue">×{item.qty}</Badge>
-                <Button variant="ghost" size="sm" aria-label={`Ajouter une unité de ${item.title}`} onClick={() => void updateQuantity(item, 1)}>
-                  <Plus className="w-3.5 h-3.5" />
-                </Button>
-                <Button variant="ghost" size="sm" aria-label={`Supprimer ${item.title}`} onClick={() => void removeItem(item)}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <Table>
+          <THead>
+            <TR className="hover:bg-transparent">
+              <TH>Article</TH>
+              <TH>Propriétaire</TH>
+              <TH>Marketplace</TH>
+              <TH className="text-right">Prix</TH>
+              <TH className="text-right">Quantité</TH>
+              <TH className="text-right" />
+            </TR>
+          </THead>
+          <TBody>
+            {items.map((item) => (
+              <TR key={item.id}>
+                <TD className="font-medium max-w-[280px] truncate">{item.title}</TD>
+                <TD className="text-muted-foreground">
+                  {item.createdBy === user?.id ? "toi" : item.creatorName || (item.ownerLabel === "toi" ? "un membre" : item.ownerLabel)}
+                </TD>
+                <TD className="text-muted-foreground capitalize">{item.marketplace || "—"}</TD>
+                <TD className="text-right tabular-nums">{item.price != null ? `${item.price} €` : "—"}</TD>
+                <TD className="text-right">
+                  <div className="inline-flex items-center gap-1">
+                    <Button variant="ghost" size="sm" aria-label={`Retirer une unité de ${item.title}`} onClick={() => void updateQuantity(item, -1)}>
+                      <Minus className="w-3.5 h-3.5" />
+                    </Button>
+                    <Badge tone="blue">×{item.qty}</Badge>
+                    <Button variant="ghost" size="sm" aria-label={`Ajouter une unité de ${item.title}`} onClick={() => void updateQuantity(item, 1)}>
+                      <Plus className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </TD>
+                <TD className="text-right">
+                  <Button variant="ghost" size="sm" aria-label={`Supprimer ${item.title}`} onClick={() => void removeItem(item)}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </TD>
+              </TR>
+            ))}
+          </TBody>
+        </Table>
       )}
     </div>
   )

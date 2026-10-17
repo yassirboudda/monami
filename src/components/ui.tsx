@@ -285,3 +285,107 @@ export function FadeIn({ children, delay = 0, className }: { children: React.Rea
     </motion.div>
   )
 }
+
+/* ---------- Added with the warm design (designer PR #12 parity) ---------- */
+
+export function Switch({ checked, onCheckedChange, disabled, label, className }: { checked: boolean; onCheckedChange: (v: boolean) => void; disabled?: boolean; label?: string; className?: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onCheckedChange(!checked)}
+      className={cn(
+        "relative inline-flex h-6 w-10 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50",
+        checked ? "bg-primary border-primary" : "bg-muted border-input",
+        className
+      )}
+    >
+      <span className={cn("inline-block h-5 w-5 rounded-full shadow-sm transition-transform", checked ? "translate-x-[18px] bg-butter" : "translate-x-[1px] bg-card")} />
+    </button>
+  )
+}
+
+export function Checkbox({ checked, onCheckedChange, disabled, className, id }: { checked: boolean; onCheckedChange: (v: boolean) => void; disabled?: boolean; className?: string; id?: string }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      id={id}
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onCheckedChange(!checked)}
+      className={cn("inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded border transition-colors disabled:opacity-50", checked ? "bg-primary border-primary text-butter" : "bg-card border-input", className)}
+    >
+      {checked && <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 6.5l2.5 2.5L10 3.5" /></svg>}
+    </button>
+  )
+}
+
+export function Alert({ variant = "default", children, className }: { variant?: "default" | "destructive" | "info"; children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "rounded-lg border px-4 py-3 text-sm",
+        variant === "destructive" && "border-destructive/30 bg-[#fdeceb] text-destructive",
+        variant === "info" && "border-sky bg-sky/30 text-foreground",
+        variant === "default" && "border-border bg-card text-foreground",
+        className
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function Progress({ value, className }: { value: number; className?: string }) {
+  return (
+    <div className={cn("h-2 w-full overflow-hidden rounded-full bg-muted", className)} role="progressbar" aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}>
+      <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+    </div>
+  )
+}
+
+export function SegmentedControl<T extends string>({ value, onChange, options, className, size = "sm" }: { value: T; onChange: (v: T) => void; options: { value: T; label: React.ReactNode }[]; className?: string; size?: "sm" | "md" }) {
+  return (
+    <div role="group" className={cn("inline-flex rounded-lg border border-border bg-card p-0.5", className)}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={o.value === value}
+          onClick={() => onChange(o.value)}
+          className={cn("rounded-md font-medium transition-colors", size === "sm" ? "px-2.5 py-1 text-xs" : "px-3 py-1.5 text-sm", o.value === value ? "bg-butter text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground")}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function Table({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <div className={cn("w-full overflow-x-auto rounded-xl border border-border bg-card", className)}>
+      <table className="w-full text-sm">{children}</table>
+    </div>
+  )
+}
+export function THead({ children }: { children: React.ReactNode }) {
+  return <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">{children}</thead>
+}
+export function TBody({ children }: { children: React.ReactNode }) {
+  return <tbody className="divide-y divide-border">{children}</tbody>
+}
+export function TR({ children, className, ...rest }: React.HTMLAttributes<HTMLTableRowElement>) {
+  return <tr className={cn("hover:bg-accent/40 transition-colors", className)} {...rest}>{children}</tr>
+}
+export function TH({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <th className={cn("px-4 py-2.5 font-medium", className)}>{children}</th>
+}
+export function TD({ children, className, ...rest }: React.TdHTMLAttributes<HTMLTableCellElement>) {
+  return <td className={cn("px-4 py-3 align-middle", className)} {...rest}>{children}</td>
+}

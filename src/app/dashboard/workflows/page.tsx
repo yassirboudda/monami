@@ -1,8 +1,8 @@
 "use client"
 
-import { GraduationCap, Pause, Play, Rocket, Workflow } from "lucide-react"
+import { GraduationCap, Rocket, Workflow } from "lucide-react"
 import { useState } from "react"
-import { Badge, Button, Card, PageHeader } from "@/components/ui"
+import { Badge, Button, Card, PageHeader, Alert, Switch } from "@/components/ui"
 import { RunWorkflowModal } from "@/components/run-workflow"
 import { TeachWorkflowModal } from "@/components/teach-workflow"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
@@ -50,7 +50,7 @@ export default function WorkflowsPage() {
       />
       {orgId && <p className="mb-4 text-sm text-secondary">partagé avec l&apos;équipe</p>}
       {error ? (
-        <Card className="p-4 text-sm text-red-700">Impossible de charger les workflows : {error.message}</Card>
+        <Alert variant="destructive">Impossible de charger les workflows : {error.message}</Alert>
       ) : isLoading ? (
         <Card className="p-4 text-sm text-muted-foreground">Chargement des workflows…</Card>
       ) : (
@@ -85,15 +85,10 @@ export default function WorkflowsPage() {
                 <Button size="sm" onClick={() => setRunning(flow)}>
                   <Rocket className="w-3.5 h-3.5" /> Lancer maintenant
                 </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  loading={saving === flow.id}
-                  onClick={() => void toggle(flow)}
-                >
-                  {flow.enabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                  {flow.enabled ? "Désactiver" : "Activer"}
-                </Button>
+                <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <Switch checked={flow.enabled} onCheckedChange={() => void toggle(flow)} label={flow.enabled ? "Désactiver" : "Activer"} />
+                  {flow.enabled ? "Actif" : "Inactif"}
+                </label>
               </div>
             </Card>
           ))}

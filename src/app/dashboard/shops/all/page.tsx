@@ -4,7 +4,7 @@ import { ArrowLeft, Store } from "lucide-react"
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { ListingsGrid } from "@/components/listings-grid"
-import { Button, PageHeader, Segmented } from "@/components/ui"
+import { Button, PageHeader, Segmented, Alert } from "@/components/ui"
 import type { Listing, Shop } from "@/lib/store"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 
@@ -42,7 +42,7 @@ export default function AllListingsPage() {
         </Link>
       </div>
       {listingsResource.error || shopsResource.error ? (
-        <p className="text-sm text-red-700">Impossible de charger les annonces et boutiques.</p>
+        <Alert variant="destructive">Impossible de charger les annonces et boutiques.</Alert>
       ) : (
         <ListingsGrid listings={visible} />
       )}

@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { Badge, Button, Card, EmptyState, MarketplaceLogo, PageHeader, StatusDot } from "@/components/ui"
+import { Badge, Button, Card, EmptyState, MarketplaceLogo, PageHeader, StatusDot, Alert } from "@/components/ui"
 import { ConnectMarketplaceModal } from "@/components/connect-marketplace"
 import type { Shop } from "@/lib/store"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
@@ -69,7 +69,7 @@ export default function ShopsPage() {
       />
 
       {error ? (
-        <Card className="p-4 text-sm text-red-700">Impossible de charger les boutiques : {error.message}</Card>
+        <Alert variant="destructive">Impossible de charger les boutiques : {error.message}</Alert>
       ) : isLoading ? (
         <Card className="p-4 text-sm text-muted-foreground">Chargement des boutiques…</Card>
       ) : !shops.length ? (
