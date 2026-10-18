@@ -89,7 +89,7 @@ export default function DesktopPage() {
       {status.error ? (
         <Alert variant="destructive" className="mb-6"><AlertDescription>Statut indisponible : {status.error.message}</AlertDescription></Alert>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 [&>*]:min-w-0">
           <Tile title="Remote desktop" ok={s ? s.gate : null} detail={s?.host ? `${s.host.replace("https://", "")} · noVNC, 15-min signed token` : "Loading…"} icon={MonitorSmartphone} />
           <Tile title="Screenpipe" ok={s ? !!s.screenpipe?.ok : null} detail={s?.screenpipe ? `status ${s.screenpipe.status} · OCR + windows, 24/7` : "not configured"} icon={Eye} />
           <Tile title="Hermes agent" ok={s ? s.hermes : null} detail={s?.model ? `NemoClaw sandbox · ${s.model}` : "Loading…"} icon={Brain} />
@@ -101,7 +101,7 @@ export default function DesktopPage() {
         <Card className="p-4 mb-6">
           <p className="text-label mb-1">On screen {screenAt && `· ${screenAt}`}</p>
           <p className="font-medium text-sm">{s.screen.window || "Desktop"}</p>
-          {s.screen.url && <p className="text-xs text-muted-foreground truncate">{s.screen.url}</p>}
+          {s.screen.url && <p className="text-xs text-muted-foreground truncate break-all">{s.screen.url}</p>}
           {s.screen.excerpt && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{s.screen.excerpt}</p>}
           {s.screen.raw && (
             <details className="mt-1">
@@ -172,7 +172,7 @@ export default function DesktopPage() {
         </Card>
       )}
 
-      <div className="grid lg:grid-cols-2 gap-4">
+      <div className="grid lg:grid-cols-2 gap-4 [&>*]:min-w-0 [&>*]:overflow-hidden">
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-3">
             <GraduationCap className="w-4 h-4 text-muted-foreground" />
@@ -181,7 +181,7 @@ export default function DesktopPage() {
           {!teach.data?.sessions?.length ? (
             <p className="text-sm text-muted-foreground">None yet. Workflows → “Teach by doing”.</p>
           ) : (
-            <ul className="space-y-2 text-sm">
+            <ul className="space-y-2 text-sm [&_li]:min-w-0 [&_li>*]:min-w-0 [&_p]:break-words">
               {teach.data.sessions.slice(0, 8).map((t) => (
                 <li key={t.id} className="flex items-start justify-between gap-2 border-b border-border/60 pb-2 last:border-0">
                   <div className="min-w-0">
@@ -204,7 +204,7 @@ export default function DesktopPage() {
           {!runs.data?.runs?.length ? (
             <p className="text-sm text-muted-foreground">None yet. Workflows → “Run now”.</p>
           ) : (
-            <ul className="space-y-2 text-sm">
+            <ul className="space-y-2 text-sm [&_li]:min-w-0 [&_li>*]:min-w-0 [&_p]:break-words">
               {runs.data.runs.slice(0, 8).map((r) => (
                 <li key={r.id} className="border-b border-border/60 pb-2 last:border-0">
                   <div className="flex items-start justify-between gap-2">
