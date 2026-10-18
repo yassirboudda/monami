@@ -7,6 +7,7 @@ import hashlib
 from pathlib import Path
 import hmac
 import json
+import base64
 import random
 import secrets
 import re
@@ -2467,12 +2468,63 @@ class ChatIn(BaseModel):
     images: list[str] = Field(default_factory=list)
 
 
+async def _push_chat_images_to_desktop(workspace: str, images: list[str]) -> list[str]:
+    """Chat attachments (data URLs or https) are stored under media_dir and copied to the A4000 so the
+    agent can attach them to a listing with desktop_upload_files. Returns the desktop file paths."""
+    if not _desktop_enabled():
+        return []
+    paths: list[str] = []
+    for idx, src in enumerate(images):
+        raw: bytes | None = None
+        mime = "image/jpeg"
+        try:
+            if src.startswith("data:image/"):
+                header, _, b64 = src.partition(",")
+                mime = header[5:].split(";")[0] or mime
+                raw = base64.b64decode(b64)
+            elif src.startswith("https://"):
+                async with httpx.AsyncClient(timeout=30) as client:
+                    r = await client.get(src)
+                    if r.status_code == 200:
+                        raw, mime = r.content, r.headers.get("content-type", mime).split(";")[0]
+        except Exception:
+            raw = None
+        if not raw or len(raw) < 100 or len(raw) > 15_000_000:
+            continue
+        ext = {"image/png": "png", "image/webp": "webp", "image/gif": "gif"}.get(mime, "jpg")
+        name = f"chat-{hashlib.sha1(raw).hexdigest()[:12]}.{ext}"
+        try:
+            dest = Path(settings.media_dir) / "chat"
+            dest.mkdir(parents=True, exist_ok=True)
+            (dest / name).write_bytes(raw)
+        except Exception:
+            pass
+        try:
+            out = await _gate_json("/files/put", {"name": name, "b64": base64.b64encode(raw).decode()}, timeout=60)
+            if out.get("ok") and out.get("path"):
+                paths.append(out["path"])
+        except Exception:
+            continue
+    return paths
+
+
 async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dict[str, Any]:
     """Chat via Hermes, then Nebius Token Factory (DeepSeek), or a mock response."""
     hermes_user_content: Any = body.message
+    hermes_text = body.message
+    if body.images:
+        desktop_paths = await _push_chat_images_to_desktop(user["workspace"], body.images[:8])
+        if desktop_paths:
+            hermes_text = (
+                body.message
+                + "\n\n[Photos attached by the seller — already copied onto the desktop as files: "
+                + ", ".join(desktop_paths)
+                + ". To put them in a listing use desktop_upload_files(paths=[...]) on the photo input "
+                  "(never try to download them or use the file picker dialog).]"
+            )
     if body.images:
         hermes_user_content = [
-            {"type": "text", "text": body.message},
+            {"type": "text", "text": hermes_text},
             *[
                 {"type": "image_url", "image_url": {"url": image_url}}
                 for image_url in body.images[:4]
