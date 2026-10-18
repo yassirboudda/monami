@@ -159,8 +159,8 @@ export default function DesktopPage() {
       </Card>
 
       {desktopUrl && (
-        <Card className="p-3 mb-6">
-          <div className="rounded-lg overflow-hidden border bg-black aspect-video">
+        <Card className="p-3 mb-6 min-w-0 overflow-hidden">
+          <div className="rounded-lg overflow-hidden border bg-black aspect-video w-full max-w-full">
             <iframe src={desktopUrl} title="OctoHandy remote desktop" className="w-full h-full" allow="clipboard-read; clipboard-write" />
           </div>
           <DesktopClipboard compact={false} />

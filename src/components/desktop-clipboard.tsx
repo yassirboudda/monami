@@ -49,7 +49,7 @@ export function DesktopClipboard({ compact = false }: { compact?: boolean }) {
       </p>
       <div className="flex flex-col sm:flex-row gap-2">
         <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={compact ? 2 : 3} placeholder="Text to transfer…" className="flex-1" />
-        <div className="flex sm:flex-col gap-2 shrink-0">
+        <div className="flex flex-wrap sm:flex-col gap-2 sm:shrink-0 [&>button]:flex-1 sm:[&>button]:flex-none">
           <Button type="button" variant="secondary" size="sm" onClick={() => void send()} disabled={busy !== null || !text.trim()}>
             {busy === "send" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ClipboardPaste className="w-3.5 h-3.5" />} Send to desktop
           </Button>

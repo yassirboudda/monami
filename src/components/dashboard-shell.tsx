@@ -97,7 +97,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <SidebarTrigger className="-ml-1" />
           <div className="ml-auto truncate text-xs text-muted-foreground">{name}</div>
         </header>
-        <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-6 lg:px-8">{children}</main>
+        <main className="flex-1 w-full min-w-0 max-w-6xl mx-auto overflow-x-hidden px-4 py-6 lg:px-8">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   )
