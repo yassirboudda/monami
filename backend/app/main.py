@@ -2078,6 +2078,15 @@ class ShopsSyncIn(BaseModel):
     marketplaces: list[str] | None = None
 
 
+async def _sync_shops_after_agent(user: dict[str, Any]) -> None:
+    """After an agent action on the desktop, re-read the connected marketplaces so new listings show up in Shops."""
+    try:
+        await asyncio.sleep(5)
+        await shops_sync(ShopsSyncIn(), user)
+    except Exception:
+        pass
+
+
 @app.post("/v1/shops/sync")
 async def shops_sync(body: ShopsSyncIn, user: dict[str, Any] = Depends(workspace_user)):
     """Replace the demo data with the seller's real accounts/listings read from the remote desktop Chrome."""
@@ -2578,8 +2587,11 @@ async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dic
                         try:
                             stopped = await _gate_json("/record/stop", {"id": recording_id}, timeout=20)
                             recording_id = None
-                            if stopped.get("ok") and float(stopped.get("durationSec") or 0) >= 20 and ".mp4" not in content:
-                                content += f"\n\nhttps://octohandy.amirelay.com/backend/v1/desktop/recordings/{stopped['id']}.mp4"
+                            if stopped.get("ok") and float(stopped.get("durationSec") or 0) >= 20:
+                                if ".mp4" not in content:
+                                    content += f"\n\nhttps://octohandy.amirelay.com/backend/v1/desktop/recordings/{stopped['id']}.mp4"
+                                # the agent worked on the desktop (e.g. published a listing): refresh the shops in the background
+                                asyncio.create_task(_sync_shops_after_agent(user))
                         except Exception:
                             pass
                     return {

@@ -1,8 +1,10 @@
 "use client"
 
-import { ArrowLeft, Store, Tags } from "lucide-react"
+import { ArrowLeft, RefreshCw, Store, Tags } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
+import { useState } from "react"
+import { toast } from "sonner"
 import { ListingsGrid } from "@/components/listings-grid"
 import { Badge, Button, Card, EmptyState, PageHeader, Skeleton, StatusDot } from "@/components/ui"
 import type { Listing, Shop } from "@/lib/store"
@@ -17,6 +19,26 @@ export default function ShopDetailPage() {
   const listings = listingsResource.data?.listings ?? []
   const isLoading = shopsResource.isLoading || listingsResource.isLoading
   const title = shop?.displayName || "Shop"
+  const [refreshing, setRefreshing] = useState(false)
+
+  const refreshListings = async () => {
+    if (!shop) return
+    setRefreshing(true)
+    try {
+      const r = (await listingsResource.request("/v1/shops/sync", { method: "POST", body: { marketplaces: [shop.marketplace] } })) as {
+        report: { marketplace: string; ok: boolean; loggedIn?: boolean; listings?: number; error?: string }[]
+      }
+      const entry = r.report[0]
+      if (!entry?.ok) toast.error(entry?.error || "Could not read the desktop")
+      else if (!entry.loggedIn) toast.message(`Not logged in to ${shop.marketplace} on the desktop`)
+      else toast.success(`${entry.listings ?? 0} listings read from ${shop.marketplace}`)
+      await Promise.all([listingsResource.mutate(), shopsResource.mutate()])
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Refresh failed")
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   if (!shopId) return null
 
@@ -68,6 +90,9 @@ export default function ShopDetailPage() {
               <Link href="/dashboard/shops">
                 <ArrowLeft className="w-3.5 h-3.5" /> Shops
               </Link>
+            </Button>
+            <Button variant="secondary" size="sm" loading={refreshing} onClick={refreshListings}>
+              <RefreshCw className="w-3.5 h-3.5" /> Refresh listings
             </Button>
             <Button variant="secondary" size="sm" asChild>
               <Link href="/dashboard/shops/all">
