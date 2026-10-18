@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react"
 import { lastAssistantMessageIsCompleteWithToolCalls, type FileUIPart } from "ai"
 import { AnimatePresence, motion, MotionConfig } from "framer-motion"
-import { ArrowUp, Check, ChevronRight, GraduationCap, ImagePlus, Play, ShieldAlert, Sparkles, Square, SquarePen } from "lucide-react"
+import { ArrowUp, Check, ChevronRight, GraduationCap, ImagePlus, Play, ShieldAlert, Sparkles, Square, Trash2 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { toast } from "sonner"
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation"
@@ -209,6 +209,7 @@ export default function ChatPage() {
   const waiting = busy && !(last?.role === "assistant" && last.parts.some((p) => p.type !== "step-start"))
 
   const newConversation = () => {
+    void request("/v1/chat/reset", { method: "POST", body: {} }).catch(() => undefined)
     stop()
     setMessages([])
     store.setChat([], storeUser, activeOrgId)
@@ -217,17 +218,15 @@ export default function ChatPage() {
   return (
     <MotionConfig reducedMotion="user">
       <div className="relative flex h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-7rem)]">
-        {messages.length > 0 && (
-          <button
-            type="button"
-            onClick={newConversation}
-            aria-label="New conversation"
-            title="New conversation"
-            className="absolute right-0 top-0 z-10 grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <SquarePen className="size-[18px]" />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={newConversation}
+          aria-label="Reset chat"
+          title="Reset chat (clears the conversation here and on the agent side)"
+          className="absolute right-0 top-0 z-10 inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+        >
+          <Trash2 className="size-4" /> Reset chat
+        </button>
 
         <Conversation className="flex-1 min-h-0">
           <ConversationContent className="mx-auto w-full max-w-[44rem] gap-7 px-1 pb-44 pt-12">
