@@ -2485,6 +2485,15 @@ async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dic
     hermes_error = None
 
     if settings.hermes_api_key:
+        # Devin-style proof: the desktop is recorded for the whole request; the video is attached to the
+        # answer when the agent actually spent time on the desktop (short text-only answers drop it).
+        recording_id: str | None = None
+        if _desktop_enabled():
+            try:
+                started = await _gate_json("/record/start", {"label": body.message[:120]}, timeout=10)
+                recording_id = started.get("id") if started.get("ok") else None
+            except Exception:
+                recording_id = None
         try:
             async with httpx.AsyncClient(timeout=settings.hermes_timeout) as client:
                 response = await client.post(
@@ -2499,6 +2508,11 @@ async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dic
                         "stream": False,
                     },
                 )
+            if recording_id and response.status_code >= 400:
+                try:
+                    await _gate_json("/record/stop", {"id": recording_id}, timeout=20)
+                except Exception:
+                    pass
             if response.status_code >= 400:
                 hermes_error = f"Hermes returned HTTP {response.status_code}"
             else:
@@ -2507,9 +2521,18 @@ async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dic
                 if finish_reason in ("error", "cancelled"):
                     hermes_error = f"Hermes finish_reason: {finish_reason}"
                 else:
+                    content = choice["message"]["content"]
+                    if recording_id:
+                        try:
+                            stopped = await _gate_json("/record/stop", {"id": recording_id}, timeout=20)
+                            recording_id = None
+                            if stopped.get("ok") and float(stopped.get("durationSec") or 0) >= 20 and ".mp4" not in content:
+                                content += f"\n\nhttps://octohandy.amirelay.com/backend/v1/desktop/recordings/{stopped['id']}.mp4"
+                        except Exception:
+                            pass
                     return {
                         "role": "assistant",
-                        "content": choice["message"]["content"],
+                        "content": content,
                         "model": settings.hermes_model,
                         "via": "hermes",
                     }
