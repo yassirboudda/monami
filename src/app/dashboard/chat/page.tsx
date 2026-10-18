@@ -100,10 +100,10 @@ function AgentCard({ m, onDecide, busy }: { m: AgentMessage; onDecide: (id: stri
   const pending = m.kind === "approval" && m.status === "pending"
   return (
     <div className="flex justify-start">
-      <div className={cn("max-w-[85%] rounded-2xl rounded-bl-md border px-3.5 py-2.5 text-sm space-y-2", pending ? "border-amber-300 bg-amber-50" : "bg-muted border-border")}>
+      <div className={cn("max-w-[85%] sm:max-w-[85%] min-w-0 rounded-2xl rounded-bl-md border px-3.5 py-2.5 text-sm space-y-2", pending ? "border-amber-300 bg-amber-50" : "bg-muted border-border")}>
         <div className="flex items-center gap-2 flex-wrap">
           {m.marketplace ? <MarketplaceLogo marketplace={m.marketplace} size={20} /> : <ShieldAlert className="w-4 h-4 text-amber-600" />}
-          <span className="font-medium">{m.title}</span>
+          <span className="font-medium break-words min-w-0">{m.title}</span>
           {m.kind === "sent" && <Badge tone="green">Sent</Badge>}
           {m.kind === "approval" && m.status === "approved" && <Badge tone="green">Approved</Badge>}
           {m.kind === "approval" && m.status === "rejected" && <Badge tone="red">Declined</Badge>}
