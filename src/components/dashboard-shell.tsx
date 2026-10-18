@@ -3,7 +3,10 @@
 import { useClerk, useUser } from "@/lib/auth"
 import { LogOut, MessageSquareText, MonitorSmartphone, Package, Settings, Store, Users, Workflow } from "lucide-react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react"
+import { toast } from "sonner"
+import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 import { Octopus } from "./oh/octopus"
 import {
   Sidebar,
@@ -31,9 +34,65 @@ const nav = [
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ]
 
+type AgentNotice = { id: string; kind: "info" | "approval" | "sent"; title: string; body: string; status: string; created_at: string }
+const SEEN_KEY = "oh.agentSeenAt"
+const seenListeners = new Set<() => void>()
+const seenStore = {
+  subscribe: (cb: () => void) => {
+    seenListeners.add(cb)
+    return () => seenListeners.delete(cb)
+  },
+  get: () => localStorage.getItem(SEEN_KEY) ?? "",
+  getServer: () => "",
+  set: (value: string) => {
+    localStorage.setItem(SEEN_KEY, value)
+    seenListeners.forEach((cb) => cb())
+  },
+}
+
+/** Agent activity (replies sent to buyers, approval requests) → badge on "Chat" + toast anywhere in the dashboard. */
+function useAgentNotifications(pathname: string) {
+  const router = useRouter()
+  const feed = useWorkspaceResource<{ messages: AgentNotice[] }>("/v1/agent/messages?limit=20")
+  const known = useRef<Set<string> | null>(null)
+  const seenAt = useSyncExternalStore(seenStore.subscribe, seenStore.get, seenStore.getServer)
+  const onChat = pathname.startsWith("/dashboard/chat")
+
+  useEffect(() => {
+    const id = setInterval(() => void feed.mutate(), 20000)
+    return () => clearInterval(id)
+  }, [feed])
+
+  const messages = useMemo(
+    () => (feed.data?.messages ?? []).filter((m) => m.kind === "sent" || (m.kind === "approval" && m.status === "pending")),
+    [feed.data],
+  )
+
+  useEffect(() => {
+    if (!feed.data) return
+    if (onChat) seenStore.set(new Date().toISOString())
+    const ids = new Set(messages.map((m) => m.id))
+    if (known.current) {
+      const fresh = messages.filter((m) => !known.current!.has(m.id))
+      for (const m of fresh.slice(0, 3)) {
+        const show = m.kind === "approval" ? toast.warning : toast.success
+        show(m.title, {
+          description: m.body.slice(0, 160),
+          duration: 10000,
+          action: onChat ? undefined : { label: "Open chat", onClick: () => router.push("/dashboard/chat") },
+        })
+      }
+    }
+    known.current = ids
+  }, [feed.data, messages, onChat, router])
+
+  return onChat ? 0 : messages.filter((m) => m.created_at > seenAt).length
+}
+
 function NavLinks() {
   const pathname = usePathname()
   const { setOpenMobile } = useSidebar()
+  const unread = useAgentNotifications(pathname)
   const active = (href: string) => (href === "/dashboard" ? pathname === href : pathname.startsWith(href))
   return (
     <SidebarMenu>
@@ -48,6 +107,11 @@ function NavLinks() {
             <Link href={n.href} onClick={() => setOpenMobile(false)}>
               <n.icon />
               <span>{n.label}</span>
+              {n.href === "/dashboard/chat" && unread > 0 && (
+                <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold flex items-center justify-center">
+                  {unread > 9 ? "9+" : unread}
+                </span>
+              )}
             </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>
