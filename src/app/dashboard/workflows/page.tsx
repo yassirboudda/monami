@@ -15,6 +15,8 @@ type Flow = {
   steps: string[]
   tone: "teal" | "amber" | "blue" | "slate"
   enabled: boolean
+  source: string
+  trigger: string
   intent: { goal?: string; success_criteria?: string } | null
   guardrails: string[]
 }
@@ -65,7 +67,8 @@ export default function WorkflowsPage() {
                 </div>
                 <Badge tone={flow.tone}>{flow.marketplace}</Badge>
               </div>
-              {flow.intent?.goal && <p className="text-sm mb-2"><span className="font-medium">Objectif :</span> {flow.intent.goal}</p>}
+              {flow.trigger && <p className="text-xs text-muted-foreground mb-2"><span className="font-medium">Trigger:</span> {flow.trigger}</p>}
+              {flow.intent?.goal && <p className="text-sm mb-2"><span className="font-medium">Goal:</span> {flow.intent.goal}</p>}
               {flow.intent?.success_criteria && <p className="text-xs text-muted-foreground mb-2"><span className="font-medium">Expected outcome:</span> {flow.intent.success_criteria}</p>}
               {!!flow.guardrails?.length && (
                 <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5 mb-3">
@@ -84,7 +87,7 @@ export default function WorkflowsPage() {
               </ol>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => setRunning(flow)}>
-                  <Rocket className="w-3.5 h-3.5" /> Run now
+                  <Rocket className="w-3.5 h-3.5" /> {flow.source === "inbox-autopilot" ? "Check inbox now" : "Run now"}
                 </Button>
                 <Button
                   variant="secondary"
