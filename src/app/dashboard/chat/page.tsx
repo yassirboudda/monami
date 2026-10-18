@@ -160,7 +160,12 @@ export default function ChatPage() {
       setDeciding(null)
     }
   }
-  const agentMessages = [...(agentFeed.data?.messages ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at))
+  // Cards worth showing: approvals still waiting for the seller, and replies sent in the last 24 h.
+  // Decided approvals (approved/declined) disappear so the chat does not fill up with stale cards.
+  const dayAgo = Date.now() - 24 * 3600 * 1000
+  const agentMessages = [...(agentFeed.data?.messages ?? [])]
+    .filter((a) => (a.kind === "approval" ? a.status === "pending" : a.kind === "sent" && Date.parse(a.created_at) > dayAgo))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
 
   // The default transport posts to /api/chat with the OctoHandy session cookie.
   const { messages, sendMessage, setMessages, addToolOutput, status, error, stop } = useChat({
