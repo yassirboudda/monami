@@ -2527,7 +2527,7 @@ async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dic
                             stopped = await _gate_json("/record/stop", {"id": recording_id}, timeout=20)
                             recording_id = None
                             if stopped.get("ok") and float(stopped.get("durationSec") or 0) >= 20 and ".mp4" not in content:
-                                content += f"\n\n{"https://octohandy.amirelay.com/backend"}/v1/desktop/recordings/{stopped['id']}.mp4"
+                                content += f"\n\nhttps://octohandy.amirelay.com/backend/v1/desktop/recordings/{stopped['id']}.mp4"
                         except Exception:
                             pass
                     return {
