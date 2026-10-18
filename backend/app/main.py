@@ -2491,7 +2491,7 @@ async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dic
                     f"{settings.hermes_api_url.rstrip('/')}/chat/completions",
                     headers={
                         "Authorization": f"Bearer {settings.hermes_api_key}",
-                        "X-Hermes-Session-Key": f"stockflow-{user['user_id']}",
+                        "X-Hermes-Session-Key": _chat_session_key(user["user_id"]),
                     },
                     json={
                         "model": settings.hermes_model,
@@ -2569,6 +2569,23 @@ async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dic
         raise
     except Exception as e:
         raise HTTPException(502, f"Chat failed: {e}") from e
+
+
+def _chat_session_key(user_id: str) -> str:
+    """Hermes conversation key; bumping chatEpoch (reset button) starts a fresh conversation on the agent side."""
+    epoch = int((_profile(user_id).get("preferences") or {}).get("chatEpoch") or 0)
+    return f"stockflow-{user_id}" + (f"-{epoch}" if epoch else "")
+
+
+@app.post("/v1/chat/reset")
+async def chat_reset(user: dict[str, Any] = Depends(workspace_user)):
+    profile = _profile(user["user_id"])
+    prefs = dict(profile.get("preferences") or {})
+    prefs["chatEpoch"] = int(prefs.get("chatEpoch") or 0) + 1
+    with db.connection() as conn:
+        conn.execute("UPDATE profiles SET preferences = ?, updated_at = ? WHERE user_id = ?",
+                     (json.dumps(prefs, ensure_ascii=False, separators=(",", ":")), _iso_now(), user["user_id"]))
+    return {"ok": True, "chatEpoch": prefs["chatEpoch"]}
 
 
 @app.post("/v1/chat")
