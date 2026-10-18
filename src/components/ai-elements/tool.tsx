@@ -38,13 +38,13 @@ export type ToolHeaderProps = {
 
 const getStatusBadge = (status: ToolUIPart["state"]) => {
   const labels: Record<ToolUIPart["state"], string> = {
-    "input-streaming": "En attente",
-    "input-available": "En cours",
-    "approval-requested": "À valider",
-    "approval-responded": "Répondu",
-    "output-available": "Terminé",
-    "output-error": "Erreur",
-    "output-denied": "Refusé",
+    "input-streaming": "Pending",
+    "input-available": "Running",
+    "approval-requested": "Needs approval",
+    "approval-responded": "Answered",
+    "output-available": "Done",
+    "output-error": "Error",
+    "output-denied": "Declined",
   };
 
   const icons: Record<ToolUIPart["state"], ReactNode> = {
@@ -145,7 +145,7 @@ export const ToolOutput = ({
   return (
     <div className={cn("space-y-2 p-4", className)} {...props}>
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {errorText ? "Erreur" : "Résultat"}
+        {errorText ? "Error" : "Result"}
       </h4>
       <div
         className={cn(

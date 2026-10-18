@@ -24,12 +24,12 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
     const load = async () => {
       try {
         const authToken = await getToken()
-        if (!authToken) throw new Error("Connecte-toi avec le mot de passe d'accès pour consulter cette invitation.")
+        if (!authToken) throw new Error("Sign in with the access password to view this invitation.")
         const result = await apiFetch<InviteInfo>(`/v1/invites/${encodeURIComponent(inviteToken)}`, { token: authToken })
         if (!cancelled) setInvite(result)
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : ""
-        if (!cancelled) setError(/410|expir/i.test(message) ? "Ce lien d'invitation a expiré. Demande un nouveau lien à l'équipe." : /404|introuvable/i.test(message) ? "Ce lien d'invitation est introuvable ou invalide." : message || "Impossible de charger l'invitation.")
+        if (!cancelled) setError(/410|expir/i.test(message) ? "This invitation link has expired. Ask the team for a new one." : /404|introuvable/i.test(message) ? "This invitation link is invalid or could not be found." : message || "Could not load the invitation.")
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -44,11 +44,11 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
     setAccepting(true)
     try {
       const authToken = await getToken()
-      if (!authToken) throw new Error("Connecte-toi pour rejoindre l'équipe.")
+      if (!authToken) throw new Error("Sign in to join the team.")
       await apiFetch(`/v1/invites/${encodeURIComponent(inviteToken)}/accept`, { method: "POST", token: authToken })
       router.push("/dashboard")
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Impossible de rejoindre cette équipe.")
+      setError(cause instanceof Error ? cause.message : "Could not join this team.")
     } finally {
       setAccepting(false)
     }
@@ -63,16 +63,16 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
         </span>
         <h1 className="font-heading text-2xl text-foreground">Invitation OctoHandy</h1>
         {loading ? (
-          <p className="mt-3 text-sm text-muted-foreground">Chargement de l&apos;invitation…</p>
+          <p className="mt-3 text-sm text-muted-foreground">Loading the invitation…</p>
         ) : error ? (
           <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>
         ) : invite ? (
           <>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Tu es invité·e à rejoindre <strong className="text-foreground">{invite.orgName}</strong> : stock, boutiques et workflows partagés.
+              You are invited to join <strong className="text-foreground">{invite.orgName}</strong>: shared stock, shops and workflows.
             </p>
             <Button className="mt-6" loading={accepting} onClick={() => void accept()}>
-              Rejoindre l&apos;équipe <ArrowRight className="w-4 h-4" />
+              Join the team <ArrowRight className="w-4 h-4" />
             </Button>
           </>
         ) : null}

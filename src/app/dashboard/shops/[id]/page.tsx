@@ -16,7 +16,7 @@ export default function ShopDetailPage() {
   const shop = shopsResource.data?.shops.find((entry) => entry.id === shopId) ?? null
   const listings = listingsResource.data?.listings ?? []
   const isLoading = shopsResource.isLoading || listingsResource.isLoading
-  const title = shop?.displayName || "Boutique"
+  const title = shop?.displayName || "Shop"
 
   if (!shopId) return null
 
@@ -35,8 +35,8 @@ export default function ShopDetailPage() {
       <Card>
         <EmptyState
           icon={<Store className="w-6 h-6" />}
-          title="Boutique introuvable"
-          text="Cette boutique n'existe pas dans cet espace. Retourne à Boutique."
+          title="Shop not found"
+          text="This shop does not exist in this workspace. Go back to Shops."
           action={
             <Button size="sm" asChild>
               <Link href="/dashboard/shops">Retour boutiques</Link>
@@ -50,34 +50,34 @@ export default function ShopDetailPage() {
   return (
     <div>
       <PageHeader
-        label="Boutique"
+        label="Shop"
         title={title}
         subtitle={
           <span className="inline-flex items-center gap-2 flex-wrap">
             <Badge tone={shop.marketplace === "vinted" ? "teal" : "amber"}>{shop.marketplace}</Badge>
             <span className="inline-flex items-center gap-1.5 text-sm">
               <StatusDot tone={shop.status === "connected" ? "green" : "red"} live={shop.status === "connected"} />
-              {shop.status === "connected" ? "Session valide" : "Session expirée"}
+              {shop.status === "connected" ? "Session valid" : "Session expired"}
             </span>
-            <span className="text-sm text-muted-foreground">· {listings.length} annonces</span>
+            <span className="text-sm text-muted-foreground">· {listings.length} listings</span>
           </span>
         }
         actions={
           <>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/dashboard/shops">
-                <ArrowLeft className="w-3.5 h-3.5" /> Boutiques
+                <ArrowLeft className="w-3.5 h-3.5" /> Shops
               </Link>
             </Button>
             <Button variant="secondary" size="sm" asChild>
               <Link href="/dashboard/shops/all">
-                <Tags className="w-3.5 h-3.5" /> Voir toutes les annonces
+                <Tags className="w-3.5 h-3.5" /> View all listings
               </Link>
             </Button>
           </>
         }
       />
-      <ListingsGrid listings={listings} emptyText="Cette boutique n'a pas encore d'annonces." />
+      <ListingsGrid listings={listings} emptyText="This shop has no listings yet." />
     </div>
   )
 }

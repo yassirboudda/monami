@@ -30,24 +30,30 @@ function normalizeText(value: string) {
 
 function displayToolFor(text: string): { tool: DisplayTool; reply: string } | undefined {
   const normalized = normalizeText(text)
-  if (normalized === "lance un de mes workflows") {
-    return { tool: "showWorkflows", reply: "Voici tes workflows : tu peux les activer, les lancer ou en apprendre un nouveau." }
+  if (normalized === "lance un de mes workflows" || normalized === "run one of my workflows") {
+    return { tool: "showWorkflows", reply: "Here are your workflows: enable them, run them or teach a new one." }
   }
 
-  const request = normalized.match(/\b(?:montre|affiche|liste|voir|vois)\b[\s\S]*/)?.[0]
+  const request = normalized.match(/\b(?:montre|affiche|liste|voir|vois|show|display|list|open)\b[\s\S]*/)?.[0]
   if (!request) return
   if (/\bworkflows?\b/.test(request)) {
-    return { tool: "showWorkflows", reply: "Voici tes workflows : tu peux les activer, les lancer ou en apprendre un nouveau." }
+    return { tool: "showWorkflows", reply: "Here are your workflows: enable them, run them or teach a new one." }
   }
-  if (/\bboutiques?\b/.test(request)) return { tool: "showShops", reply: "Voici tes boutiques." }
-  if (/\bstock\b/.test(request)) return { tool: "showStock", reply: "Voici ton stock." }
-  if (/\bbureau\b/.test(request)) return { tool: "showDesktop", reply: "Voici le bureau OctoHandy." }
-  if (/\bequipe\b/.test(request)) return { tool: "showTeam", reply: "Voici ton équipe." }
+  if (/\b(?:boutiques?|shops?)\b/.test(request)) return { tool: "showShops", reply: "Here are your shops." }
+  if (/\b(?:stock|inventory)\b/.test(request)) return { tool: "showStock", reply: "Here is your stock." }
+  if (/\b(?:bureau|desktop)\b/.test(request)) return { tool: "showDesktop", reply: "Here is the OctoHandy desktop." }
+  if (/\b(?:equipe|team)\b/.test(request)) return { tool: "showTeam", reply: "Here is your team." }
 }
 
 function recordingInputFor(text: string) {
   const normalized = normalizeText(text)
-  if (normalized !== "je veux qu'octohandy apprenne une tache" && !normalized.startsWith("je veux apprendre a octohandy")) {
+  if (
+    normalized !== "je veux qu'octohandy apprenne une tache" &&
+    !normalized.startsWith("je veux apprendre a octohandy") &&
+    normalized !== "i want octohandy to learn a task" &&
+    !normalized.startsWith("i want to teach octohandy") &&
+    !normalized.startsWith("teach octohandy")
+  ) {
     return undefined
   }
   const normalizedText = normalized
@@ -66,7 +72,7 @@ function writeText(writer: UIMessageStreamWriter<UIMessage>, text: string) {
 }
 
 function noReply(status: number) {
-  return `Le bureau OctoHandy n'a pas répondu (HTTP ${status}). Réessaie dans un instant.`
+  return `The OctoHandy desktop did not answer (HTTP ${status}). Try again in a moment.`
 }
 
 export async function POST(req: Request) {
@@ -93,7 +99,7 @@ export async function POST(req: Request) {
     if (result && "output" in result) {
       const toolName = result.type.slice("tool-".length)
       const output = JSON.stringify(result.output) ?? "null"
-      hermesMessage = `Résultat de l'étape « ${toolName} » dans le chat : ${output.slice(0, 2000)}. Résume au vendeur en une ou deux phrases ce qui s'est passé et ce qu'il peut faire ensuite.`
+      hermesMessage = `Result of the chat step “${toolName}”: ${output.slice(0, 2000)}. Summarise for the seller, in one or two sentences and in their language, what happened and what they can do next.`
     }
   } else if (last?.role === "user") {
     const text = last.parts.reduce((joined, part) => (part.type === "text" ? joined + part.text : joined), "")
@@ -103,7 +109,7 @@ export async function POST(req: Request) {
     } else {
       shortcut = displayToolFor(text)
       if (!shortcut) {
-        hermesMessage = text.trim() || "Voici une photo"
+        hermesMessage = text.trim() || "Here is a photo"
         images = last.parts
           .flatMap((part) => (part.type === "file" && part.mediaType.startsWith("image/") ? [part.url] : []))
           .slice(0, 4)

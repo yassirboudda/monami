@@ -60,27 +60,27 @@ export default function DesktopPage() {
       const session = await status.request<{ url: string }>("/v1/desktop/sessions", { method: "POST", body: { purpose: "browse" } })
       setDesktopUrl(session.url)
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Bureau indisponible")
+      toast.error(cause instanceof Error ? cause.message : "Desktop unavailable")
     } finally {
       setOpening(false)
     }
   }
 
   const s = status.data
-  const screenAt = s?.screen?.at ? new Date(s.screen.at).toLocaleTimeString("fr-FR") : null
+  const screenAt = s?.screen?.at ? new Date(s.screen.at).toLocaleTimeString("en-GB") : null
 
   return (
     <div>
       <PageHeader
         label="Infrastructure"
-        title="Bureau OctoHandy"
+        title="OctoHandy desktop"
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => void Promise.all([status.mutate(), teach.mutate(), runs.mutate(), screen.mutate()])}>
-              <RefreshCw className="w-4 h-4" /> Rafraîchir
+              <RefreshCw className="w-4 h-4" /> Refresh
             </Button>
             <Button onClick={() => void openDesktop()} loading={opening}>
-              <MonitorSmartphone className="w-4 h-4" /> Ouvrir le bureau
+              <MonitorSmartphone className="w-4 h-4" /> Open the desktop
             </Button>
           </div>
         }
@@ -90,22 +90,22 @@ export default function DesktopPage() {
         <Alert variant="destructive" className="mb-6"><AlertDescription>Statut indisponible : {status.error.message}</AlertDescription></Alert>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          <Tile title="Bureau distant" ok={s ? s.gate : null} detail={s?.host ? `${s.host.replace("https://", "")} · noVNC, jeton signé 15 min` : "Chargement…"} icon={MonitorSmartphone} />
-          <Tile title="Screenpipe" ok={s ? !!s.screenpipe?.ok : null} detail={s?.screenpipe ? `état ${s.screenpipe.status} · OCR + fenêtres, 24/7` : "non configuré"} icon={Eye} />
-          <Tile title="Agent Hermes" ok={s ? s.hermes : null} detail={s?.model ? `NemoClaw sandbox · ${s.model}` : "Chargement…"} icon={Brain} />
-          <Tile title="Sortie réseau" ok={s ? s.gate : null} detail="Proxy résidentiel dédié (FR) forcé pour Chrome, aucune sortie directe" icon={ShieldCheck} />
+          <Tile title="Remote desktop" ok={s ? s.gate : null} detail={s?.host ? `${s.host.replace("https://", "")} · noVNC, 15-min signed token` : "Loading…"} icon={MonitorSmartphone} />
+          <Tile title="Screenpipe" ok={s ? !!s.screenpipe?.ok : null} detail={s?.screenpipe ? `status ${s.screenpipe.status} · OCR + windows, 24/7` : "not configured"} icon={Eye} />
+          <Tile title="Hermes agent" ok={s ? s.hermes : null} detail={s?.model ? `NemoClaw sandbox · ${s.model}` : "Loading…"} icon={Brain} />
+          <Tile title="Network egress" ok={s ? s.gate : null} detail="Dedicated residential proxy (FR) forced for Chrome, no direct egress" icon={ShieldCheck} />
         </div>
       )}
 
       {s?.screen && (
         <Card className="p-4 mb-6">
-          <p className="text-label mb-1">À l&apos;écran {screenAt && `· ${screenAt}`}</p>
-          <p className="font-medium text-sm">{s.screen.window || "Bureau"}</p>
+          <p className="text-label mb-1">On screen {screenAt && `· ${screenAt}`}</p>
+          <p className="font-medium text-sm">{s.screen.window || "Desktop"}</p>
           {s.screen.url && <p className="text-xs text-muted-foreground truncate">{s.screen.url}</p>}
           {s.screen.excerpt && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{s.screen.excerpt}</p>}
           {s.screen.raw && (
             <details className="mt-1">
-              <summary className="text-[11px] text-muted-foreground cursor-pointer">Texte brut lu par Screenpipe (OCR)</summary>
+              <summary className="text-[11px] text-muted-foreground cursor-pointer">Raw text read by Screenpipe (OCR)</summary>
               <p className="text-[11px] text-muted-foreground mt-1 break-words">{s.screen.raw}</p>
             </details>
           )}
@@ -116,12 +116,12 @@ export default function DesktopPage() {
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
             <Eye className="w-4 h-4 text-muted-foreground" />
-            <p className="font-semibold">Ce que Screenpipe a vu à l&apos;écran (2 dernières minutes)</p>
+            <p className="font-semibold">What Screenpipe saw on screen (last 2 minutes)</p>
           </div>
           <div className="flex items-center gap-2">
             {screen.data && <Badge tone={screen.data.frames ? "teal" : "amber"}>{screen.data.frames} frames</Badge>}
             <Button variant="secondary" size="sm" onClick={() => void screen.mutate()} loading={screen.isLoading}>
-              <RefreshCw className="w-3.5 h-3.5" /> Relire l&apos;écran
+              <RefreshCw className="w-3.5 h-3.5" /> Re-read the screen
             </Button>
           </div>
         </div>
@@ -130,14 +130,14 @@ export default function DesktopPage() {
         ) : !screen.data ? (
           <p className="text-sm text-muted-foreground">Lecture…</p>
         ) : !screen.data.events.length ? (
-          <p className="text-sm text-muted-foreground">Rien capturé sur les 2 dernières minutes (écran statique ou bureau inactif). Ouvre le bureau et bouge dans Chrome, puis relis.</p>
+          <p className="text-sm text-muted-foreground">Nothing captured in the last 2 minutes (static screen or idle desktop). Open the desktop, move around in Chrome, then re-read.</p>
         ) : (
           <ul className="space-y-1.5 text-sm max-h-80 overflow-y-auto">
             {screen.data.events.map((e, i) => (
               <li key={`${e.t}-${i}`} className="flex gap-3">
-                <span className="text-xs text-muted-foreground tabular-nums shrink-0 pt-0.5">{e.t ? new Date(e.t).toLocaleTimeString("fr-FR") : "—"}</span>
+                <span className="text-xs text-muted-foreground tabular-nums shrink-0 pt-0.5">{e.t ? new Date(e.t).toLocaleTimeString("en-GB") : "—"}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{e.label || (e.window ? `Chrome · ${e.window}` : e.app || "Bureau OctoHandy")}</p>
+                  <p className="font-medium truncate">{e.label || (e.window ? `Chrome · ${e.window}` : e.app || "OctoHandy desktop")}</p>
                   {e.summary ? (
                     <p className="text-sm text-foreground/80">{e.summary}</p>
                   ) : e.text ? (
@@ -147,7 +147,7 @@ export default function DesktopPage() {
                   )}
                   {e.summary && e.text && (
                     <details className="mt-0.5">
-                      <summary className="text-[11px] text-muted-foreground cursor-pointer">Texte brut lu par Screenpipe</summary>
+                      <summary className="text-[11px] text-muted-foreground cursor-pointer">Raw text read by Screenpipe</summary>
                       <p className="text-[11px] text-muted-foreground mt-1 break-words">{e.text}</p>
                     </details>
                   )}
@@ -161,12 +161,12 @@ export default function DesktopPage() {
       {desktopUrl && (
         <Card className="p-3 mb-6">
           <div className="rounded-lg overflow-hidden border bg-black aspect-video">
-            <iframe src={desktopUrl} title="Bureau distant OctoHandy" className="w-full h-full" allow="clipboard-read; clipboard-write" />
+            <iframe src={desktopUrl} title="OctoHandy remote desktop" className="w-full h-full" allow="clipboard-read; clipboard-write" />
           </div>
           <DesktopClipboard compact={false} />
           <div className="flex justify-end mt-2">
             <a href={desktopUrl} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}>
-              <ExternalLink className="w-4 h-4" /> Plein écran
+              <ExternalLink className="w-4 h-4" /> Full screen
             </a>
           </div>
         </Card>
@@ -176,10 +176,10 @@ export default function DesktopPage() {
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-3">
             <GraduationCap className="w-4 h-4 text-muted-foreground" />
-            <p className="font-semibold">Démonstrations apprises</p>
+            <p className="font-semibold">Learned demonstrations</p>
           </div>
           {!teach.data?.sessions?.length ? (
-            <p className="text-sm text-muted-foreground">Aucune encore. Workflows → « Apprendre en le faisant ».</p>
+            <p className="text-sm text-muted-foreground">None yet. Workflows → “Teach by doing”.</p>
           ) : (
             <ul className="space-y-2 text-sm">
               {teach.data.sessions.slice(0, 8).map((t) => (
@@ -187,7 +187,7 @@ export default function DesktopPage() {
                   <div className="min-w-0">
                     <p className="font-medium truncate">{t.draft?.title ?? `Session ${marketplaceName(t.marketplace)}`}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(t.startedAt).toLocaleString("fr-FR")} · {t.trace?.frames ?? 0} écrans
+                      {new Date(t.startedAt).toLocaleString("en-GB")} · {t.trace?.frames ?? 0} screens
                     </p>
                   </div>
                   <Badge tone={t.status === "saved" ? "teal" : t.status === "draft" ? "amber" : "slate"}>{t.status}</Badge>
@@ -199,10 +199,10 @@ export default function DesktopPage() {
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-3">
             <Rocket className="w-4 h-4 text-muted-foreground" />
-            <p className="font-semibold">Exécutions de l&apos;agent (journal)</p>
+            <p className="font-semibold">Agent runs (log)</p>
           </div>
           {!runs.data?.runs?.length ? (
-            <p className="text-sm text-muted-foreground">Aucune encore. Workflows → « Lancer maintenant ».</p>
+            <p className="text-sm text-muted-foreground">None yet. Workflows → “Run now”.</p>
           ) : (
             <ul className="space-y-2 text-sm">
               {runs.data.runs.slice(0, 8).map((r) => (
@@ -212,7 +212,7 @@ export default function DesktopPage() {
                     <Badge tone={r.status === "executed" ? "teal" : r.status === "awaiting_approval" ? "amber" : r.status === "rejected" ? "slate" : "blue"}>{r.status}</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(r.createdAt).toLocaleString("fr-FR")} · {r.log.length} action(s) · {r.context?.frames ?? 0} écrans vus
+                    {new Date(r.createdAt).toLocaleString("en-GB")} · {r.log.length} action(s) · {r.context?.frames ?? 0} screens seen
                   </p>
                 </li>
               ))}

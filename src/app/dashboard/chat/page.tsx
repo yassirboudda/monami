@@ -39,9 +39,9 @@ const VIDEO_URL = /https?:\/\/\S+\.mp4\b/g
 
 // What a seller can start with, phrased as the action they want; the prompt is what gets sent.
 const STARTERS = [
-  { icon: GraduationCap, tint: "bg-butter", label: "Apprendre une tâche à OctoHandy", prompt: "Je veux qu'OctoHandy apprenne une tâche" },
-  { icon: Play, tint: "bg-sky", label: "Lancer un de mes workflows", prompt: "Lance un de mes workflows" },
-  { icon: Sparkles, tint: "bg-secondary", label: "Ce que je peux te demander", prompt: "Qu'est-ce que tu sais faire ?" },
+  { icon: GraduationCap, tint: "bg-butter", label: "Teach OctoHandy a task", prompt: "I want OctoHandy to learn a task" },
+  { icon: Play, tint: "bg-sky", label: "Run one of my workflows", prompt: "Run one of my workflows" },
+  { icon: Sparkles, tint: "bg-secondary", label: "What can I ask you?", prompt: "What can you do?" },
 ]
 
 const noopSubscribe = () => () => {}
@@ -50,7 +50,7 @@ const noopSubscribe = () => () => {}
 function AddPhotoButton() {
   const attachments = usePromptInputAttachments()
   return (
-    <PromptInputButton aria-label="Ajouter des photos" title="Ajouter des photos" className="rounded-full" onClick={() => attachments.openFileDialog()}>
+    <PromptInputButton aria-label="Add photos" title="Add photos" className="rounded-full" onClick={() => attachments.openFileDialog()}>
       <ImagePlus className="size-[18px]" />
     </PromptInputButton>
   )
@@ -82,7 +82,7 @@ type RecordingOutput = { saved: true; title: string; steps: string[] } | { saved
 type ConnectOutput = { connected: true; shop: string } | { connected: false }
 
 const note = "text-[13px] text-muted-foreground"
-const interrupted = <p className={note}>Session interrompue. Redemande-moi si tu veux reprendre.</p>
+const interrupted = <p className={note}>Session interrupted. Ask me again if you want to resume.</p>
 
 // Messages posted by the inbox autopilot (A4000): approvals to decide, replies it sent.
 type AgentMessage = {
@@ -104,19 +104,19 @@ function AgentCard({ m, onDecide, busy }: { m: AgentMessage; onDecide: (id: stri
         <div className="flex items-center gap-2 flex-wrap">
           {m.marketplace ? <MarketplaceLogo marketplace={m.marketplace} size={20} /> : <ShieldAlert className="w-4 h-4 text-amber-600" />}
           <span className="font-medium">{m.title}</span>
-          {m.kind === "sent" && <Badge tone="green">Envoyé</Badge>}
-          {m.kind === "approval" && m.status === "approved" && <Badge tone="green">Approuvé</Badge>}
-          {m.kind === "approval" && m.status === "rejected" && <Badge tone="red">Refusé</Badge>}
-          {pending && <Badge tone="amber">Ton accord ?</Badge>}
+          {m.kind === "sent" && <Badge tone="green">Sent</Badge>}
+          {m.kind === "approval" && m.status === "approved" && <Badge tone="green">Approved</Badge>}
+          {m.kind === "approval" && m.status === "rejected" && <Badge tone="red">Declined</Badge>}
+          {pending && <Badge tone="amber">Your call</Badge>}
         </div>
         {m.body && <p className="whitespace-pre-wrap text-foreground/90">{m.body}</p>}
         {pending && (
           <div className="flex gap-2 pt-1">
             <Button size="sm" loading={busy} onClick={() => onDecide(m.id, "approved")}>
-              <Check className="w-3.5 h-3.5" /> Approuver et envoyer
+              <Check className="w-3.5 h-3.5" /> Approve and send
             </Button>
             <Button size="sm" variant="secondary" disabled={busy} onClick={() => onDecide(m.id, "rejected")}>
-              Refuser
+              Decline
             </Button>
           </div>
         )}
@@ -136,7 +136,7 @@ export default function ChatPage() {
   const request = useCallback(
     async <R,>(path: string, options: { method?: string; body?: unknown } = {}) => {
       const token = await getToken()
-      if (!token) throw new Error("Session OctoHandy introuvable")
+      if (!token) throw new Error("OctoHandy session not found")
       return apiFetch<R>(path, { ...options, token })
     },
     [getToken]
@@ -153,9 +153,9 @@ export default function ChatPage() {
     try {
       await agentFeed.request(`/v1/agent/messages/${id}/decide`, { method: "POST", body: { decision } })
       await agentFeed.mutate()
-      toast.success(decision === "approved" ? "L'agent envoie la réponse sur le bureau." : "Refusé — rien ne sera envoyé.")
+      toast.success(decision === "approved" ? "The agent is sending the reply on the desktop." : "Declined — nothing will be sent.")
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Décision impossible")
+      toast.error(e instanceof Error ? e.message : "Could not save your decision")
     } finally {
       setDeciding(null)
     }
@@ -202,7 +202,7 @@ export default function ChatPage() {
   const submit = async (message: PromptInputMessage) => {
     if (busy || (!message.text.trim() && !message.files.length)) return
     const files = await Promise.all(message.files.map((f) => shrinkPhoto(f)))
-    void sendMessage({ text: message.text.trim() || "Voici une photo", files })
+    void sendMessage({ text: message.text.trim() || "Here is a photo", files })
   }
 
   const last = messages.at(-1)
@@ -221,8 +221,8 @@ export default function ChatPage() {
           <button
             type="button"
             onClick={newConversation}
-            aria-label="Nouvelle conversation"
-            title="Nouvelle conversation"
+            aria-label="New conversation"
+            title="New conversation"
             className="absolute right-0 top-0 z-10 grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <SquarePen className="size-[18px]" />
@@ -235,9 +235,9 @@ export default function ChatPage() {
               <div className="flex min-h-[calc(100dvh-22rem)] flex-col items-center justify-center text-center">
                 <Octopus still className="size-16" />
                 <h1 className="mt-5 font-heading text-[2.5rem] leading-[1.1] text-foreground">
-                  {user?.firstName ? `Bonjour ${user.firstName}.` : "Bonjour."}
+                  {user?.firstName ? `Hello ${user.firstName}.` : "Hello."}
                 </h1>
-                <p className="mt-2 text-[17px] text-muted-foreground">Que veux-tu confier à OctoHandy ?</p>
+                <p className="mt-2 text-[17px] text-muted-foreground">What would you like OctoHandy to handle?</p>
                 <ul className={cn("mt-9 w-full max-w-[26rem] overflow-hidden rounded-2xl bg-card text-left", RAISED)}>
                   {STARTERS.map(({ icon: Icon, tint, label, prompt }) => (
                     <li key={label} className="[&+li>button]:before:absolute [&+li>button]:before:left-[3.75rem] [&+li>button]:before:right-0 [&+li>button]:before:top-0 [&+li>button]:before:h-px [&+li>button]:before:bg-border">
@@ -301,7 +301,7 @@ export default function ChatPage() {
                               return (
                                 <p key={key} className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
                                   {out.saved && <Check className="size-3.5 text-success" />}
-                                  {out.saved ? `Workflow « ${out.title} » enregistré` : "Enregistrement annulé"}
+                                  {out.saved ? `Workflow “${out.title}” saved` : "Recording cancelled"}
                                 </p>
                               )
                             }
@@ -321,7 +321,7 @@ export default function ChatPage() {
                             )
                           }
                           case "tool-runWorkflow": {
-                            if (part.state === "output-available") return <p key={key} className={note}>Exécution du workflow terminée</p>
+                            if (part.state === "output-available") return <p key={key} className={note}>Workflow run finished</p>
                             if (part.state !== "input-available") return null
                             if (restored.has(part.toolCallId)) return <div key={key}>{interrupted}</div>
                             return (
@@ -339,7 +339,7 @@ export default function ChatPage() {
                               return (
                                 <p key={key} className={cn(note, "inline-flex items-center gap-1.5")}>
                                   {out.connected && <Check className="size-3.5 text-success" />}
-                                  {out.connected ? `${out.shop} connectée` : "Connexion annulée"}
+                                  {out.connected ? `${out.shop} connected` : "Connection cancelled"}
                                 </p>
                               )
                             }
@@ -361,7 +361,7 @@ export default function ChatPage() {
                           case "tool-askDesktopAgent":
                             return (
                               <Tool key={key} className={cn("mb-0 max-w-[34rem] rounded-2xl border-0 bg-card", RAISED)}>
-                                <ToolHeader title="Bureau OctoHandy" type={part.type} state={part.state} />
+                                <ToolHeader title="OctoHandy desktop" type={part.type} state={part.state} />
                                 <ToolContent>
                                   <ToolInput input={part.input} />
                                   <ToolOutput output={part.output} errorText={part.errorText} />
@@ -371,7 +371,7 @@ export default function ChatPage() {
                           default: {
                             const embed = EMBEDDED_PAGES[part.type]
                             if (!embed || !("state" in part)) return null
-                            if (part.state === "output-error") return <p key={key} className={note}>Impossible d&apos;afficher {embed.label} : {part.errorText}</p>
+                            if (part.state === "output-error") return <p key={key} className={note}>Could not display {embed.label}: {part.errorText}</p>
                             if (part.state !== "output-available") return <p key={key} className={cn("text-[13px]", styles.shimmer)}>J&apos;ouvre {embed.label}…</p>
                             return (
                               <EmbeddedPage key={key}>
@@ -397,12 +397,12 @@ export default function ChatPage() {
 
             {waiting && (
               <p className={cn("text-[15px]", styles.shimmer)} role="status">
-                OctoHandy réfléchit…
+                OctoHandy is thinking…
               </p>
             )}
             {error && !busy && (
               <p className="text-[15px] text-muted-foreground" role="alert">
-                OctoHandy n&apos;a pas pu répondre. Renvoie ton message pour réessayer.
+                OctoHandy could not reply. Send your message again to retry.
               </p>
             )}
           </ConversationContent>
@@ -426,7 +426,7 @@ export default function ChatPage() {
               <PromptInputAttachments>{(file) => <PromptInputAttachment data={file} />}</PromptInputAttachments>
               <PromptInputBody>
                 <PromptInputTextarea
-                  placeholder="Écris à OctoHandy…"
+                  placeholder="Message OctoHandy…"
                   className="min-h-12 px-5 pt-4 text-[15px] placeholder:text-muted-foreground/80"
                 />
               </PromptInputBody>
@@ -438,7 +438,7 @@ export default function ChatPage() {
                 <PromptInputSubmit
                   status={status}
                   disabled={status === "submitted"}
-                  aria-label={status === "streaming" ? "Arrêter" : "Envoyer"}
+                  aria-label={status === "streaming" ? "Stop" : "Send"}
                   className="size-8 rounded-full"
                   onClick={(e) => {
                     if (status !== "streaming") return

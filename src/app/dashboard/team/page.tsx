@@ -23,7 +23,7 @@ export default function TeamPage() {
       setInviteUrl(`${window.location.origin}${result.path}`)
       setCopied(false)
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Impossible de créer le lien")
+      toast.error(cause instanceof Error ? cause.message : "Could not create the link")
     } finally {
       setCreating(false)
     }
@@ -32,35 +32,35 @@ export default function TeamPage() {
   const copyInvite = async () => {
     await navigator.clipboard.writeText(inviteUrl)
     setCopied(true)
-    toast.success("Lien d'invitation copié")
+    toast.success("Invitation link copied")
   }
 
   return (
     <div>
       <PageHeader
-        label="Espace de travail"
-        title="Équipe"
+        label="Workspace"
+        title="Team"
         actions={
           <Button loading={creating} onClick={() => void createInvite()}>
-            <Link2 className="size-4" /> Générer un lien d&apos;invitation
+            <Link2 className="size-4" /> Generate an invitation link
           </Button>
         }
       />
       {inviteUrl && (
         <Card className="mb-4 rounded-2xl p-5">
-          <p className="mb-3 text-sm font-medium">Lien d&apos;invitation (valable 7 jours) — la personne se connecte avec le mot de passe d&apos;accès et partage ton stock, tes boutiques et tes workflows.</p>
+          <p className="mb-3 text-sm font-medium">Invitation link (valid 7 days) — the person signs in with the access password and shares your stock, shops and workflows.</p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <code className="min-w-0 flex-1 break-all rounded-lg bg-muted px-3 py-2 text-xs">{inviteUrl}</code>
             <Button variant="secondary" size="sm" onClick={() => void copyInvite()}>
               {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-              {copied ? "Copié" : "Copier le lien"}
+              {copied ? "Copied" : "Copy link"}
             </Button>
           </div>
         </Card>
       )}
       <div className="mb-5 flex items-start gap-3 rounded-xl border border-sky/70 bg-sky/30 p-4 text-sm">
         <Users className="mt-0.5 size-4 shrink-0" />
-        <p>Un espace partagé : les personnes invitées se connectent avec le mot de passe d&apos;accès et partagent ton stock, tes boutiques et tes workflows.</p>
+        <p>A shared workspace: invited people sign in with the access password and share your stock, shops and workflows.</p>
       </div>
       <Card className="overflow-hidden rounded-2xl">
         <div className="flex items-center gap-3 border-b p-5">
@@ -69,7 +69,7 @@ export default function TeamPage() {
             <p className="truncate font-semibold">{name}</p>
             <p className="truncate text-sm text-muted-foreground">{email}</p>
           </div>
-          <Badge>propriétaire</Badge>
+          <Badge>owner</Badge>
         </div>
         <div className="grid gap-4 p-5 sm:grid-cols-2">
           <div>
@@ -77,8 +77,8 @@ export default function TeamPage() {
             <p className="text-sm font-medium">{name}</p>
           </div>
           <div>
-            <p className="text-label mb-1">Rôle</p>
-            <p className="text-sm font-medium">Propriétaire de l&apos;espace</p>
+            <p className="text-label mb-1">Role</p>
+            <p className="text-sm font-medium">Workspace owner</p>
           </div>
         </div>
       </Card>

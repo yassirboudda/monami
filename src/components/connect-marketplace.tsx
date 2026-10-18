@@ -96,7 +96,7 @@ export function ConnectMarketplaceModal({
         })
         setSession(next)
       } catch (cause) {
-        toast.error(cause instanceof Error ? cause.message : "Bureau distant indisponible")
+        toast.error(cause instanceof Error ? cause.message : "Remote desktop unavailable")
       } finally {
         setLoading(false)
       }
@@ -116,7 +116,7 @@ export function ConnectMarketplaceModal({
         if (!cancelled) setSession(next)
       })
       .catch((cause: unknown) => {
-        if (!cancelled) toast.error(cause instanceof Error ? cause.message : "Bureau distant indisponible")
+        if (!cancelled) toast.error(cause instanceof Error ? cause.message : "Remote desktop unavailable")
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -134,12 +134,12 @@ export function ConnectMarketplaceModal({
         method: "POST",
         body: { marketplace },
       })
-      toast.success(`${marketplaceName(marketplace, marketplaces)} connecté sur le bureau OctoHandy`)
+      toast.success(`${marketplaceName(marketplace, marketplaces)} connected on the OctoHandy desktop`)
       onConnected?.(shop)
       await request("/v1/desktop/release", { method: "POST" }).catch(() => undefined)
       onClose()
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Impossible d'enregistrer la connexion")
+      toast.error(cause instanceof Error ? cause.message : "Could not save the connection")
     } finally {
       setConfirming(false)
     }
@@ -151,16 +151,16 @@ export function ConnectMarketplaceModal({
   }
 
   const name = marketplace ? marketplaceName(marketplace, marketplaces) : null
-  const expires = session ? new Date(session.expiresAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : null
+  const expires = session ? new Date(session.expiresAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : null
 
   return (
-    <ModalOrCard inline={inline} open={open} onClose={() => void close()} title={name ? `Connecter ${name}` : "Connecter une marketplace"}>
+    <ModalOrCard inline={inline} open={open} onClose={() => void close()} title={name ? `Connect ${name}` : "Connect a marketplace"}>
       {!session ? (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Choisis la marketplace. Tu te connectes toi-même dans Chrome sur le bureau OctoHandy.
-            Tes identifiants et cookies restent sur ce bureau, jamais sur ton PC, et
-            l&apos;agent Hermes travaille ensuite dans cette même session.
+            Pick a marketplace. You log in yourself in Chrome on the OctoHandy desktop.
+            Your credentials and cookies stay on that desktop, never on your PC, and
+            the Hermes agent then works in that same session.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {marketplaces.map((m) => (
@@ -178,40 +178,40 @@ export function ConnectMarketplaceModal({
             ))}
           </div>
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5" /> Connexion chiffrée, jeton temporaire et accès réservé à un membre à la fois.
+            <ShieldCheck className="w-3.5 h-3.5" /> Encrypted connection, temporary token, one member at a time.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           {!session.opened && (
             <Alert className="border-amber-200 bg-amber-50 text-amber-900">
-              <AlertDescription className="text-amber-900">La page n&apos;a pas pu s&apos;ouvrir automatiquement. Ouvre la page de connexion dans le navigateur du bureau.</AlertDescription>
+              <AlertDescription className="text-amber-900">The page could not be opened automatically. Open the login page in the desktop browser.</AlertDescription>
             </Alert>
           )}
           <p className="text-sm text-muted-foreground">
-            Connecte-toi à <strong>{name}</strong> dans la fenêtre ci-dessous
-            {session.opened ? " (la page de connexion vient de s'ouvrir dans Chrome)" : ""}. Quand ta boutique
-            s&apos;affiche, clique « C&apos;est connecté ».
+            Log in to <strong>{name}</strong> in the window below
+            {session.opened ? " (the login page just opened in Chrome)" : ""}. Once your shop
+            is showing, click “Connected”.
           </p>
           <div className="rounded-lg overflow-hidden border bg-black aspect-video">
             <iframe
               src={session.url}
-              title="Bureau distant OctoHandy"
+              title="OctoHandy remote desktop"
               className="w-full h-full"
               allow="clipboard-read; clipboard-write"
             />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground">Session valable jusqu&apos;à {expires}.</span>
+            <span className="text-xs text-muted-foreground">Session valid until {expires}.</span>
             <div className="flex flex-wrap gap-2">
               <a href={session.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}>
-                <ExternalLink className="w-4 h-4" /> Plein écran
+                <ExternalLink className="w-4 h-4" /> Full screen
               </a>
               <Button variant="secondary" size="sm" onClick={() => marketplace && void start(marketplace)} loading={loading}>
-                <RefreshCw className="w-4 h-4" /> Nouvelle session
+                <RefreshCw className="w-4 h-4" /> New session
               </Button>
               <Button size="sm" onClick={() => void confirm()} loading={confirming}>
-                <CheckCircle2 className="w-4 h-4" /> C&apos;est connecté
+                <CheckCircle2 className="w-4 h-4" /> Connected
               </Button>
             </div>
           </div>

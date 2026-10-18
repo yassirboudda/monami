@@ -23,12 +23,12 @@ import {
 
 const nav = [
   { href: "/dashboard/chat", label: "Chat", icon: MessageSquareText },
-  { href: "/dashboard/shops", label: "Boutique", icon: Store },
+  { href: "/dashboard/shops", label: "Shops", icon: Store },
   { href: "/dashboard/stock", label: "Stock", icon: Package },
-  { href: "/dashboard/desktop", label: "Bureau", icon: MonitorSmartphone },
+  { href: "/dashboard/desktop", label: "Desktop", icon: MonitorSmartphone },
   { href: "/dashboard/workflows", label: "Workflows", icon: Workflow },
-  { href: "/dashboard/team", label: "Équipe", icon: Users },
-  { href: "/dashboard/settings", label: "Paramètres", icon: Settings },
+  { href: "/dashboard/team", label: "Team", icon: Users },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ]
 
 function NavLinks() {
@@ -81,11 +81,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton onClick={() => signOut({ redirectUrl: "/" })} tooltip="Déconnexion" className="text-muted-foreground">
+              <SidebarMenuButton onClick={() => signOut({ redirectUrl: "/" })} tooltip="Sign out" className="text-muted-foreground">
                 <LogOut />
                 <span className="min-w-0 truncate">
                   <span className="block truncate">{name}</span>
-                  {email && <span className="block truncate text-[11px] opacity-70">Déconnexion</span>}
+                  {email && <span className="block truncate text-[11px] opacity-70">Sign out</span>}
                 </span>
               </SidebarMenuButton>
             </SidebarMenuItem>

@@ -42,18 +42,18 @@ export default function WorkflowsPage() {
     <div>
       <PageHeader
         label="Automatisations"
-        title="Templates de workflow"
+        title="Workflow templates"
         actions={
           <Button onClick={() => setTeachOpen(true)}>
-            <GraduationCap className="w-4 h-4" /> Apprendre en le faisant
+            <GraduationCap className="w-4 h-4" /> Teach by doing
           </Button>
         }
       />
-      {orgId && <p className="mb-4 text-sm text-muted-foreground">partagé avec l&apos;équipe</p>}
+      {orgId && <p className="mb-4 text-sm text-muted-foreground">shared with the team</p>}
       {error ? (
-        <Alert variant="destructive"><AlertDescription>Impossible de charger les workflows : {error.message}</AlertDescription></Alert>
+        <Alert variant="destructive"><AlertDescription>Could not load the workflows: {error.message}</AlertDescription></Alert>
       ) : isLoading ? (
-        <Card className="p-4 text-sm text-muted-foreground">Chargement des workflows…</Card>
+        <Card className="p-4 text-sm text-muted-foreground">Loading workflows…</Card>
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
           {workflows.map((flow) => (
@@ -66,7 +66,7 @@ export default function WorkflowsPage() {
                 <Badge tone={flow.tone}>{flow.marketplace}</Badge>
               </div>
               {flow.intent?.goal && <p className="text-sm mb-2"><span className="font-medium">Objectif :</span> {flow.intent.goal}</p>}
-              {flow.intent?.success_criteria && <p className="text-xs text-muted-foreground mb-2"><span className="font-medium">Résultat attendu :</span> {flow.intent.success_criteria}</p>}
+              {flow.intent?.success_criteria && <p className="text-xs text-muted-foreground mb-2"><span className="font-medium">Expected outcome:</span> {flow.intent.success_criteria}</p>}
               {!!flow.guardrails?.length && (
                 <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5 mb-3">
                   {flow.guardrails.map((guardrail) => <li key={guardrail}>{guardrail}</li>)}
@@ -84,7 +84,7 @@ export default function WorkflowsPage() {
               </ol>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => setRunning(flow)}>
-                  <Rocket className="w-3.5 h-3.5" /> Lancer maintenant
+                  <Rocket className="w-3.5 h-3.5" /> Run now
                 </Button>
                 <Button
                   variant="secondary"
@@ -93,7 +93,7 @@ export default function WorkflowsPage() {
                   onClick={() => void toggle(flow)}
                 >
                   {flow.enabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                  {flow.enabled ? "Désactiver" : "Activer"}
+                  {flow.enabled ? "Disable" : "Enable"}
                 </Button>
               </div>
             </Card>

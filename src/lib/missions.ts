@@ -3,9 +3,9 @@ import { CONNECTABLE_MARKETPLACES, marketplaceName } from "@/components/connect-
 // Chat only auto-sends these fixed prompts from the URL (?mission=…&mp=…), never free text:
 // a crafted link must not be able to make the agent act on a seller's shops.
 const MISSIONS = {
-  summary: (mp: string) => `Montre-moi un résumé de mes annonces ${mp}`,
-  reply: (mp: string) => `Je veux apprendre à OctoHandy à répondre à mes acheteurs ${mp}`,
-  publish: (mp: string) => `Aide-moi à publier un nouvel article sur ${mp}`,
+  summary: (mp: string) => `Show me a summary of my ${mp} listings`,
+  reply: (mp: string) => `I want to teach OctoHandy to reply to my ${mp} buyers`,
+  publish: (mp: string) => `Help me publish a new item on ${mp}`,
 }
 
 export type MissionId = keyof typeof MISSIONS
