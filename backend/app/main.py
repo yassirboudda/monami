@@ -370,7 +370,10 @@ def _agent_message_dict(row: Any) -> dict[str, Any]:
 
 @app.get("/v1/agent/policy")
 async def get_agent_policy(user: dict[str, Any] = Depends(workspace_user)):
-    return {"policy": _inbox_policy(user["user_id"])}
+    policy = dict(_inbox_policy(user["user_id"]))
+    with db.connection() as conn:
+        policy["inboxAutopilot"] = _inbox_autopilot_state(conn, user["workspace"])
+    return {"policy": policy}
 
 
 @app.get("/v1/agent/messages")
@@ -1500,6 +1503,27 @@ async def run_workflow(workflow_id: str, user: dict[str, Any] = Depends(workspac
             "INSERT INTO workflow_runs (id, workspace, created_by, workflow_id, status) VALUES (?, ?, ?, ?, 'planning')",
             (run_id, user["workspace"], user["user_id"], workflow_id),
         )
+    if workflow.get("source") == INBOX_AUTOPILOT_SOURCE:
+        # "Check inbox now": an immediate Screenpipe-first pass of the A4000 inbox monitor for this marketplace
+        detail, ok = "Desktop not configured", False
+        if _desktop_enabled():
+            try:
+                out = await _gate_json("/inbox/run", {"marketplace": workflow["marketplace"]}, timeout=30)
+                ok = bool(out.get("ok"))
+                detail = (f"Inbox check started on the desktop for {workflow['marketplace']}: Screenpipe reads the Messages tab, "
+                          "Hermes replies to new buyer messages (approval cards in the chat above the discount limit)."
+                          if ok else str(out.get("error") or out.get("detail") or "failed"))
+            except Exception as e:
+                detail = f"Desktop unreachable ({type(e).__name__})"
+        entry = {"tool": "list_unread_messages", "result": "assisted" if ok else "error", "t": _iso_now(), "detail": detail}
+        with db.connection() as conn:
+            conn.execute(
+                "UPDATE workflow_runs SET status=?, log_json=?, error=?, updated_at=? WHERE workspace=? AND id=?",
+                ("executed" if ok else "failed", json.dumps([entry], ensure_ascii=False), None if ok else detail, _iso_now(),
+                 user["workspace"], run_id),
+            )
+            run = _run_row(conn, user["workspace"], run_id)
+        return {"run": _run_dict(run), "workflow": workflow}
     context: dict[str, Any] = {"frames": 0, "events": [], "windows": []}
     error = None
     if _screenpipe_enabled() and db.desktop_lease_held(user["workspace"]):
@@ -2078,6 +2102,47 @@ class ShopsSyncIn(BaseModel):
     marketplaces: list[str] | None = None
 
 
+INBOX_AUTOPILOT_SOURCE = "inbox-autopilot"
+INBOX_AUTOPILOT_LABEL = {"vinted": "Vinted", "ebay": "eBay", "leboncoin": "Leboncoin", "etsy": "Etsy"}
+
+
+def _ensure_inbox_autopilot(conn, workspace: str, user_id: str, marketplace: str) -> None:
+    """One default-enabled "Inbox autopilot" workflow per connected marketplace. Its Enable/Disable switch is what
+    the A4000 inbox monitor obeys (see /v1/agent/policy → inboxAutopilot)."""
+    if marketplace not in SYNC_MARKETPLACES:
+        return
+    row = conn.execute("SELECT id FROM workflows WHERE workspace=? AND marketplace=? AND source=? LIMIT 1",
+                       (workspace, marketplace, INBOX_AUTOPILOT_SOURCE)).fetchone()
+    if row is not None:
+        return
+    label = INBOX_AUTOPILOT_LABEL.get(marketplace, marketplace.capitalize())
+    steps = [
+        f"A {label} notification e-mail arrives (or every 2 minutes) → the agent checks the {label} Messages tab, kept open on the desktop",
+        "Screenpipe reads the inbox from the screen first; Hermes is only woken up when a new buyer message appears (0 tokens otherwise)",
+        "The agent reads the conversation and writes a reply in the buyer's language (price, size, shipping, availability)",
+        "Discount requests up to the limit set in Settings are accepted and sent; above the limit an approval card is posted in the chat",
+        "The reply is typed and sent from the desktop; a \"Reply sent\" card appears in the chat",
+    ]
+    conn.execute(
+        """INSERT INTO workflows (id, workspace, created_by, marketplace, title, steps_json, tone, source, enabled, "trigger",
+                                  intent_json, guardrails_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)""",
+        (f"w-{uuid.uuid4().hex[:8]}", workspace, user_id, marketplace, f"Inbox autopilot {label}: auto-reply to buyers",
+         json.dumps(steps, ensure_ascii=False), "teal", INBOX_AUTOPILOT_SOURCE,
+         f"{label} notification e-mail (Gmail) or every 2 minutes, via Screenpipe",
+         json.dumps({"goal": f"Answer every {label} buyer within minutes, 24/7, without the seller",
+                     "success_criteria": "Each new buyer message gets a reply or an approval request in the chat"}, ensure_ascii=False),
+         json.dumps(["Never sends a payment, deletion or price change", "Discounts above the Settings limit need the seller's approval",
+                     "Disputes, refunds and out-of-scope requests are escalated to the chat"], ensure_ascii=False)),
+    )
+
+
+def _inbox_autopilot_state(conn, workspace: str) -> dict[str, bool]:
+    rows = conn.execute("SELECT marketplace, enabled FROM workflows WHERE workspace=? AND source=?",
+                        (workspace, INBOX_AUTOPILOT_SOURCE)).fetchall()
+    return {r["marketplace"]: bool(r["enabled"]) for r in rows}
+
+
 async def _sync_shops_after_agent(user: dict[str, Any]) -> None:
     """After an agent action on the desktop, re-read the connected marketplaces so new listings show up in Shops."""
     try:
@@ -2119,6 +2184,7 @@ async def shops_sync(body: ShopsSyncIn, user: dict[str, Any] = Depends(workspace
                 conn.execute("UPDATE shops SET display_name=?, status=?, listing_count=?, updated_at=? WHERE workspace=? AND id=?",
                              (name, status, len(listings), _iso_now(), user["workspace"], shop_id))
             if data.get("loggedIn"):
+                _ensure_inbox_autopilot(conn, user["workspace"], user["user_id"], marketplace)
                 # real data replaces the demo shops/listings for this workspace
                 conn.execute("DELETE FROM listings WHERE workspace=? AND shop_id IN (?, ?)", (user["workspace"], *MOCK_SHOP_IDS))
                 conn.execute("DELETE FROM shops WHERE workspace=? AND id IN (?, ?)", (user["workspace"], *MOCK_SHOP_IDS))
@@ -2250,6 +2316,9 @@ async def delete_stock(item_id: str, user: dict[str, Any] = Depends(workspace_us
 @app.get("/v1/workflows")
 async def workflows(user: dict[str, Any] = Depends(workspace_user)):
     with db.connection() as conn:
+        for shop in conn.execute("SELECT DISTINCT marketplace FROM shops WHERE workspace=? AND status='connected'",
+                                 (user["workspace"],)).fetchall():
+            _ensure_inbox_autopilot(conn, user["workspace"], user["user_id"], shop["marketplace"])
         rows = conn.execute(
             "SELECT * FROM workflows WHERE workspace=? ORDER BY created_at, id",
             (user["workspace"],),
