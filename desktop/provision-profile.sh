@@ -15,9 +15,16 @@ DISPLAY=:$N
 OH_VNC_PORT=$((5900+N))
 OH_CDP_PORT=$((9200+N))
 OH_SP_PORT=$((3030+N))
+XAUTHORITY=$HOME_DIR/.Xauthority
 ENV
 UID_N="$(id -u "$U")"
+chmod 700 "$HOME_DIR"
 install -d -o "$U" -g "$U" -m 700 "$HOME_DIR/.vnc" "$HOME_DIR/.config" "$HOME_DIR/Pictures/chat" "$HOME_DIR/recordings" "$HOME_DIR/.screenpipe"
+# MIT-MAGIC-COOKIE: only this user (and the root gate) can open display :N — another tenant on the box cannot.
+if [ ! -s "$HOME_DIR/.Xauthority" ]; then
+  touch "$HOME_DIR/.Xauthority"; chown "$U:$U" "$HOME_DIR/.Xauthority"; chmod 600 "$HOME_DIR/.Xauthority"
+  sudo -u "$U" xauth -f "$HOME_DIR/.Xauthority" add ":$N" MIT-MAGIC-COOKIE-1 "$(mcookie)" 2>/dev/null
+fi
 echo "$VNC_PASS" | vncpasswd -f > "$HOME_DIR/.vnc/passwd"; chown "$U:$U" "$HOME_DIR/.vnc/passwd"; chmod 600 "$HOME_DIR/.vnc/passwd"
 # xfce without screensaver/lock/power popups, French locale
 sudo -u "$U" mkdir -p "$HOME_DIR/.config/xfce4/xfconf/xfce-perchannel-xml" "$HOME_DIR/.config/autostart"
@@ -27,7 +34,10 @@ cat > "$HOME_DIR/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-screensaver.xml"
 X
 chown -R "$U:$U" "$HOME_DIR/.config"
 loginctl enable-linger "$U" >/dev/null 2>&1 || true
+# The XFCE session (PAMName=login) lands in user-<uid>.slice, not oh-<slug>.slice: cap both so a tenant's terminal can't starve the box.
+systemctl set-property "user-$UID_N.slice" CPUQuota=250% MemoryMax=10G MemorySwapMax=0 TasksMax=1500 >/dev/null 2>&1 || true
 for unit in oh-vnc oh-desktop oh-chrome oh-screenpipe; do
   systemctl enable --now "$unit@$SLUG.service" >/dev/null 2>&1 || systemctl restart "$unit@$SLUG.service" || true
 done
+/opt/octohandy/harden-host.sh >/dev/null 2>&1 || true
 echo "profile $SLUG ready: user=$U display=:$N vnc=$((5900+N)) cdp=$((9200+N)) screenpipe=$((3030+N))"

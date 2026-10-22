@@ -86,8 +86,13 @@ def verify_token(token: str) -> dict[str, Any]:
         raise HTTPException(403, f"invalid desktop token ({e})") from e
 
 
+def _xauth(prof: dict[str, Any]) -> str:
+    return prof.get("XAUTHORITY") or f"{prof['OH_HOME']}/.Xauthority"
+
+
 def _run_as(prof: dict[str, Any], cmd: list[str], *, input: bytes | None = None, timeout: int = 30) -> subprocess.CompletedProcess:
-    env = {"DISPLAY": prof["DISPLAY"], "HOME": prof["OH_HOME"], "XDG_RUNTIME_DIR": f"/run/user/{prof['uid']}", "LANG": "fr_FR.UTF-8"}
+    env = {"DISPLAY": prof["DISPLAY"], "HOME": prof["OH_HOME"], "XDG_RUNTIME_DIR": f"/run/user/{prof['uid']}", "LANG": "fr_FR.UTF-8",
+           "XAUTHORITY": _xauth(prof)}
     return subprocess.run(["sudo", "-u", prof["OH_USER"], "env", *[f"{k}={v}" for k, v in env.items()], *cmd],
                           input=input, capture_output=True, timeout=timeout)
 
@@ -215,7 +220,8 @@ async def record_start(body: dict[str, Any], x_gate_secret: str | None = Header(
     proc = subprocess.Popen(["ffmpeg", "-loglevel", "error", "-y", "-f", "x11grab", "-framerate", "8", "-video_size", "1600x900",
                              "-i", f"{prof['DISPLAY']}.0", "-vf", "scale=1280:-2", "-c:v", "libx264", "-preset", "veryfast", "-crf", "30",
                              "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)],
-                            stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            env={**os.environ, "XAUTHORITY": _xauth(prof)})
     RECORDINGS[rid] = {"proc": proc, "path": out, "start": time.time(), "label": str(body.get("label", ""))[:120], "slug": prof["slug"]}
     return {"ok": True, "id": rid}
 
