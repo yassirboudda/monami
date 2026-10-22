@@ -1343,7 +1343,7 @@ async def list_teach(user: dict[str, Any] = Depends(workspace_user)):
 @app.post("/v1/teach/start")
 async def teach_start(body: TeachStartIn, user: dict[str, Any] = Depends(workspace_user)):
     if not (_desktop_enabled() and _screenpipe_enabled()):
-        raise HTTPException(503, "Teaching unavailable: remote desktop or Screenpipe not configured")
+        raise HTTPException(503, "Teaching unavailable: the remote desktop is not configured")
     if get_marketplace(body.marketplace) is None and body.marketplace not in LOGIN_URLS:
         raise HTTPException(404, "Marketplace inconnue")
     session_ttl = max(settings.desktop_session_ttl, 1800)
@@ -1398,7 +1398,7 @@ async def teach_stop(teach_id: str, user: dict[str, Any] = Depends(workspace_use
         await asyncio.sleep(4)
         trace = await _screenpipe_events(row["started_at"], ended)
     except (httpx.HTTPError, ValueError) as e:
-        error = f"Screenpipe indisponible ({type(e).__name__})"
+        error = f"Screen reader unavailable ({type(e).__name__})"
     try:
         draft, via = await _compile_teach(row["marketplace"], trace, user["user_id"])
     finally:
@@ -1611,7 +1611,7 @@ async def run_workflow(workflow_id: str, user: dict[str, Any] = Depends(workspac
             try:
                 out = await _gate_json("/inbox/run", {"marketplace": workflow["marketplace"]}, timeout=30, workspace=user["workspace"])
                 ok = bool(out.get("ok"))
-                detail = (f"Inbox check started on the desktop for {workflow['marketplace']}: Screenpipe reads the Messages tab, "
+                detail = (f"Inbox check started on the desktop for {workflow['marketplace']}: MonAmi reads the Messages tab on screen, "
                           "Hermes replies to new buyer messages (approval cards in the chat above the discount limit)."
                           if ok else str(out.get("error") or out.get("detail") or "failed"))
             except Exception as e:
@@ -1634,7 +1634,7 @@ async def run_workflow(workflow_id: str, user: dict[str, Any] = Depends(workspac
                 (end - timedelta(minutes=3)).strftime("%Y-%m-%dT%H:%M:%SZ"), end.strftime("%Y-%m-%dT%H:%M:%SZ")
             )
         except (httpx.HTTPError, ValueError) as e:
-            error = f"Screenpipe indisponible ({type(e).__name__})"
+            error = f"Screen reader unavailable ({type(e).__name__})"
     lines = [
         f"Workflow « {workflow['title']} » ({workflow['marketplace']})",
         "Steps: " + " / ".join(workflow["steps"]),
@@ -1692,7 +1692,7 @@ async def _screen_excerpt() -> str:
     try:
         frame_id = await latest_frame_id()
     except ScreenpipeFrameStaleError:
-        return "Screenpipe screen not up to date"
+        return "Screen not up to date"
     if frame_id is None:
         return ""
     elements = await frame_elements(frame_id)
@@ -2092,7 +2092,7 @@ async def desktop_status_live(user: dict[str, Any] = Depends(workspace_user)):
 async def desktop_screen(minutes: int = 2, user: dict[str, Any] = Depends(workspace_user)):
     """Proof that Screenpipe sees the remote desktop: the compressed trace of the last N minutes."""
     if not _screenpipe_enabled():
-        raise HTTPException(503, "Screenpipe not configured")
+        raise HTTPException(503, "Screen reader not configured")
     minutes = max(1, min(minutes, 30))
     end = datetime.now(timezone.utc)
     try:
@@ -2100,7 +2100,7 @@ async def desktop_screen(minutes: int = 2, user: dict[str, Any] = Depends(worksp
             (end - timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%SZ"), end.strftime("%Y-%m-%dT%H:%M:%SZ")
         )
     except (httpx.HTTPError, ValueError) as e:
-        raise HTTPException(502, f"Screenpipe injoignable ({type(e).__name__})")
+        raise HTTPException(502, f"Screen reader unreachable ({type(e).__name__})")
     events = await _describe_screen_events(trace["events"][-12:])
     return {"minutes": minutes, "frames": trace["frames"], "windows": trace["windows"], "events": events, "checkedAt": _iso_now()}
 
@@ -2219,7 +2219,7 @@ def _ensure_inbox_autopilot(conn, workspace: str, user_id: str, marketplace: str
     label = INBOX_AUTOPILOT_LABEL.get(marketplace, marketplace.capitalize())
     steps = [
         f"A {label} notification e-mail arrives (or every 2 minutes) → the agent checks the {label} Messages tab, kept open on the desktop",
-        "Screenpipe reads the inbox from the screen first; Hermes is only woken up when a new buyer message appears (0 tokens otherwise)",
+        "MonAmi reads the inbox from the screen first; the agent is only woken up when a new buyer message appears",
         "The agent reads the conversation and writes a reply in the buyer's language (price, size, shipping, availability)",
         "Discount requests up to the limit set in Settings are accepted and sent; above the limit an approval card is posted in the chat",
         "The reply is typed and sent from the desktop; a \"Reply sent\" card appears in the chat",
@@ -2230,7 +2230,7 @@ def _ensure_inbox_autopilot(conn, workspace: str, user_id: str, marketplace: str
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)""",
         (f"w-{uuid.uuid4().hex[:8]}", workspace, user_id, marketplace, f"Inbox autopilot {label}: auto-reply to buyers",
          json.dumps(steps, ensure_ascii=False), "teal", INBOX_AUTOPILOT_SOURCE,
-         f"{label} notification e-mail (Gmail) or every 2 minutes, via Screenpipe",
+         f"{label} notification e-mail (Gmail) or every 2 minutes, by reading the screen",
          json.dumps({"goal": f"Answer every {label} buyer within minutes, 24/7, without the seller",
                      "success_criteria": "Each new buyer message gets a reply or an approval request in the chat"}, ensure_ascii=False),
          json.dumps(["Never sends a payment, deletion or price change", "Discounts above the Settings limit need the seller's approval",

@@ -105,7 +105,7 @@ export default function DesktopPage() {
           {s.screen.excerpt && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{s.screen.excerpt}</p>}
           {s.screen.raw && (
             <details className="mt-1">
-              <summary className="text-[11px] text-muted-foreground cursor-pointer">Raw text read by Screenpipe (OCR)</summary>
+              <summary className="text-[11px] text-muted-foreground cursor-pointer">Raw text read on screen</summary>
               <p className="text-[11px] text-muted-foreground mt-1 break-words">{s.screen.raw}</p>
             </details>
           )}
@@ -116,7 +116,7 @@ export default function DesktopPage() {
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
             <Eye className="w-4 h-4 text-muted-foreground" />
-            <p className="font-semibold">What Screenpipe saw on screen (last 2 minutes)</p>
+            <p className="font-semibold">What MonAmi saw on screen (last 2 minutes)</p>
           </div>
           <div className="flex items-center gap-2">
             {screen.data && <Badge tone={screen.data.frames ? "teal" : "amber"}>{screen.data.frames} frames</Badge>}
@@ -126,7 +126,7 @@ export default function DesktopPage() {
           </div>
         </div>
         {screen.error ? (
-          <p className="text-sm text-destructive">Screenpipe injoignable : {screen.error.message}</p>
+          <p className="text-sm text-destructive">Screen reader unreachable: {screen.error.message}</p>
         ) : !screen.data ? (
           <p className="text-sm text-muted-foreground">Lecture…</p>
         ) : !screen.data.events.length ? (
@@ -147,7 +147,7 @@ export default function DesktopPage() {
                   )}
                   {e.summary && e.text && (
                     <details className="mt-0.5">
-                      <summary className="text-[11px] text-muted-foreground cursor-pointer">Raw text read by Screenpipe</summary>
+                      <summary className="text-[11px] text-muted-foreground cursor-pointer">Raw text read on screen</summary>
                       <p className="text-[11px] text-muted-foreground mt-1 break-words">{e.text}</p>
                     </details>
                   )}
