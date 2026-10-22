@@ -238,6 +238,15 @@ def act(action, args, port=None):
             tab.js("history.back()"); time.sleep(2); return {"ok": True, "url": tab.js("location.href")}
         if action == "wait":
             time.sleep(min(float(args.get("seconds", 2)), 20)); return {"ok": True, "url": tab.js("location.href"), "title": tab.js("document.title")}
+        if action == "upload":
+            idx = int(args.get("index", -1)); paths = [p for p in (args.get("paths") or []) if isinstance(p, str) and p.startswith("/home/") and "/Pictures/chat/" in p]
+            if idx < 0 or not paths:
+                return {"ok": False, "error": "index and paths (under Pictures/chat) required"}
+            obj = tab.rpc("Runtime.evaluate", {"expression": f"(globalThis.__ohEls || [])[{idx}]", "contextId": tab.world()}).get("result", {})
+            if not obj.get("objectId"):
+                return {"ok": False, "error": f"element [{idx}] not found — call read again"}
+            tab.rpc("DOM.setFileInputFiles", {"objectId": obj["objectId"], "files": paths}); time.sleep(1.5)
+            return {"ok": True, "attached": len(paths)}
         if action == "screenshot":
             r = tab.rpc("Page.captureScreenshot", {"format": "jpeg", "quality": 60})
             return {"ok": True, "jpegBase64": r.get("data")}

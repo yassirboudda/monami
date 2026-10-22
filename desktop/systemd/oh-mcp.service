@@ -1,0 +1,11 @@
+[Unit]
+Description=OctoHandy MCP tools server for Hermes (desktop + Screenpipe)
+After=oh-gate.service
+[Service]
+EnvironmentFile=/etc/octohandy/gate.env
+WorkingDirectory=/opt/octohandy
+ExecStart=/opt/octohandy/venv/bin/uvicorn octohandy_mcp:app --host 0.0.0.0 --port 6082
+Restart=always
+RestartSec=2
+[Install]
+WantedBy=multi-user.target
