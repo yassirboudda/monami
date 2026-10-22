@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     events_retention_days: int = 90
     # one isolated Linux profile per workspace on the GPU box; this only caps how many are live at once
     desktop_max_concurrent: int = 6
+    market_tick_minutes: int = 15  # live market ticker period (one Apify search per watched keyword)
 
     # Aiven for Apache Kafka: every product event goes to this topic. Empty = events are dropped (local dev).
     kafka_bootstrap_servers: str = ""

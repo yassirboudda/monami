@@ -344,7 +344,7 @@ def cached_comps(query: str, marketplace: str, *, own_price: float | None = None
 
 
 def comps(query: str, marketplace: str, *, own_price: float | None = None, limit: int = 30,
-          workspace: str = "", user_id: str = "") -> dict[str, Any]:
+          workspace: str = "", user_id: str = "", fresh: bool = False) -> dict[str, Any]:
     """Comparable prices for `query` on `marketplace`. Raises MarketError with a seller-readable message."""
     marketplace = (marketplace or "ebay").lower()
     if marketplace not in ACTORS:
@@ -355,7 +355,7 @@ def comps(query: str, marketplace: str, *, own_price: float | None = None, limit
     if len(keyword) < 2:
         raise MarketError("Give me a few words describing the item first.")
     key = f"comps:{marketplace}:{keyword}"
-    cached = _cache_get(key)
+    cached = None if fresh else _cache_get(key)
     started = time.monotonic()
     if cached is None:
         raw = _run_actor(marketplace, keyword, max(5, min(limit, 50)))
