@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 import { Octopus } from "./oh/octopus"
 import { MonamiLogo } from "@/components/oh/monami-brand"
+import { PriceAlerts } from "@/components/oh/price-alerts"
 import {
   Sidebar,
   SidebarContent,
@@ -160,7 +161,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <SidebarInset>
         <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/90 px-4 backdrop-blur">
           <SidebarTrigger className="-ml-1" />
-          <div className="ml-auto truncate text-xs text-muted-foreground">{name}</div>
+          <PriceAlerts className="ml-auto" />
+          <div className="truncate text-xs text-muted-foreground">{name}</div>
         </header>
         <main className="flex-1 w-full min-w-0 max-w-6xl mx-auto overflow-x-hidden px-4 py-6 lg:px-8">{children}</main>
       </SidebarInset>
