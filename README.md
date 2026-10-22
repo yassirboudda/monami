@@ -1,19 +1,27 @@
 <p align="center">
-  <img src="public/octohandy/octopus.svg" alt="MonAmi" height="88">
-</p>
-
-<h1 align="center">MonAmi</h1>
-
-<p align="center"><b>An autonomous assistant for marketplace sellers (Vinted, eBay, Leboncoin, Etsy) — it watches your shops' inboxes on screen, answers buyers, publishes listings and asks you only when it matters.</b></p>
-
-<p align="center">
+  <img src="public/monami/mascot.svg" alt="monami" height="96">
 </p>
 
 <p align="center">
-  <a href="https://octohandy.amirelay.com">Live app</a> ·
+  <img src="public/monami/wordmark.svg" alt="monami" height="48">
+</p>
+
+<p align="center"><b>Ton copain IA pour la seconde main.</b><br>monami watches your Vinted, eBay, Leboncoin and Etsy shops on its own remote desktop, tells you what buyers really pay, answers messages, publishes listings — and asks you only when it matters.</p>
+
+<p align="center">
+  <a href="https://try-ami.com">try-ami.com</a> ·
+  <a href="https://app.try-ami.com">Open the app</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#walkthroughs">Walkthroughs</a> ·
   <a href="#run-it-yourself">Run it yourself</a>
+</p>
+
+<p align="center">
+  <img src="docs/media/landing.gif" alt="try-ami.com — the landing: a black ink tree you climb while scrolling, the mascot asks what you sell and shows the real market price" width="800">
+</p>
+
+<p align="center">
+  <img src="docs/media/app_tour.gif" alt="app.try-ami.com — the app: public page on the ink tree, sign-in with the animated monami wordmark" width="800">
 </p>
 
 ---
@@ -22,7 +30,7 @@
 
 Selling on several marketplaces means dozens of buyer messages a day ("still available?", "would you take 40 €?"), repetitive listing forms, and the constant fear of getting your account flagged if you automate with cookies and scripts.
 
-MonAmi keeps a **real browser on a real desktop** (a remote GPU box) logged in to your shops, like you would. It continuously captures and reads (OCR) that screen, so the agent knows what's on each Messages tab for **zero LLM tokens**. Only when something new appears does **Hermes** (the agent) wake up, read the conversation and act — with the mouse and keyboard, in your tab, at human pace.
+monami keeps a **real browser on a real desktop** (a remote GPU box) logged in to your shops, like you would. It continuously captures and reads (OCR) that screen, so the agent knows what's on each Messages tab for **zero LLM tokens**. Only when something new appears does **Hermes** (the agent) wake up, read the conversation and act — with the mouse and keyboard, in your tab, at human pace.
 
 ## What it does
 
@@ -37,22 +45,14 @@ MonAmi keeps a **real browser on a real desktop** (a remote GPU box) logged in t
 
 ## Walkthroughs
 
-### Teach a workflow by doing it — MonAmi watches, Hermes writes the workflow
-
-![Teach by doing: record a Vinted task, Hermes compiles it into a workflow card](docs/media/teach_workflow.gif)
-
-### Publish a listing from the chat — photos, form, approval, video proof
-
-![Publish on Vinted from the chat: photos uploaded on the remote desktop, form filled by Hermes, recording returned in the chat](docs/media/publish_vinted.gif)
-
-### Dashboard tour — inbox autopilot workflows, shops synced from the screen, desktop, settings, chat
-
-![Dashboard tour](docs/media/tour.gif)
+- **Teach a workflow by doing it.** Click *Teach by doing*, do the task once in the remote browser, click *Stop*: monami turns the screen capture of your demonstration into a reusable workflow card (trigger, steps, guardrails).
+- **Publish a listing from the chat.** "Sell this T-shirt on Vinted at 15 €" + 2 photos → the photos land on the desktop, the agent fills the form, asks you before *Publish* and posts the screen recording in the chat.
+- **Dashboard tour.** Shops synced from the screen with *your price vs market* on every listing, inbox-autopilot workflows, the remote desktop, plans and usage, API key + MCP in Settings.
 
 ## How it works
 
 ```
- Seller (web, mobile)                        Remote desktop (A4000 GPU box)
+ Seller (web, mobile)                        Remote desktop (GPU box)      
  ┌──────────────────────┐                    ┌─────────────────────────────────────────┐
  │ Next.js app (Vercel) │  HTTPS /backend/*  │  Xfce + Chrome: one Messages tab per    │
  │ chat · shops · flows │───────────────┐    │  marketplace, always open & logged in   │
@@ -86,4 +86,4 @@ This repository is public. **No secret is committed**: every key lives in the AP
 
 ## Stack
 
-Next.js 16 · React 19 · Tailwind · shadcn/ui · FastAPI · SQLite · Hermes (NemoClaw) · Chrome DevTools Protocol · ffmpeg · Vercel + Hetzner + an A4000 GPU box.
+Next.js 16 · React 19 · Tailwind · shadcn/ui · Clerk · Stripe · FastAPI · Aiven (PostgreSQL, Kafka, Valkey, ClickHouse, Runtime) · Hermes (NemoClaw) · Chrome DevTools Protocol · ffmpeg · Vercel + Hetzner + a GPU box for the desktops.

@@ -101,7 +101,7 @@ export default function ExtensionPage() {
         label="Connecteurs"
         title="Extension Chrome"
         actions={
-          <a href="/octohandy-extension.zip" download className={buttonVariants({ size: "sm" })}>
+          <a href="/monami-extension.zip" download className={buttonVariants({ size: "sm" })}>
             <Download className="w-3.5 h-3.5" /> Download the extension
           </a>
         }
@@ -128,7 +128,7 @@ export default function ExtensionPage() {
             <Button size="sm" loading={pairing} onClick={() => void pair()}>
               <RefreshCw className="w-3.5 h-3.5" /> {paired ? "Pair again" : "Pair"}
             </Button>
-            <a href="/octohandy-extension.zip" download className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <a href="/monami-extension.zip" download className={buttonVariants({ variant: "outline", size: "sm" })}>
               <Download className="w-3.5 h-3.5" /> ZIP
             </a>
           </div>
@@ -147,7 +147,7 @@ export default function ExtensionPage() {
           <p className="font-semibold">Installation (2 min)</p>
           <ol className="text-sm text-muted-foreground space-y-2 list-decimal pl-4">
             <li>
-              Download <Badge tone="blue">octohandy-extension.zip</Badge> then unzip it.
+              Download <Badge tone="blue">monami-extension.zip</Badge> then unzip it.
             </li>
             <li>
               Chrome → <code className="text-xs">chrome://extensions</code> → enable developer mode.

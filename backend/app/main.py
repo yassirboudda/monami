@@ -1226,7 +1226,7 @@ def _clean_ocr(text: str, limit: int = 420) -> str:
         if len(words) < 3:
             continue
         phrase = " ".join(words)
-        if re.search(r"(New Tab|Google Chrome|octohandy -|sam\. \d|dim\. \d|lun\. \d|mar\. \d|mer\. \d|jeu\. \d|ven\. \d)", phrase):
+        if re.search(r"(New Tab|Google Chrome|octohandy -|monami -|sam\. \d|dim\. \d|lun\. \d|mar\. \d|mer\. \d|jeu\. \d|ven\. \d)", phrase):
             continue
         out.append(phrase)
     joined = " · ".join(out)

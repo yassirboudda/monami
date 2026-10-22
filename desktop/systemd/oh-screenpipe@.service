@@ -1,5 +1,5 @@
 [Unit]
-Description=OctoHandy Screenpipe (OCR of display) for profile %i
+Description=MonAmi Screenpipe (OCR of display) for profile %i
 After=oh-desktop@%i.service docker.service
 Requires=docker.service
 [Service]

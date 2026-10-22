@@ -1,5 +1,5 @@
 [Unit]
-Description=OctoHandy MCP tools server for Hermes (desktop + Screenpipe)
+Description=MonAmi MCP tools server for Hermes (desktop + Screenpipe)
 After=oh-gate.service
 [Service]
 EnvironmentFile=/etc/octohandy/gate.env

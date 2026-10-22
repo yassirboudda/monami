@@ -17,19 +17,23 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://octohandy.amirelay.com"),
-  title: "MonAmi — Gestion marketplace",
-  description: "Manage your shops, listings and shared stock with the MonAmi agent.",
-  applicationName: "MonAmi",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://app.try-ami.com"),
+  title: { default: "monami — your second-hand buddy", template: "%s · monami" },
+  description:
+    "monami watches your Vinted, eBay, Leboncoin and Etsy shops on its own desktop, tells you what buyers really pay, answers messages and publishes listings — you approve what matters.",
+  applicationName: "monami",
+  keywords: ["Vinted", "eBay", "Leboncoin", "Etsy", "seconde main", "revendeur", "assistant IA", "prix du marché", "monami"],
+  alternates: { canonical: "https://app.try-ami.com" },
   openGraph: {
-    title: "MonAmi — Ton assistant marketplace",
-    description: "Your second-hand buddy: it watches your Vinted, eBay, Vestiaire and Depop shops and acts on your remote desktop.",
-    siteName: "MonAmi",
+    title: "monami — your second-hand buddy",
+    description: "Market prices, buyer replies and listings for Vinted, eBay, Leboncoin and Etsy — handled on monami's own desktop, approved by you.",
+    siteName: "monami",
+    url: "https://app.try-ami.com",
     locale: "fr_FR",
     type: "website",
   },
-  twitter: { card: "summary_large_image" },
-  robots: { index: false, follow: false },
+  twitter: { card: "summary_large_image", title: "monami — your second-hand buddy", description: "Market prices, buyer replies and listings for Vinted, eBay, Leboncoin and Etsy." },
+  robots: { index: true, follow: true },
 }
 
 export const viewport: Viewport = {

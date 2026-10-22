@@ -1,5 +1,5 @@
 [Unit]
-Description=OctoHandy XFCE session for profile %i
+Description=MonAmi XFCE session for profile %i
 After=oh-vnc@%i.service
 Requires=oh-vnc@%i.service
 [Service]

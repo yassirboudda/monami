@@ -1,4 +1,4 @@
-"""CDP browser actions for the OctoHandy desktop Chrome (loopback DevTools 9222)."""
+"""CDP browser actions for the MonAmi desktop Chrome (loopback DevTools 9222)."""
 import json, re, time, random, math, urllib.request
 from websocket import create_connection
 

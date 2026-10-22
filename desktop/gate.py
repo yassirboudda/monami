@@ -1,4 +1,4 @@
-"""OctoHandy desktop gate — runs on the GPU box behind Caddy (127.0.0.1:6081).
+"""MonAmi desktop gate — runs on the GPU box behind Caddy (127.0.0.1:6081).
 
 One Linux desktop profile per workspace (see provision-profile.sh). Every /desktop/* call carries
 X-Gate-Secret (shared with the Hetzner backend) and optionally X-Workspace to pick the profile;
@@ -23,7 +23,7 @@ PROFILES_MAP = Path("/etc/octohandy/workspaces.json")   # {workspace: slug}
 DEFAULT_SLUG = os.environ.get("OH_DEFAULT_SLUG", "main")
 PROVISION = "/opt/octohandy/provision-profile.sh"
 RECORDINGS: dict[str, dict[str, Any]] = {}
-app = FastAPI(title="OctoHandy desktop gate")
+app = FastAPI(title="MonAmi desktop gate")
 
 
 # ----------------------------------------------------------------------------- profiles
