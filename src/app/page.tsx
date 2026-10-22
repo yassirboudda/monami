@@ -140,7 +140,7 @@ function HomeContent() {
       </section>
 
       {/* Ask */}
-      <section className="bg-muted border-y relative overflow-hidden">
+      <section className="border-y relative overflow-hidden bg-background/40 backdrop-blur-[1px]">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20 sm:py-28 grid gap-12 lg:grid-cols-[1fr_1.1fr] items-center">
           <motion.div {...inView} variants={group}>
             <motion.h2 variants={rise} className="oh-serif oh-h2">{t.home.askTitle}</motion.h2>
@@ -170,32 +170,6 @@ function HomeContent() {
       </section>
 
       {/* Seller shelf */}
-      <section className="oh-bg-ink relative overflow-hidden">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20 sm:py-28">
-          <motion.div {...inView} variants={group} className="max-w-xl">
-            <motion.h2 variants={rise} className="oh-serif oh-h2 text-[var(--butter)]">{t.home.sellTitle}</motion.h2>
-            <motion.p variants={rise} className="mt-4 text-lg text-[var(--butter)]/75 leading-relaxed">{t.home.sellLead}</motion.p>
-            <motion.div {...lift} className="mt-8 inline-block">
-              <Button asChild size="lg" className="bg-butter text-foreground hover:bg-butter/90">
-                <Link href="/sign-up">
-                  {t.home.ctaExplore} <ArrowRight />
-                </Link>
-              </Button>
-            </motion.div>
-          </motion.div>
-          <div className="mt-14">
-            {/* Family boxes drop onto the shelf one after another. */}
-            <motion.div {...inView} variants={{ show: { transition: { staggerChildren: 0.08 } } }} className="grid grid-cols-3 sm:grid-cols-6 gap-x-4 gap-y-2 items-end">
-              {FAMILIES.map((f) => (
-                <motion.div key={f} variants={drop} whileHover={{ y: -8, rotate: -2 }}>
-                  <BoxImg name={`fam-${f}-${lang}`} width={220} className="w-full h-auto" alt={t.families[f]} />
-                </motion.div>
-              ))}
-            </motion.div>
-            <div className="oh-plank" aria-hidden />
-          </div>
-        </div>
-      </section>
 
       <footer className="border-t">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 flex flex-wrap items-center gap-3 justify-between text-sm text-[var(--ink-soft)]">
