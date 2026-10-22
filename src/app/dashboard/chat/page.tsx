@@ -405,8 +405,9 @@ export default function ChatPage() {
             )}
 
             {waiting && (
-              <p className={cn("text-[15px]", styles.shimmer)} role="status">
-                MonAmi is thinking…
+              <p className="flex items-center gap-2 text-[15px]" role="status">
+                <Octopus className="w-6 shrink-0 text-primary" label="" />
+                <span className={styles.shimmer}>MonAmi is thinking…</span>
               </p>
             )}
             {error && !busy && (
