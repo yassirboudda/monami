@@ -69,6 +69,12 @@ class Settings(BaseSettings):
     clickhouse_user: str = "avnadmin"
     clickhouse_password: str = ""
     clickhouse_database: str = "octohandy"
+    # Market prices (Apify actors as a fallback until official marketplace APIs). Empty = feature off.
+    apify_token: str = ""
+    apify_token_fallback: str = ""  # second free-tier account, used when the first one is out of credits
+    kafka_market_topic: str = "octohandy.market"
+    # Aiven for Valkey: cache for market comps (rediss://user:pass@host:port). Empty = in-process cache.
+    valkey_url: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:
