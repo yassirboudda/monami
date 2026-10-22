@@ -1,12 +1,12 @@
 [Unit]
-Description=OctoHandy Xvnc display for profile %i
+Description=MonAmi Xvnc display for profile %i
 After=network.target
 [Service]
 EnvironmentFile=/etc/octohandy/profiles/%i.env
 User=oh-%i
 Slice=oh-%i.slice
 NoNewPrivileges=yes
-ExecStart=/usr/bin/Xvnc ${DISPLAY} -geometry 1600x900 -depth 24 -rfbport ${OH_VNC_PORT} -localhost -SecurityTypes VncAuth -PasswordFile /home/oh-%i/.vnc/passwd -auth /home/oh-%i/.Xauthority -AcceptSetDesktopSize=0 -AlwaysShared -desktop OctoHandy
+ExecStart=/usr/bin/Xvnc ${DISPLAY} -geometry 1600x900 -depth 24 -rfbport ${OH_VNC_PORT} -localhost -SecurityTypes VncAuth -PasswordFile /home/oh-%i/.vnc/passwd -auth /home/oh-%i/.Xauthority -AcceptSetDesktopSize=0 -AlwaysShared -desktop monami
 Restart=always
 RestartSec=2
 [Install]

@@ -1,4 +1,4 @@
-// Pixel size of each pre-rendered box in /public/octohandy/boxes (generated).
+// Pixel size of each pre-rendered box in /public/monami/boxes (generated).
 export const BOX_SIZES: Record<string, [number, number]> = {
   "fam-bags-en": [498, 380],
   "fam-bags-fr": [498, 380],

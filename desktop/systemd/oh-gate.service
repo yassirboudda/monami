@@ -1,5 +1,5 @@
 [Unit]
-Description=OctoHandy desktop gate (HTTP API + noVNC token relay)
+Description=MonAmi desktop gate (HTTP API + noVNC token relay)
 After=network.target
 [Service]
 EnvironmentFile=/etc/octohandy/gate.env

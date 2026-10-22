@@ -1,5 +1,5 @@
 [Unit]
-Description=OctoHandy Chrome (CDP on loopback) for profile %i
+Description=MonAmi Chrome (CDP on loopback) for profile %i
 After=oh-desktop@%i.service
 Requires=oh-vnc@%i.service
 [Service]

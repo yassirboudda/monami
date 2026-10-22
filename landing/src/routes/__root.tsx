@@ -78,14 +78,27 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "monami" },
-      { name: "description", content: "Ton copain IA pour la seconde main" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "monami" },
-      { property: "og:description", content: "Ton copain IA pour la seconde main" },
+      { title: "monami — ton copain IA pour la seconde main" },
+      {
+        name: "description",
+        content:
+          "monami surveille tes boutiques Vinted, eBay, Leboncoin et Etsy, te dit ce que les acheteurs paient vraiment, répond aux messages et publie tes annonces — tu valides ce qui compte.",
+      },
+      { name: "author", content: "monami" },
+      { name: "theme-color", content: "#80aee8" },
+      { property: "og:site_name", content: "monami" },
+      { property: "og:title", content: "monami — ton copain IA pour la seconde main" },
+      { property: "og:description", content: "Prix du marché, réponses aux acheteurs et annonces pour Vinted, eBay, Leboncoin et Etsy — sur son propre bureau, validé par toi." },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://try-ami.com" },
+      { property: "og:locale", content: "fr_FR" },
+      { property: "og:image", content: "https://try-ami.com/og.png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "monami — ton copain IA pour la seconde main" },
+      { name: "twitter:description", content: "Prix du marché, réponses aux acheteurs et annonces pour Vinted, eBay, Leboncoin et Etsy." },
+      { name: "twitter:image", content: "https://try-ami.com/og.png" },
     ],
     links: [
       {
@@ -93,6 +106,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "icon", href: "/favicon.png", type: "image/png" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+      { rel: "canonical", href: "https://try-ami.com" },
     ],
   }),
   shellComponent: RootShell,
@@ -103,7 +118,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="fr">
       <head>
         <HeadContent />
       </head>

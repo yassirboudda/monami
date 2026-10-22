@@ -90,9 +90,8 @@ export default function DesktopPage() {
         <Alert variant="destructive" className="mb-6"><AlertDescription>Statut indisponible : {status.error.message}</AlertDescription></Alert>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 [&>*]:min-w-0">
-          <Tile title="Remote desktop" ok={s ? s.gate : null} detail={s?.host ? `${s.host.replace("https://", "")} · noVNC, 15-min signed token` : "Loading…"} icon={MonitorSmartphone} />
-          <Tile title="Screenpipe" ok={s ? !!s.screenpipe?.ok : null} detail={s?.screenpipe ? `status ${s.screenpipe.status} · OCR + windows, 24/7` : "not configured"} icon={Eye} />
-          <Tile title="Hermes agent" ok={s ? s.hermes : null} detail={s?.model ? `NemoClaw sandbox · ${s.model}` : "Loading…"} icon={Brain} />
+          <Tile title="Remote desktop" ok={s ? s.gate : null} detail={s?.host ? "Isolated Linux desktop · 15-min signed access" : "Loading…"} icon={MonitorSmartphone} />
+          <Tile title="Hermes agent" ok={s ? s.hermes : null} detail={s?.hermes ? "Sandboxed agent · ready" : "Loading…"} icon={Brain} />
           <Tile title="Network egress" ok={s ? s.gate : null} detail="Dedicated residential proxy (FR) forced for Chrome, no direct egress" icon={ShieldCheck} />
         </div>
       )}
