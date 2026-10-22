@@ -1080,7 +1080,7 @@ def _acquire_desktop_lease(user: dict[str, Any], marketplace: str | None, ttl: i
         minutes = max(1, (remaining + 59) // 60)
         raise HTTPException(
             409,
-            f"The desktop is already in use by another team, try again in {minutes} minute(s).",
+            f"All remote desktops are busy right now, try again in {minutes} minute(s).",
         )
 
 
