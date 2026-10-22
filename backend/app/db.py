@@ -255,6 +255,14 @@ CREATE TABLE IF NOT EXISTS desktop_leases (
     acquired_at TEXT NOT NULL,
     expires_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS desktop_leases_ws (
+    workspace TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    marketplace TEXT,
+    lease_id TEXT NOT NULL,
+    acquired_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS agent_messages (
     id TEXT PRIMARY KEY,
     workspace TEXT NOT NULL,
@@ -520,69 +528,49 @@ def acquire_desktop_lease(
     marketplace: str | None,
     ttl: int,
 ) -> tuple[str | None, int | None]:
+    """One lease per workspace (each workspace has its own desktop profile on the box); only a global
+    concurrency cap can refuse. Returns (lease_id, None) or (None, seconds_until_a_slot_frees)."""
+    from .settings import settings
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat().replace("+00:00", "Z")
     expires_iso = (now + timedelta(seconds=max(1, ttl))).isoformat().replace("+00:00", "Z")
     with connection() as conn:
         conn.execute("BEGIN IMMEDIATE")
-        lease = conn.execute("SELECT * FROM desktop_leases WHERE id=1").fetchone()
-        if lease is not None and _lease_expiry(lease["expires_at"]) > now:
-            if lease["workspace"] != workspace:
-                return None, max(0, int((_lease_expiry(lease["expires_at"]) - now).total_seconds()))
-            lease_id = lease["lease_id"] or uuid.uuid4().hex
-            extended_expiry = max(_lease_expiry(lease["expires_at"]), _lease_expiry(expires_iso))
-            conn.execute(
-                """UPDATE desktop_leases
-                   SET user_id=?, marketplace=?, lease_id=?, expires_at=? WHERE id=1""",
-                (
-                    user_id,
-                    marketplace,
-                    lease_id,
-                    extended_expiry.isoformat().replace("+00:00", "Z"),
-                ),
-            )
+        conn.execute("DELETE FROM desktop_leases_ws WHERE expires_at <= ?", (now_iso,))
+        mine = conn.execute("SELECT * FROM desktop_leases_ws WHERE workspace=?", (workspace,)).fetchone()
+        if mine is not None:
+            lease_id = mine["lease_id"] or uuid.uuid4().hex
+            extended = max(_lease_expiry(mine["expires_at"]), _lease_expiry(expires_iso))
+            conn.execute("UPDATE desktop_leases_ws SET user_id=?, marketplace=?, lease_id=?, expires_at=? WHERE workspace=?",
+                         (user_id, marketplace, lease_id, extended.isoformat().replace("+00:00", "Z"), workspace))
             return lease_id, None
-        else:
-            lease_id = uuid.uuid4().hex
-            conn.execute(
-                """INSERT INTO desktop_leases (id, workspace, user_id, marketplace, lease_id, acquired_at, expires_at)
-                   VALUES (1, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(id) DO UPDATE SET workspace=excluded.workspace, user_id=excluded.user_id,
-                     marketplace=excluded.marketplace, lease_id=excluded.lease_id, acquired_at=excluded.acquired_at,
-                     expires_at=excluded.expires_at""",
-                (workspace, user_id, marketplace, lease_id, now_iso, expires_iso),
-            )
-            return lease_id, None
+        others = conn.execute("SELECT expires_at FROM desktop_leases_ws ORDER BY expires_at").fetchall()
+        if len(others) >= max(1, settings.desktop_max_concurrent):
+            return None, max(0, int((_lease_expiry(others[0]["expires_at"]) - now).total_seconds()))
+        lease_id = uuid.uuid4().hex
+        conn.execute("INSERT INTO desktop_leases_ws (workspace, user_id, marketplace, lease_id, acquired_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
+                     (workspace, user_id, marketplace, lease_id, now_iso, expires_iso))
+        return lease_id, None
 
 
 def desktop_lease_held(workspace: str) -> bool:
     now = datetime.now(timezone.utc)
     with connection() as conn:
-        lease = conn.execute("SELECT workspace, expires_at FROM desktop_leases WHERE id=1").fetchone()
-    return bool(lease and lease["workspace"] == workspace and _lease_expiry(lease["expires_at"]) > now)
+        lease = conn.execute("SELECT expires_at FROM desktop_leases_ws WHERE workspace=?", (workspace,)).fetchone()
+    return bool(lease and _lease_expiry(lease["expires_at"]) > now)
 
 
 def desktop_lease_held_by_other(workspace: str) -> int | None:
-    now = datetime.now(timezone.utc)
-    with connection() as conn:
-        lease = conn.execute("SELECT workspace, expires_at FROM desktop_leases WHERE id=1").fetchone()
-    if lease is None or lease["workspace"] == workspace:
-        return None
-    expires_at = _lease_expiry(lease["expires_at"])
-    if expires_at <= now:
-        return None
-    return max(0, int((expires_at - now).total_seconds()))
+    """Desktops are per workspace now: another workspace's session never blocks this one."""
+    return None
 
 
 def release_desktop_lease(workspace: str, lease_id: str | None = None) -> bool:
     with connection() as conn:
         if lease_id is None:
-            result = conn.execute("DELETE FROM desktop_leases WHERE id=1 AND workspace=?", (workspace,))
+            result = conn.execute("DELETE FROM desktop_leases_ws WHERE workspace=?", (workspace,))
         else:
-            result = conn.execute(
-                "DELETE FROM desktop_leases WHERE id=1 AND workspace=? AND lease_id=?",
-                (workspace, lease_id),
-            )
+            result = conn.execute("DELETE FROM desktop_leases_ws WHERE workspace=? AND lease_id=?", (workspace, lease_id))
     return result.rowcount > 0
 
 

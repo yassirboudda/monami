@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     workspace_aliases: str = ""
     # analytics events are kept this long in the app database (Aiven PostgreSQL in prod); ClickHouse keeps the long history
     events_retention_days: int = 90
+    # one isolated Linux profile per workspace on the GPU box; this only caps how many are live at once
+    desktop_max_concurrent: int = 6
 
     # Aiven for Apache Kafka: every product event goes to this topic. Empty = events are dropped (local dev).
     kafka_bootstrap_servers: str = ""
