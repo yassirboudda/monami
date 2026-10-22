@@ -1,4 +1,4 @@
-// Clerk <SignIn>/<SignUp> themed to the warm OctoHandy tokens (globals.css).
+// Clerk <SignIn>/<SignUp> themed to the warm MonAmi tokens (globals.css).
 export const clerkAppearance = {
   variables: {
     colorPrimary: "#43302e",

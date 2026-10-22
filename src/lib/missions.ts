@@ -4,7 +4,7 @@ import { CONNECTABLE_MARKETPLACES, marketplaceName } from "@/components/connect-
 // a crafted link must not be able to make the agent act on a seller's shops.
 const MISSIONS = {
   summary: (mp: string) => `Show me a summary of my ${mp} listings`,
-  reply: (mp: string) => `I want to teach OctoHandy to reply to my ${mp} buyers`,
+  reply: (mp: string) => `I want to teach MonAmi to reply to my ${mp} buyers`,
   publish: (mp: string) => `Help me publish a new item on ${mp}`,
 }
 

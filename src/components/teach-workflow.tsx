@@ -161,7 +161,7 @@ export function TeachWorkflowModal({
       {phase === "pick" && (
         <div className="space-y-4">
           {!inline && <p className="text-sm text-muted-foreground">
-            Show the agent once how you do it: we open your Chrome on the OctoHandy desktop, you perform the
+            Show the agent once how you do it: we open your Chrome on the MonAmi desktop, you perform the
             task as usual (reply to a message, send an offer after a favourite…), then Hermes turns the
             Screenpipe recording into a workflow you approve.
           </p>}
@@ -197,7 +197,7 @@ export function TeachWorkflowModal({
             <span className="text-xs text-muted-foreground">Do the action once, as usual, then click Stop.</span>
           </div>
           <div className="rounded-lg overflow-hidden border bg-black aspect-video">
-            <iframe src={desktopUrl} title="OctoHandy remote desktop" className="w-full h-full" allow="clipboard-read; clipboard-write" />
+            <iframe src={desktopUrl} title="MonAmi remote desktop" className="w-full h-full" allow="clipboard-read; clipboard-write" />
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={() => void discard()}>
@@ -273,7 +273,7 @@ export function TeachWorkflowModal({
       )}
       {phase === "pick" && !inline && (
         <p className="mt-4 text-xs text-muted-foreground flex items-center gap-1.5">
-          <GraduationCap className="w-3.5 h-3.5" /> Screenpipe runs on the OctoHandy desktop: nothing is installed on your PC.
+          <GraduationCap className="w-3.5 h-3.5" /> Screenpipe runs on the MonAmi desktop: nothing is installed on your PC.
         </p>
       )}
     </>
@@ -292,7 +292,7 @@ export function TeachWorkflowModal({
           </span>
           <div>
             <h3 className="text-[15px] font-semibold leading-tight">{name ? `Teach a task on ${name}` : "Teach a task"}</h3>
-            <p className="text-[13px] text-muted-foreground">Do it once on the OctoHandy desktop, it redoes it for you. Nothing to install.</p>
+            <p className="text-[13px] text-muted-foreground">Do it once on the MonAmi desktop, it redoes it for you. Nothing to install.</p>
           </div>
         </header>
         {body}

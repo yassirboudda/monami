@@ -12,7 +12,7 @@ import { Octopus } from "./octopus"
 type Msg = { id: string; role: "user" | "bot"; text: string }
 
 /**
- * The one place users drive OctoHandy from. Messages go to the team's agent (/backend/v1/chat).
+ * The one place users drive MonAmi from. Messages go to the team's agent (/backend/v1/chat).
  * `onIntent` lets the page react right away (open boxes, filter the shelf) and gives a local
  * answer when the agent is unreachable.
  */

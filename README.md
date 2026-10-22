@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="public/octohandy/octopus.svg" alt="OctoHandy" height="88">
+  <img src="public/octohandy/octopus.svg" alt="MonAmi" height="88">
 </p>
 
-<h1 align="center">OctoHandy</h1>
+<h1 align="center">MonAmi</h1>
 
 <p align="center"><b>An autonomous assistant for marketplace sellers (Vinted, eBay, Leboncoin, Etsy) — it watches your shops' inboxes with Screenpipe, answers buyers, publishes listings and asks you only when it matters.</b></p>
 
@@ -24,7 +24,7 @@
 
 Selling on several marketplaces means dozens of buyer messages a day ("still available?", "would you take 40 €?"), repetitive listing forms, and the constant fear of getting your account flagged if you automate with cookies and scripts.
 
-OctoHandy keeps a **real browser on a real desktop** (a remote GPU box) logged in to your shops, like you would. **Screenpipe** continuously captures and OCRs that screen, so the agent knows what's on each Messages tab for **zero LLM tokens**. Only when something new appears does **Hermes** (the agent) wake up, read the conversation and act — with the mouse and keyboard, in your tab, at human pace.
+MonAmi keeps a **real browser on a real desktop** (a remote GPU box) logged in to your shops, like you would. **Screenpipe** continuously captures and OCRs that screen, so the agent knows what's on each Messages tab for **zero LLM tokens**. Only when something new appears does **Hermes** (the agent) wake up, read the conversation and act — with the mouse and keyboard, in your tab, at human pace.
 
 ## What it does
 
@@ -80,7 +80,7 @@ Three pieces:
 
 1. **Front** (`/`, Next.js 16): `cp .env.example .env.local && npm install && npm run dev`. The browser talks to the API through the same-origin `/backend/*` rewrite, so Vercel needs no secrets.
 2. **API** (`backend/`, FastAPI + SQLite): `cp backend/.env.example backend/.env`, fill `APP_ACCESS_PASSWORD`, `APP_SESSION_SECRET`, `DESKTOP_*`, `NEBIUS_*`, `HERMES_*`, then `uvicorn app.main:app --host 127.0.0.1 --port 3000`.
-3. **Remote desktop**: a Linux box with Xfce + Chrome (remote-debugging on `127.0.0.1:9222`), [Screenpipe](https://screenpi.pe) on `127.0.0.1:3030`, Hermes (NemoClaw) with the OctoHandy MCP tools, and the small desktop gate / inbox monitor services. `DESKTOP_BASE_URL` of the API points at that gate.
+3. **Remote desktop**: a Linux box with Xfce + Chrome (remote-debugging on `127.0.0.1:9222`), [Screenpipe](https://screenpi.pe) on `127.0.0.1:3030`, Hermes (NemoClaw) with the MonAmi MCP tools, and the small desktop gate / inbox monitor services. `DESKTOP_BASE_URL` of the API points at that gate.
 
 ## Security
 

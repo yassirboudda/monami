@@ -292,7 +292,7 @@ export function RunWorkflowModal({
           </ol>
           {desktopUrl && (
             <div className="rounded-lg overflow-hidden border bg-black aspect-video">
-              <iframe src={desktopUrl} title="OctoHandy remote desktop" className="w-full h-full" allow="clipboard-read; clipboard-write" />
+              <iframe src={desktopUrl} title="MonAmi remote desktop" className="w-full h-full" allow="clipboard-read; clipboard-write" />
             </div>
           )}
           <div className="flex justify-end gap-2">

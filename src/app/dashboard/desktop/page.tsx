@@ -73,7 +73,7 @@ export default function DesktopPage() {
     <div>
       <PageHeader
         label="Infrastructure"
-        title="OctoHandy desktop"
+        title="MonAmi desktop"
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => void Promise.all([status.mutate(), teach.mutate(), runs.mutate(), screen.mutate()])}>
@@ -137,7 +137,7 @@ export default function DesktopPage() {
               <li key={`${e.t}-${i}`} className="flex gap-3">
                 <span className="text-xs text-muted-foreground tabular-nums shrink-0 pt-0.5">{e.t ? new Date(e.t).toLocaleTimeString("en-GB") : "—"}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{e.label || (e.window ? `Chrome · ${e.window}` : e.app || "OctoHandy desktop")}</p>
+                  <p className="font-medium truncate">{e.label || (e.window ? `Chrome · ${e.window}` : e.app || "MonAmi desktop")}</p>
                   {e.summary ? (
                     <p className="text-sm text-foreground/80">{e.summary}</p>
                   ) : e.text ? (
@@ -161,7 +161,7 @@ export default function DesktopPage() {
       {desktopUrl && (
         <Card className="p-3 mb-6 min-w-0 overflow-hidden">
           <div className="rounded-lg overflow-hidden border bg-black aspect-video w-full max-w-full">
-            <iframe src={desktopUrl} title="OctoHandy remote desktop" className="w-full h-full" allow="clipboard-read; clipboard-write" />
+            <iframe src={desktopUrl} title="MonAmi remote desktop" className="w-full h-full" allow="clipboard-read; clipboard-write" />
           </div>
           <DesktopClipboard compact={false} />
           <div className="flex justify-end mt-2">

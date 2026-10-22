@@ -32,13 +32,13 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://octohandy.amirelay.com"),
-  title: "OctoHandy — Gestion marketplace",
-  description: "Manage your shops, listings and shared stock with the OctoHandy agent.",
-  applicationName: "OctoHandy",
+  title: "MonAmi — Gestion marketplace",
+  description: "Manage your shops, listings and shared stock with the MonAmi agent.",
+  applicationName: "MonAmi",
   openGraph: {
-    title: "OctoHandy — Ton assistant marketplace",
+    title: "MonAmi — Ton assistant marketplace",
     description: "The octopus that watches your Vinted, eBay, Vestiaire and Depop shops and acts on your remote desktop.",
-    siteName: "OctoHandy",
+    siteName: "MonAmi",
     locale: "fr_FR",
     type: "website",
   },

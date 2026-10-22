@@ -1,4 +1,4 @@
-"""OctoHandy API — binds 127.0.0.1:3000 behind nginx. Keep port 8080 reserved by the host."""
+"""MonAmi API — binds 127.0.0.1:3000 behind nginx. Keep port 8080 reserved by the host."""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ async def _lifespan(_app: FastAPI):
     events.flush()
 
 
-app = FastAPI(title="OctoHandy API", version="0.1.0", lifespan=_lifespan)
+app = FastAPI(title="MonAmi API", version="0.1.0", lifespan=_lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -68,7 +68,7 @@ _run_tasks: set[asyncio.Task[None]] = set()
 
 def _build_chat_system_prompt() -> str:
     return (
-        "You are OctoHandy, a marketplace assistant. Reply in the language the user writes in (English by default), concisely and "
+        "You are MonAmi, a marketplace assistant. Reply in the language the user writes in (English by default), concisely and "
         "helpful about stock, prices, buyer messages and workflows. You cover the "
         "marketplaces described in the reference below. Use it to decide whether an "
         "action goes through the API or a screenpipe_workflow, and which seller/"
@@ -1009,7 +1009,7 @@ def _screenpipe_enabled() -> bool:
 
 _SITE_RE = re.compile(r"(?<![@\w.-])((?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:fr|com|net|org|io|co|eu|de|es|it|be|uk|app))\b", re.I)
 _SITE_LABELS = {"vinted": "Vinted", "leboncoin": "Leboncoin", "ebay": "eBay", "etsy": "Etsy", "depop": "Depop", "vestiairecollective": "Vestiaire Collective",
-                "wallapop": "Wallapop", "facebook": "Facebook", "google": "Google", "accounts": "Google", "octohandy": "OctoHandy"}
+                "wallapop": "Wallapop", "facebook": "Facebook", "google": "Google", "accounts": "Google", "octohandy": "MonAmi", "monami": "MonAmi"}
 
 
 def _guess_site(text: str) -> str:
@@ -1066,7 +1066,7 @@ def _screen_label(site: str, tab: dict[str, str] | None) -> str:
         name = _SITE_LABELS.get(host.split(".")[0], host)
         title = (tab.get("title") or "").strip()
         return f"Chrome · {name}" + (f" — {title[:70]}" if title and title.lower() != name.lower() else "")
-    return f"Chrome · {site}" if site else "Bureau OctoHandy"
+    return f"Chrome · {site}" if site else "Bureau MonAmi"
 
 
 async def _screenpipe_events(start_iso: str, end_iso: str) -> dict[str, Any]:
@@ -1128,7 +1128,7 @@ async def _screenpipe_events(start_iso: str, end_iso: str) -> dict[str, Any]:
 
 
 _SCREEN_SUMMARY_CACHE: dict[str, dict[str, str]] = {}
-_SCREEN_SUMMARY_SYSTEM = """You explain to a non-technical seller what is happening on the screen of their OctoHandy desktop.
+_SCREEN_SUMMARY_SYSTEM = """You explain to a non-technical seller what is happening on the screen of their MonAmi desktop.
 On te donne des extraits OCR bruts (texte reconnu sur des captures d'écran, souvent abîmé) de pages web, dans l'ordre.
 For EACH excerpt answer with: "label" (3 to 6 English words: site + what it is, e.g. "Leboncoin — login page",
 "Vinted — search results", "Google — two-step verification") and "summary" (ONE simple sentence in English, max 25 words,
@@ -1172,7 +1172,7 @@ async def _describe_screen_events(events: list[dict[str, Any]]) -> list[dict[str
             for key in list(_SCREEN_SUMMARY_CACHE)[:200]:
                 _SCREEN_SUMMARY_CACHE.pop(key, None)
     for event in events:
-        event.setdefault("label", f"Chrome · {event['window']}" if event.get("window") else "Bureau OctoHandy")
+        event.setdefault("label", f"Chrome · {event['window']}" if event.get("window") else "Bureau MonAmi")
         event.setdefault("summary", "")
         event.pop("key", None)
     return events
@@ -1246,7 +1246,7 @@ async def _llm_json(system: str, user_text: str, session_key: str) -> tuple[dict
     return None, "none"
 
 
-_TEACH_SYSTEM = """Tu es le compilateur de workflows d'OctoHandy, un assistant pour vendeurs sur les marketplaces
+_TEACH_SYSTEM = """Tu es le compilateur de workflows d'MonAmi, un assistant pour vendeurs sur les marketplaces
 (Vinted, Leboncoin, eBay…). On te donne la trace Screenpipe (texte OCR des écrans, titres de fenêtres, ordre
 chronologique) d'un vendeur qui vient de faire UNE FOIS, à la main, la tâche qu'il veut automatiser.
 Déduis le workflow réutilisable et réponds UNIQUEMENT avec un objet JSON valide (pas de markdown, pas de texte avant ou après) :
@@ -1528,7 +1528,7 @@ async def _desktop_clipboard(text: str) -> bool:
         return False
 
 
-_RUN_SYSTEM = """Tu es l'agent Hermes d'OctoHandy, qui exécute des workflows pour un vendeur sur une marketplace.
+_RUN_SYSTEM = """Tu es l'agent Hermes d'MonAmi, qui exécute des workflows pour un vendeur sur une marketplace.
 On te donne : l'objectif du workflow, ses critères de réussite, ses contraintes, garde-fous, ton du vendeur et outils autorisés,
 puis le contexte live de son bureau (texte OCR Screenpipe des dernières minutes : ce qui est à l'écran dans Chrome).
 Prépare le plan d'exécution
@@ -2001,7 +2001,7 @@ async def _screen_context(workspace: str | None = None, minutes: int = 2) -> str
         return ""
     lines = [f"- [{e['t'][11:19]}] {e['window'][:80]} :: {e['text'][:350]}" for e in events[-8:]]
     return (
-        "\n\nOctoHandy desktop screen (remote Chrome, Screenpipe OCR of the last 2 minutes, oldest to "
+        "\n\nMonAmi desktop screen (remote Chrome, Screenpipe OCR of the last 2 minutes, oldest to "
         "newest). Use it when the user talks about what they see, their messages, favourites or listings:\n"
         + "\n".join(lines)
     )
@@ -2545,9 +2545,9 @@ async def create_invite_link(user: dict[str, Any] = Depends(workspace_user)):
     try:
         clerk_status, clerk_user = await _clerk_api("GET", f"/users/{user['user_id']}")
     except (HTTPException, httpx.HTTPError) as exc:
-        raise HTTPException(status_code=502, detail="Could not verify OctoHandy access") from exc
+        raise HTTPException(status_code=502, detail="Could not verify MonAmi access") from exc
     if clerk_status >= 400:
-        raise HTTPException(status_code=502, detail="Could not verify OctoHandy access")
+        raise HTTPException(status_code=502, detail="Could not verify MonAmi access")
     public_metadata = clerk_user.get("public_metadata")
     if not isinstance(public_metadata, dict) or public_metadata.get("stockflow_access") is not True:
         allowed_emails = {
@@ -2563,7 +2563,7 @@ async def create_invite_link(user: dict[str, Any] = Depends(workspace_user)):
             for address in email_addresses
         )
         if not email_allowed:
-            raise HTTPException(status_code=403, detail="OctoHandy access required to invite")
+            raise HTTPException(status_code=403, detail="MonAmi access required to invite")
     created_at = datetime.now(timezone.utc)
     expires_at = created_at + timedelta(days=7)
     token = f"inv_{uuid.uuid4().hex}"
@@ -2595,7 +2595,7 @@ def _invite(token: str) -> dict[str, Any]:
 async def invite_info(token: str, _user: dict[str, Any] = Depends(workspace_user)):
     invite = _invite(token)
     if str(invite["org_id"]).startswith("user:"):
-        return {"orgId": invite["org_id"], "orgName": f"{settings.app_user_email}'s OctoHandy team", "expiresAt": invite["expires_at"], "shared": True}
+        return {"orgId": invite["org_id"], "orgName": f"{settings.app_user_email}'s MonAmi team", "expiresAt": invite["expires_at"], "shared": True}
     org_name = await _organization_name(invite["org_id"])
     return {"orgId": invite["org_id"], "orgName": org_name, "expiresAt": invite["expires_at"]}
 
@@ -2630,7 +2630,7 @@ async def accept_invite(token: str, user: dict[str, Any] = Depends(workspace_use
         {"public_metadata": {"stockflow_access": True}},
     )
     if metadata_status >= 400:
-        raise HTTPException(status_code=502, detail="Could not update OctoHandy access")
+        raise HTTPException(status_code=502, detail="Could not update MonAmi access")
     return {"orgId": org_id}
 
 
@@ -2854,7 +2854,7 @@ async def chat(body: ChatIn, user: dict[str, Any] = Depends(workspace_user)):
         if busy_seconds is not None:
             minutes = max(1, (busy_seconds + 59) // 60)
             system += (
-                "\n\nThe OctoHandy desktop is currently in use by another team: "
+                "\n\nThe MonAmi desktop is currently in use by another team: "
                 "do not start any action or workflow on the desktop, do not create a run. "
                 f"Tell the user the desktop is busy and they can retry in about {minutes} minute(s)."
             )

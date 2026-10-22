@@ -1,6 +1,6 @@
 """Google connector.
 
-The seller links their own Google account once (OAuth on the OctoHandy Google Cloud project), the refresh
+The seller links their own Google account once (OAuth on the MonAmi Google Cloud project), the refresh
 token is stored encrypted per workspace, and Hermes reaches Gmail / Calendar through the
 /v1/connectors/google/* endpoints — always as the seller, never with shared credentials.
 """

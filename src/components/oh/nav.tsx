@@ -12,9 +12,9 @@ export function OhNav() {
   return (
     <motion.header initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="relative z-30 border-b bg-background">
       <nav className="mx-auto max-w-6xl px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3">
-        <Link href="/" className="flex items-center gap-2 mr-auto" aria-label="OctoHandy">
+        <Link href="/" className="flex items-center gap-2 mr-auto" aria-label="MonAmi">
           <Octopus still className="w-8 sm:w-9" label="" />
-          <span className="font-heading text-lg sm:text-xl text-foreground">OctoHandy</span>
+          <span className="font-heading text-lg sm:text-xl text-foreground">MonAmi</span>
         </Link>
         <ToggleGroup
           type="single"

@@ -124,15 +124,15 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user } = useUser()
   const { signOut } = useClerk()
   const email = user?.primaryEmailAddress?.emailAddress
-  const name = user?.firstName || email || "Compte OctoHandy"
+  const name = user?.firstName || email || "Compte MonAmi"
 
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
         <SidebarHeader>
-          <Link href="/dashboard/chat" className="flex items-center gap-2 px-2 py-1.5" aria-label="OctoHandy">
+          <Link href="/dashboard/chat" className="flex items-center gap-2 px-2 py-1.5" aria-label="MonAmi">
             <Octopus still className="w-7 shrink-0" label="" />
-            <span className="font-heading text-lg group-data-[collapsible=icon]:hidden">OctoHandy</span>
+            <span className="font-heading text-lg group-data-[collapsible=icon]:hidden">MonAmi</span>
           </Link>
         </SidebarHeader>
         <SidebarContent>

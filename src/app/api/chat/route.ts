@@ -41,18 +41,18 @@ function displayToolFor(text: string): { tool: DisplayTool; reply: string } | un
   }
   if (/\b(?:boutiques?|shops?)\b/.test(request)) return { tool: "showShops", reply: "Here are your shops." }
   if (/\b(?:stock|inventory)\b/.test(request)) return { tool: "showStock", reply: "Here is your stock." }
-  if (/\b(?:bureau|desktop)\b/.test(request)) return { tool: "showDesktop", reply: "Here is the OctoHandy desktop." }
+  if (/\b(?:bureau|desktop)\b/.test(request)) return { tool: "showDesktop", reply: "Here is the MonAmi desktop." }
   if (/\b(?:equipe|team)\b/.test(request)) return { tool: "showTeam", reply: "Here is your team." }
 }
 
 function recordingInputFor(text: string) {
   const normalized = normalizeText(text)
   if (
-    normalized !== "je veux qu'octohandy apprenne une tache" &&
-    !normalized.startsWith("je veux apprendre a octohandy") &&
-    normalized !== "i want octohandy to learn a task" &&
-    !normalized.startsWith("i want to teach octohandy") &&
-    !normalized.startsWith("teach octohandy")
+    !/^je veux qu'(octohandy|monami) apprenne une tache$/.test(normalized) &&
+    !/^je veux apprendre a (octohandy|monami)/.test(normalized) &&
+    !/^i want (octohandy|monami) to learn a task$/.test(normalized) &&
+    !/^i want to teach (octohandy|monami)/.test(normalized) &&
+    !/^teach (octohandy|monami)/.test(normalized)
   ) {
     return undefined
   }
@@ -72,7 +72,7 @@ function writeText(writer: UIMessageStreamWriter<UIMessage>, text: string) {
 }
 
 function noReply(status: number) {
-  return `The OctoHandy desktop did not answer (HTTP ${status}). Try again in a moment.`
+  return `The MonAmi desktop did not answer (HTTP ${status}). Try again in a moment.`
 }
 
 export async function POST(req: Request) {

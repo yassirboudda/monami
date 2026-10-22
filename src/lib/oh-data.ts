@@ -1,4 +1,4 @@
-// Demo data for the public OctoHandy pages (home, explore, profile).
+// Demo data for the public MonAmi pages (home, explore, profile).
 // Replace with the /backend API once marketplace connectors return real listings.
 
 export type MarketplaceId =

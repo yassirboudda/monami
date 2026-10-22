@@ -134,7 +134,7 @@ export function ConnectMarketplaceModal({
         method: "POST",
         body: { marketplace },
       })
-      toast.success(`${marketplaceName(marketplace, marketplaces)} connected on the OctoHandy desktop`)
+      toast.success(`${marketplaceName(marketplace, marketplaces)} connected on the MonAmi desktop`)
       onConnected?.(shop)
       await request("/v1/desktop/release", { method: "POST" }).catch(() => undefined)
       onClose()
@@ -158,7 +158,7 @@ export function ConnectMarketplaceModal({
       {!session ? (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Pick a marketplace. You log in yourself in Chrome on the OctoHandy desktop.
+            Pick a marketplace. You log in yourself in Chrome on the MonAmi desktop.
             Your credentials and cookies stay on that desktop, never on your PC, and
             the Hermes agent then works in that same session.
           </p>
@@ -196,7 +196,7 @@ export function ConnectMarketplaceModal({
           <div className="rounded-lg overflow-hidden border bg-black aspect-video">
             <iframe
               src={session.url}
-              title="OctoHandy remote desktop"
+              title="MonAmi remote desktop"
               className="w-full h-full"
               allow="clipboard-read; clipboard-write"
             />

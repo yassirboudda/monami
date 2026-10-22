@@ -91,7 +91,7 @@ export default function SettingsPage() {
         </Field>
 
         <Field label="Signature (optional)">
-          <Input value={policy.signature} placeholder="e.g. Yassir — OctoHandy" onChange={(e) => setPolicy((p) => ({ ...p, signature: e.target.value }))} />
+          <Input value={policy.signature} placeholder="e.g. Yassir — MonAmi" onChange={(e) => setPolicy((p) => ({ ...p, signature: e.target.value }))} />
         </Field>
 
         <div className="flex justify-end">
