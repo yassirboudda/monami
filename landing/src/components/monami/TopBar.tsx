@@ -36,7 +36,7 @@ export function TopBar({ onProfile }: { onProfile?: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <header className="relative z-30 flex h-14 items-center gap-3 px-4 sm:px-6">
-      <MonamiLogo className="h-4.5 text-ink" />
+      <MonamiLogo className="h-6 text-ink" />
       <div className="ml-auto flex items-center gap-2">
         <a href={`${APP_URL}/sign-up`} className="hidden rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition hover:brightness-110 sm:inline-flex">Ouvrir l'app</a>
         <div className="relative">
