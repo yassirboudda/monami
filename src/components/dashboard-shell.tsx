@@ -1,7 +1,7 @@
 "use client"
 
 import { useClerk, useUser } from "@/lib/auth"
-import { BarChart3, CreditCard, LogOut, MessageSquareText, MonitorSmartphone, Package, Settings, Store, Users, Workflow } from "lucide-react"
+import { BarChart3, Code2, CreditCard, LogOut, MessageSquareText, MonitorSmartphone, Package, Settings, Store, Users, Workflow } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react"
@@ -35,6 +35,7 @@ const nav = [
   { href: "/dashboard/workflows", label: "Workflows", icon: Workflow },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/team", label: "Team", icon: Users },
+  { href: "/dashboard/developers", label: "Developers", icon: Code2 },
   { href: "/dashboard/plan", label: "Plan", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ]

@@ -24,6 +24,7 @@ const CHAPTERS: Chapter[] = [
   { id: "desktop", stage: "branch", bloom: "leaves" },
   { id: "watch", stage: "fruit", bloom: "fruits" },
   { id: "numbers", stage: "canopy", bloom: "both" },
+  { id: "developers", stage: "full", bloom: "both" },
   { id: "plans", stage: "full", bloom: "both" },
 ];
 
@@ -157,7 +158,7 @@ export function Landing() {
   }, []);
 
   return (
-    <div className="relative">
+    <div className="relative overflow-x-clip">
       <div className="fixed inset-0" aria-hidden>
         <TreeBackground stage={chapter.stage} bloom={chapter.bloom} />
       </div>
@@ -173,17 +174,28 @@ export function Landing() {
       <Section id="hero" className="min-h-[calc(100svh-4rem)] pt-10">
         <MascotSays big>
           <div>Salut ! Moi c'est monami, ton copain pour la seconde main.</div>
-          <div className="mt-2 text-muted-foreground">Un agent qui connaît le vrai prix de tout, qui a son propre ordinateur et qui vend et répond pour toi — tu valides ce qui compte.</div>
+          <div className="mt-2 text-muted-foreground">Un agent qui vend et répond pour toi — et un bureau distant dans le cloud pour n'importe quel agent, le tien compris.</div>
         </MascotSays>
         <Reveal className="mt-6 grid gap-3 sm:grid-cols-2 sm:pl-32" delay={0.2}>
-          <a href={SIGN_UP} className="group flex items-center justify-between rounded-3xl bg-primary px-5 py-4 text-left font-semibold text-primary-foreground shadow-md transition hover:brightness-110">
-            <span>Créer mon profil<span className="block text-xs font-normal opacity-80">Gratuit · 30 min de bureau distant offertes</span></span>
-            <ArrowRight className="size-5 transition group-hover:translate-x-0.5" />
+          <a href={SIGN_UP} className="group flex flex-col rounded-3xl bg-primary px-5 py-4 text-left text-primary-foreground shadow-md transition hover:brightness-110">
+            <span className="text-xs font-medium uppercase tracking-wider opacity-80">Vendeurs</span>
+            <span className="mt-1 text-lg font-semibold">L'agent monami tient ta boutique</span>
+            <span className="mt-1 text-sm opacity-90">Prix du marché, annonces, réponses aux acheteurs — tu valides ce qui compte.</span>
+            <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold">Lancer l'agent <ArrowRight className="size-4 transition group-hover:translate-x-0.5" /></span>
           </a>
-          <a href={SIGN_IN} className="flex items-center justify-between rounded-3xl bg-card px-5 py-4 text-left font-semibold text-ink shadow-md transition hover:bg-card/80">
-            <span>J'ai déjà un compte<span className="block text-xs font-normal text-muted-foreground">Email + mot de passe</span></span>
-            <ArrowRight className="size-5" />
+          <a href="#developers" className="group flex flex-col rounded-3xl bg-card px-5 py-4 text-left text-ink shadow-md transition hover:bg-card/80">
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Développeurs &amp; agents</span>
+            <span className="mt-1 text-lg font-semibold">Un bureau distant pour ton propre agent</span>
+            <span className="mt-1 text-sm text-muted-foreground">Claude, Cursor, n8n, OpenClaw… : un vrai ordinateur cloud, navigateur + terminal, via MCP ou API.</span>
+            <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary">Connecter mon agent <ArrowRight className="size-4 transition group-hover:translate-x-0.5" /></span>
           </a>
+        </Reveal>
+        <Reveal className="mt-5 sm:pl-32" delay={0.3}>
+          <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded-3xl bg-card/80 py-1.5 pl-1.5 pr-4 shadow-sm backdrop-blur">
+            <a href={SIGN_UP} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-110">Commencer gratuitement</a>
+            <a href={SIGN_IN} className="text-sm font-medium text-ink underline-offset-4 hover:underline">J'ai déjà un compte</a>
+            <span className="text-xs text-muted-foreground">30 min de bureau distant offertes · sans carte</span>
+          </div>
         </Reveal>
         <Reveal className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink/70 sm:pl-32" delay={0.35}>
           {["eBay", "Vinted", "Leboncoin", "Etsy", "Vestiaire Collective"].map((m) => <span key={m} className="rounded-full bg-card/70 px-3 py-1 font-medium backdrop-blur">{m}</span>)}
@@ -248,11 +260,54 @@ export function Landing() {
         </Reveal>
       </Section>
 
+      <Section id="developers" className="min-h-0">
+        <Reveal>
+          <Intro>
+          <Kicker>Pour les développeurs</Kicker>
+          <H2>Un ordinateur cloud pour ton agent. En une ligne.</H2>
+          <Lead>Crée une clé dans l'app, colle la config MCP dans Claude, Cursor ou ton propre code : ton agent ouvre un bureau distant isolé, navigue, lit l'écran, clique, tape, enregistre — et accède aussi aux prix du marché et à tes boutiques. Mêmes quotas, mêmes validations que dans l'app.</Lead>
+          </Intro>
+        </Reveal>
+        <div className="mt-8 grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+          <Reveal delay={0.1} className="min-w-0">
+            <div className="surface min-w-0 rounded-3xl p-5">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold">Config MCP (Claude Desktop, Cursor…)</div>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">streamable HTTP</span>
+              </div>
+              <pre className="mt-3 overflow-x-auto rounded-2xl bg-ink p-4 font-mono text-[12px] leading-relaxed text-[#f7f2e0]">{`{
+  "mcpServers": {
+    "monami": {
+      "url": "https://app.try-ami.com/backend/v1/mcp",
+      "headers": { "Authorization": "Bearer oh_live_…" }
+    }
+  }
+}`}</pre>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {["desktop_session", "desktop_open", "desktop_browser", "desktop_record", "desktop_clipboard", "market_price", "price_alerts", "list_shops", "list_listings", "chat"].map((t) => (
+                  <code key={t} className="rounded-full bg-muted px-2 py-0.5 text-[11px]">{t}</code>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+          <div className="grid gap-4">
+            <Reveal delay={0.15}><Feature icon={MonitorSmartphone} title="Isolé par compte" text="Un profil Linux, un navigateur et un terminal à toi : les autres comptes n'y voient rien. Tu regardes l'écran en direct et tu reprends la main quand tu veux." /></Reveal>
+            <Reveal delay={0.2}><Feature icon={ShieldCheck} title="Les minutes de ton plan" text="L'essai offre 30 min de bureau distant ; Unlimited le laisse allumé 24h/24 tout le mois. Chaque session consomme le même compteur que dans l'app." /></Reveal>
+            <Reveal delay={0.25}>
+              <div className="surface rounded-3xl p-5">
+                <div className="text-sm font-semibold">Propulsé par Aiven</div>
+                <p className="mt-1 text-sm text-muted-foreground">PostgreSQL pour tes données, Kafka pour le flux d'événements, Valkey pour le cache des prix, ClickHouse pour l'historique : tes chiffres sont conservés 90 jours, hébergés en Europe.</p>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </Section>
+
       <Section id="plans" className="min-h-0 pb-28">
         <Reveal>
           <Intro>
           <Kicker>Plans</Kicker>
-          <H2>Commence gratuitement. Monte quand l'agent te fait gagner du temps.</H2>
+          <H2>Commence gratuitement. Paie quand l'agent te fait gagner du temps.</H2>
           <Lead>Chaque plan donne des minutes de bureau distant et des tokens IA par mois. Paiement sécurisé par Stripe, résiliable à tout moment.</Lead>
           </Intro>
         </Reveal>

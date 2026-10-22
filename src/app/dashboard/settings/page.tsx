@@ -1,6 +1,6 @@
 "use client"
 
-import { BarChart3, CreditCard, Settings2 } from "lucide-react"
+import { BarChart3, Code2, CreditCard, Settings2 } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -9,7 +9,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Switch } from "@/components/ui/switch"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 import { ConnectorsCard } from "@/components/oh/connectors-card"
-import { ApiKeyCard } from "@/components/oh/api-key-card"
 
 type InboxPolicy = { autoReply: boolean; maxAutoDiscountPct: number; tone: string; signature: string }
 type Profile = { displayName: string; preferences: Record<string, unknown> & { inbox?: Partial<InboxPolicy> } }
@@ -103,12 +102,11 @@ export default function SettingsPage() {
 
       <ConnectorsCard />
 
-      <ApiKeyCard />
-
       <div className="grid gap-3 sm:grid-cols-2 max-w-2xl">
         {[
           { href: "/dashboard/plan", icon: CreditCard, t: "Plan & billing", d: "Trial, Starter, Pro, Unlimited — usage and invoices." },
           { href: "/dashboard/analytics", icon: BarChart3, t: "Analytics", d: "What the agent did, your stock vs the market, stored on Aiven." },
+          { href: "/dashboard/developers", icon: Code2, t: "Developers", d: "API key + MCP: a remote desktop and market data for your own agent." },
         ].map(({ href, icon: Icon, t, d }) => (
           <Link key={href} href={href} className="rounded-2xl border p-4 hover:bg-muted/60 transition-colors">
             <Icon className="w-4 h-4 text-muted-foreground" />
