@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
+import { Environment, Lightformer } from "@react-three/drei";
 import * as THREE from "three";
 import { TreeScene, type Bloom } from "./TreeScene";
 
@@ -13,7 +14,7 @@ export type TreeStage = "roots" | "trunk" | "branch" | "canopy" | "fruit" | "ful
 export type { Bloom };
 
 const STAGES: Record<TreeStage, { pos: [number, number, number]; look: [number, number, number] }> = {
-  roots: { pos: [0, 1.0, 5.4], look: [0, 1.2, 0] },
+  roots: { pos: [0, 1.3, 6.2], look: [0, 0.5, 0] },
   trunk: { pos: [0.8, 4.0, 6.4], look: [0, 4.2, 0] },
   branch: { pos: [-3.2, 7.0, 7.0], look: [-1.2, 7.4, 0] },
   canopy: { pos: [0.6, 9.5, 16], look: [0, 9.0, 0] },
@@ -39,7 +40,16 @@ function CameraRig({ stage }: { stage: TreeStage }) {
 export function TreeCanvas({ stage, bloom = "none" }: { stage: TreeStage; bloom?: Bloom }) {
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden>
-      <Canvas dpr={[1, 1.5]} camera={{ position: STAGES[stage].pos, fov: 42, near: 0.1, far: 140 }} gl={{ antialias: true, alpha: true }}>
+      <Canvas dpr={[1, 1.5]} camera={{ position: STAGES[stage].pos, fov: 42, near: 0.1, far: 140 }} gl={{ antialias: true, alpha: true, toneMapping: THREE.ACESFilmicToneMapping }}>
+        <fog attach="fog" args={["#80aee8", 24, 60]} />
+        <hemisphereLight args={["#f7f2e0", "#5d86c2", 0.9]} />
+        <directionalLight position={[6, 14, 8]} intensity={2.2} color="#fff6e6" />
+        <directionalLight position={[-8, 6, -6]} intensity={0.8} color="#b9d4f5" />
+        <Environment resolution={128}>
+          <Lightformer intensity={2.5} position={[0, 8, 4]} scale={[14, 6, 1]} color="#f7f2e0" />
+          <Lightformer intensity={1.4} position={[-6, 3, -2]} rotation-y={Math.PI / 2} scale={[20, 3, 1]} color="#80aee8" />
+          <Lightformer intensity={1} position={[6, 2, 2]} rotation-y={-Math.PI / 2} scale={[10, 2, 1]} color="#ffffff" />
+        </Environment>
         <TreeScene bloom={bloom} />
         <CameraRig stage={stage} />
       </Canvas>

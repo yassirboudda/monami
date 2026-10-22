@@ -78,7 +78,7 @@ export function Onboarding({ onDone }: { onDone: (p: Profile) => void }) {
       <TreeBackground stage={TREE_BY_STEP[step]} bloom={bloom} />
 
       <header className="relative z-10 flex h-16 w-full max-w-2xl items-center">
-        <MonamiLogo className="h-5 text-ink" />
+        <MonamiLogo className="h-6 sm:h-7 text-ink" />
         <div className="ml-auto flex gap-1.5">
           {steps.map((s, i) => (
             <span key={s} className={cn("h-1.5 rounded-full transition-all", i <= stepIdx ? "w-6 bg-primary" : "w-1.5 bg-card/70")} />
