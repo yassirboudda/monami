@@ -311,7 +311,15 @@ export function Landing() {
           <Lead>Minutes de bureau + tokens IA par mois. Stripe, sans engagement.</Lead>
           </Intro>
         </Reveal>
-        <div className="mt-8 grid gap-4 md:grid-cols-4">
+        <Reveal className="mt-6" delay={0.1}>
+          <div className="surface flex flex-wrap items-center gap-x-5 gap-y-2 rounded-3xl px-5 py-3 text-sm">
+            <span className="font-semibold">Chaque bureau distant</span>
+            {[["GPU", "NVIDIA A6000 · 48 GB VRAM"], ["CPU", "6 cœurs x86_64"], ["RAM", "48 GB"], ["SSD", "256 GB"], ["", "Navigateur + terminal, isolé par compte"]].map(([k, v]) => (
+              <span key={v} className="inline-flex items-center gap-1.5 text-muted-foreground">{k && <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-ink">{k}</span>}{v}</span>
+            ))}
+          </div>
+        </Reveal>
+        <div className="mt-6 grid gap-4 md:grid-cols-4">
           {PLANS.map((p, i) => (
             <Reveal key={p.name} delay={i * 0.08}>
               <div className={cn("surface flex h-full flex-col rounded-3xl p-5", p.popular && "ring-2 ring-primary")}>
