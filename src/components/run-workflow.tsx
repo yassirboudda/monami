@@ -65,7 +65,7 @@ export function workflowToolLabel(tool: string) {
 }
 
 export function workflowSourceLabel(source: string) {
-  return ({ hermes: "Hermes", nebius: "Nebius", fallback: "fallback mode", mock: "simulation" } as Record<string, string>)[source] ?? source
+  return ({ hermes: "MonAmi agent", nebius: "cloud model", fallback: "fallback mode", mock: "simulation" } as Record<string, string>)[source] ?? source
 }
 
 export function workflowConfidenceLabel(confidence: string) {
@@ -188,7 +188,7 @@ export function RunWorkflowModal({
       {!run && (
         <div className="flex flex-col items-center gap-3 py-12 text-sm text-muted-foreground">
           <Loader2 className="w-8 h-8 animate-spin" />
-          Hermes is looking at your desktop (Screenpipe) and preparing the plan…
+          MonAmi is looking at your desktop and preparing the plan…
         </div>
       )}
 

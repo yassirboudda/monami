@@ -163,7 +163,7 @@ export function TeachWorkflowModal({
           {!inline && <p className="text-sm text-muted-foreground">
             Show the agent once how you do it: we open your Chrome on the MonAmi desktop, you perform the
             task as usual (reply to a message, send an offer after a favourite…), then Hermes turns the
-            Screenpipe recording into a workflow you approve.
+            screen recording into a workflow you approve.
           </p>}
           {!(inline && suggested.length) && <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {marketplaces.map((m) => (
@@ -213,7 +213,7 @@ export function TeachWorkflowModal({
       {phase === "compiling" && (
         <div className="flex flex-col items-center gap-3 py-12 text-sm text-muted-foreground">
           <Loader2 className="w-8 h-8 animate-spin" />
-          Hermes is reviewing your demonstration (Screenpipe) and writing the workflow…
+          MonAmi is reviewing your demonstration and writing the workflow…
         </div>
       )}
 
@@ -273,7 +273,7 @@ export function TeachWorkflowModal({
       )}
       {phase === "pick" && !inline && (
         <p className="mt-4 text-xs text-muted-foreground flex items-center gap-1.5">
-          <GraduationCap className="w-3.5 h-3.5" /> Screenpipe runs on the MonAmi desktop: nothing is installed on your PC.
+          <GraduationCap className="w-3.5 h-3.5" /> Everything runs on the MonAmi desktop: nothing is installed on your PC.
         </p>
       )}
     </>
