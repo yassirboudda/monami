@@ -3,9 +3,8 @@
 @source "../../node_modules/streamdown/dist/*.js";
 
 @theme inline {
-  --font-heading: var(--font-fraunces), Georgia, serif;
-  --font-heading--font-variation-settings: "SOFT" 100, "WONK" 1;
-  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: "Chillax", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Chillax", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -49,36 +48,38 @@
   --app-header-height: 4rem;
   --app-bottom-nav-height: 4.5rem;
   --app-main-gap: 1rem;
-  /* Warm SaaS: paper surfaces, ink text, butter only for active/highlight. */
-  --background: #fffcf3;
-  --foreground: #43302e;
-  --card: #ffffff;
-  --card-foreground: #43302e;
-  --popover: #ffffff;
-  --popover-foreground: #43302e;
-  --primary: #43302e;
-  --primary-foreground: #fff1b5;
-  --secondary: #f4eee4;
-  --secondary-foreground: #43302e;
-  --muted: #f4eee4;
-  --muted-foreground: #7a6461;
-  --accent: #f1e9db; /* hovers; butter (--butter) is reserved for active/highlight */
-  --accent-foreground: #43302e;
+  /* MonAmi palette (Magra): Ivory Mist paper, Night Bordeaux for brand actions, Cool Horizon for info/links/glows. */
+  --background: #f7f2e0;
+  --foreground: #3f302b;
+  --card: #fdfbf4;
+  --card-foreground: #3f302b;
+  --popover: #fdfbf4;
+  --popover-foreground: #3f302b;
+  --primary: #5b0015;
+  --primary-foreground: #f7f2e0;
+  --secondary: #e4ecf8;
+  --secondary-foreground: #2f4f7a;
+  --muted: #efe9d8;
+  --muted-foreground: #776660;
+  --accent: #ede6d2; /* hovers; --horizon is the brand blue for active/highlight */
+  --accent-foreground: #3f302b;
   --destructive: #b42318;
-  --border: rgba(67, 48, 46, 0.12);
-  --input: rgba(67, 48, 46, 0.16);
-  --ring: #43302e;
-  --radius: 0.5rem;
-  --sky: #c1dbe8;
-  --butter: #fff1b5;
-  --sidebar: #f7f2e6;
-  --sidebar-foreground: #43302e;
-  --sidebar-primary: #43302e;
-  --sidebar-primary-foreground: #fff1b5;
-  --sidebar-accent: #efe6d6;
-  --sidebar-accent-foreground: #43302e;
-  --sidebar-border: rgba(67, 48, 46, 0.1);
-  --sidebar-ring: #43302e;
+  --border: rgba(63, 48, 43, 0.12);
+  --input: rgba(63, 48, 43, 0.16);
+  --ring: #80aee8;
+  --radius: 1rem;
+  --sky: #80aee8;
+  --horizon: #80aee8;
+  --butter: #dfe9f8; /* soft Cool Horizon: active/highlight */
+  --bordeaux: #5b0015;
+  --sidebar: #f2ecd9;
+  --sidebar-foreground: #3f302b;
+  --sidebar-primary: #5b0015;
+  --sidebar-primary-foreground: #f7f2e0;
+  --sidebar-accent: #e9e2cd;
+  --sidebar-accent-foreground: #3f302b;
+  --sidebar-border: rgba(63, 48, 43, 0.1);
+  --sidebar-ring: #80aee8;
 }
 
 @layer base {
@@ -87,7 +88,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-hanken), ui-sans-serif, system-ui, sans-serif; /* @theme inline vars don't exist at runtime */
+    font-family: "Chillax", ui-sans-serif, system-ui, sans-serif; /* Fontshare, loaded in layout.tsx */
     font-feature-settings: "cv11", "ss01";
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.011em;
@@ -126,7 +127,7 @@ html {
   line-height: 1.15;
 }
 .text-title {
-  font-family: var(--font-fraunces), Georgia, serif;
+  font-family: "Chillax", ui-sans-serif, system-ui, sans-serif;
   font-variation-settings: "SOFT" 100, "WONK" 1;
   font-size: clamp(1.5rem, 3vw, 1.875rem);
   font-weight: 600;

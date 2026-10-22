@@ -1,6 +1,7 @@
 import { SignIn } from "@clerk/nextjs"
 import Link from "next/link"
 import { Octopus } from "@/components/oh/octopus"
+import { MonamiLogo } from "@/components/oh/monami-brand"
 import { clerkAppearance } from "@/components/oh/clerk-appearance"
 
 export default function SignInPage() {
@@ -8,7 +9,7 @@ export default function SignInPage() {
     <div className="min-h-dvh bg-background flex flex-col items-center justify-center gap-6 p-4">
       <Link href="/" className="flex items-center gap-2" aria-label="MonAmi">
         <Octopus className="w-16" label="" />
-        <span className="font-heading text-3xl text-foreground">MonAmi</span>
+        <MonamiLogo className="text-[40px] text-foreground" />
       </Link>
       <p className="text-muted-foreground text-center max-w-sm -mt-2">Your marketplace assistant: it watches your shops, drafts your replies and acts on your remote desktop.</p>
       <SignIn appearance={clerkAppearance} />

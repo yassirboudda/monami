@@ -8,6 +8,7 @@ import Link from "next/link"
 import { useLayoutEffect, useRef } from "react"
 import { BoxImg } from "@/components/oh/box"
 import { Octopus } from "@/components/oh/octopus"
+import { MonamiLogo } from "@/components/oh/monami-brand"
 import { OhShell } from "@/components/oh/shell"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/lib/oh-i18n"
@@ -197,7 +198,7 @@ function HomeContent() {
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 flex flex-wrap items-center gap-3 justify-between text-sm text-[var(--ink-soft)]">
           <span className="flex items-center gap-2">
             <Octopus still className="w-7" label="" />
-            <span className="font-heading text-base text-foreground">MonAmi</span>
+            <MonamiLogo className="text-[20px] text-foreground" />
           </span>
           <span>{t.home.footer}</span>
         </div>

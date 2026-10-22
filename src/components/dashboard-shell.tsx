@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from "react"
 import { toast } from "sonner"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 import { Octopus } from "./oh/octopus"
+import { MonamiLogo } from "@/components/oh/monami-brand"
 import {
   Sidebar,
   SidebarContent,
@@ -132,7 +133,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <SidebarHeader>
           <Link href="/dashboard/chat" className="flex items-center gap-2 px-2 py-1.5" aria-label="MonAmi">
             <Octopus still className="w-7 shrink-0" label="" />
-            <span className="font-heading text-lg group-data-[collapsible=icon]:hidden">MonAmi</span>
+            <MonamiLogo className="text-[22px] group-data-[collapsible=icon]:hidden" />
           </Link>
         </SidebarHeader>
         <SidebarContent>
