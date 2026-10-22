@@ -35,7 +35,7 @@ const nav = [
   { href: "/dashboard/workflows", label: "Workflows", icon: Workflow },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/team", label: "Team", icon: Users },
-  { href: "/dashboard/developers", label: "Developers", icon: Code2 },
+  { href: "/dashboard/developers", label: "API key", icon: Code2 },
   { href: "/dashboard/plan", label: "Plan", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ]

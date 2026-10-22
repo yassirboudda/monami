@@ -9,7 +9,7 @@ export default function DevelopersPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        label="Developers"
+        label="API key"
         title="A remote desktop for your own agent"
         subtitle="Claude, Cursor, n8n, OpenClaw or your code: one API key gives any agent a real cloud computer (browser + terminal, isolated per account) plus market prices, your shops and the chat — through MCP."
       />

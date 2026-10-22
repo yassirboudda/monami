@@ -106,7 +106,7 @@ export default function SettingsPage() {
         {[
           { href: "/dashboard/plan", icon: CreditCard, t: "Plan & billing", d: "Trial, Starter, Pro, Unlimited — usage and invoices." },
           { href: "/dashboard/analytics", icon: BarChart3, t: "Analytics", d: "What the agent did, your stock vs the market, stored on Aiven." },
-          { href: "/dashboard/developers", icon: Code2, t: "Developers", d: "API key + MCP: a remote desktop and market data for your own agent." },
+          { href: "/dashboard/developers", icon: Code2, t: "API key", d: "API key + MCP: a remote desktop and market data for your own agent." },
         ].map(({ href, icon: Icon, t, d }) => (
           <Link key={href} href={href} className="rounded-2xl border p-4 hover:bg-muted/60 transition-colors">
             <Icon className="w-4 h-4 text-muted-foreground" />
