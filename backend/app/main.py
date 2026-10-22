@@ -29,7 +29,7 @@ from jose import jwk, jwt
 from jose.exceptions import JWTError
 from pydantic import BaseModel, Field
 
-from . import billing, connectors, db, events, market
+from . import billing, connectors, db, events, market, ticker
 from .desktop import _desktop_enabled, _desktop_token
 from .human import HumanProfile, click_point, from_trace, key_delays, move_path, pre_action_delay, typos
 from .marketplaces import agent_context, get_doc, get_marketplace
@@ -47,7 +47,13 @@ from .settings import settings
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
     db.initialize_database()
+    try:
+        ticker.ensure_schema()
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger("monami").warning("ticker schema: %s", e)
+    task = asyncio.create_task(ticker.run_forever())
     yield
+    task.cancel()
     events.flush()
 
 
@@ -645,6 +651,8 @@ MCP_TOOLS = [
     _mcp_tool("market_price", "What buyers really pay for an item: sold prices on eBay (default) or asking prices on Vinted / Leboncoin.",
               {"q": _S, "listingId": _S, "marketplace": _S}),
     _mcp_tool("price_alerts", "Listings priced well above or below the market, from known market data."),
+    _mcp_tool("market_stream", "Live market ticker: price points recorded every few minutes for a watched keyword (stock-chart style). Give q to read one series (and start watching it), or nothing to get every series the seller follows. niche = pokemon | sneakers | gpu | watches | phones | fashion | lego to follow a preset.",
+              {"q": _S, "niche": _S, "marketplace": _S, "hours": {"type": "integer"}}),
     _mcp_tool("desktop_screen", "What is on the seller's remote desktop screen right now (text).", {"minutes": {"type": "integer"}}),
     _mcp_tool("desktop_session", "Open the seller's own remote desktop (isolated Linux desktop + Chrome logged in to their shops) and return a browser URL valid 15 minutes. Uses the plan's desktop minutes.",
               {"purpose": {"type": "string", "enum": ["browse", "connect", "teach"]}}),
@@ -673,6 +681,13 @@ async def _mcp_call(name: str, a: dict[str, Any], user: dict[str, Any]) -> Any:
         listings = (await list_listings(user=user))["listings"]
         return {"alerts": [{"listing": l, "market": snap[l["id"]]} for l in listings
                            if l["id"] in snap and snap[l["id"]].get("deltaPct") is not None and abs(snap[l["id"]]["deltaPct"]) >= 8]}
+    if name == "market_stream":
+        hours = int(a.get("hours") or 48)
+        if a.get("niche") or a.get("q"):
+            await market_watch_add(WatchIn(niche=a.get("niche") or None, keyword=a.get("q") or None, marketplace=str(a.get("marketplace") or "ebay")), user=user)
+        if a.get("q"):
+            return await market_stream(q=str(a["q"]), marketplace=str(a.get("marketplace") or "ebay"), hours=hours, user=user)
+        return await market_ticks(hours=hours, user=user)
     if name == "desktop_screen":
         return await desktop_screen(minutes=int(a.get("minutes") or 2), user=user)
     if name == "chat":
@@ -744,6 +759,64 @@ async def market_snapshot(marketplace: str = "ebay", user: dict[str, Any] = Depe
         return out
 
     return {"snapshot": await asyncio.to_thread(_all), "marketplace": marketplace}
+
+
+class WatchIn(BaseModel):
+    niche: str | None = None
+    keyword: str | None = None
+    marketplace: str = "ebay"
+
+
+@app.get("/v1/market/watch")
+async def market_watch_list(user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        return {"watch": ticker.watchlist(conn, user["workspace"]), "niches": [{"id": k, **v} for k, v in ticker.NICHES.items()]}
+
+
+@app.post("/v1/market/watch")
+async def market_watch_add(body: WatchIn, user: dict[str, Any] = Depends(workspace_user)):
+    """Follow a niche (preset keywords) or one keyword: the ticker records a price point right away, then every
+    market_tick_minutes. Ticks are shared across workspaces, so one Apify search serves everyone watching it."""
+    with db.connection() as conn:
+        before = {(w["keyword"], w["marketplace"]) for w in ticker.watchlist(conn, user["workspace"])}
+        try:
+            out = ticker.watch(conn, user["workspace"], niche=body.niche, keyword=body.keyword, marketplace=body.marketplace)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        new = [(w["keyword"], w["marketplace"]) for w in out if (w["keyword"], w["marketplace"]) not in before]
+        have = {(r["keyword"], r["marketplace"]) for r in conn.execute("SELECT DISTINCT keyword, marketplace FROM market_ticks").fetchall()}
+    events.emit("market.watch", user["workspace"], {"niche": body.niche, "keyword": body.keyword, "added": len(new)}, marketplace=body.marketplace, user_id=user["user_id"])
+
+    async def _first_ticks() -> None:
+        for kw, mk in new:
+            await asyncio.to_thread(ticker.record_tick, kw, mk, fresh=(kw, mk) not in have)
+    if new:
+        asyncio.create_task(_first_ticks())
+    return {"watch": out}
+
+
+@app.delete("/v1/market/watch/{watch_id}")
+async def market_watch_remove(watch_id: str, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        if not ticker.unwatch(conn, user["workspace"], watch_id):
+            raise HTTPException(404, "Not watched")
+        return {"watch": ticker.watchlist(conn, user["workspace"])}
+
+
+@app.get("/v1/market/ticks")
+async def market_ticks(hours: int = 48, user: dict[str, Any] = Depends(workspace_user)):
+    """Live series for every watched keyword (Analytics page, polled)."""
+    with db.connection() as conn:
+        return {"live": ticker.streams(conn, user["workspace"], max(1, min(hours, 24 * 30)))}
+
+
+@app.get("/v1/market/stream")
+async def market_stream(q: str, marketplace: str = "ebay", hours: int = 48, user: dict[str, Any] = Depends(workspace_user)):
+    """One keyword's tick series + latest point (also the MCP `market_stream` tool)."""
+    kw = market.normalize_query(q)
+    with db.connection() as conn:
+        pts = ticker.series(conn, kw, marketplace.lower(), max(1, min(hours, 24 * 30)))
+    return {"keyword": kw, "marketplace": marketplace.lower(), "intervalMinutes": settings.market_tick_minutes, "points": pts, "last": pts[-1] if pts else None}
 
 
 @app.get("/v1/analytics/dashboard")

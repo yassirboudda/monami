@@ -6,6 +6,7 @@ import { Badge, Card, EmptyState, MarketplaceLogo, PageHeader, Skeleton } from "
 import { Progress } from "@/components/ui/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
+import { LiveMarket } from "@/components/oh/live-market"
 import { cn } from "@/lib/utils"
 
 type Activity = {
@@ -140,6 +141,8 @@ export default function AnalyticsPage() {
           </span>
         }
       />
+
+      <LiveMarket />
 
       {error && <p className="text-sm text-destructive">Could not load your analytics.</p>}
       {isLoading && !d && (

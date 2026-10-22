@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/lib/auth"
 import { useCallback } from "react"
-import useSWR from "swr"
+import useSWR, { type SWRConfiguration } from "swr"
 import { apiFetch } from "@/lib/api"
 
 type WorkspaceKey = readonly [string, string, string | null]
@@ -12,7 +12,7 @@ type RequestOptions = {
   body?: unknown
 }
 
-export function useWorkspaceResource<T>(path: string) {
+export function useWorkspaceResource<T>(path: string, options?: SWRConfiguration<T, Error>) {
   const { getToken, userId, orgId } = useAuth()
   const key: WorkspaceKey | null = userId ? [path, userId, orgId] : null
 
@@ -29,7 +29,7 @@ export function useWorkspaceResource<T>(path: string) {
     async ([requestPath]: WorkspaceKey) => request<T>(requestPath),
     [request]
   )
-  const resource = useSWR<T, Error, WorkspaceKey | null>(key, fetcher)
+  const resource = useSWR<T, Error, WorkspaceKey | null>(key, fetcher, options)
 
   return { ...resource, request, orgId }
 }
