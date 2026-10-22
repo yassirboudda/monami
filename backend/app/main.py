@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import asyncio
 import hashlib
 from pathlib import Path
@@ -59,6 +60,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+log = logging.getLogger("octohandy")
 _jwks_cache: dict[str, Any] = {"at": 0.0, "keys": []}
 _organization_names: dict[str, str] = {}
 _run_tasks: set[asyncio.Task[None]] = set()
@@ -112,12 +114,18 @@ async def _jwks() -> list[dict[str, Any]]:
     now = time.time()
     if _jwks_cache["keys"] and now - _jwks_cache["at"] < 3600:
         return _jwks_cache["keys"]
+    keys: list[dict[str, Any]] = []
     async with httpx.AsyncClient(timeout=15) as client:
-        r = await client.get(settings.clerk_jwks_url)
-        r.raise_for_status()
-        keys = r.json().get("keys", [])
-    _jwks_cache["at"] = now
-    _jwks_cache["keys"] = keys
+        for url in [u.strip() for u in settings.clerk_jwks_url.split(",") if u.strip()]:
+            try:
+                r = await client.get(url)
+                r.raise_for_status()
+                keys.extend(r.json().get("keys", []))
+            except Exception as e:  # one instance down must not lock out the others
+                log.warning("jwks fetch failed for %s: %s", url, e)
+    if keys:
+        _jwks_cache["at"] = now
+        _jwks_cache["keys"] = keys
     return keys
 
 

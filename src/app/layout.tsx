@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next"
 import { Fraunces, Hanken_Grotesk, JetBrains_Mono } from "next/font/google"
+import { headers } from "next/headers"
 import { ClerkProvider } from "@clerk/nextjs"
 import { Toaster } from "@/components/ui/sonner"
 import { clerkAppearance } from "@/components/oh/clerk-appearance"
-import { CLERK_PUBLISHABLE_KEY } from "@/lib/session"
+import { clerkPublishableKeyFor } from "@/lib/session"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
 import "./oh.css"
@@ -52,10 +53,11 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const host = (await headers()).get("x-forwarded-host") || (await headers()).get("host")
   return (
     <ClerkProvider
-      publishableKey={CLERK_PUBLISHABLE_KEY}
+      publishableKey={clerkPublishableKeyFor(host)}
       appearance={clerkAppearance}
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
