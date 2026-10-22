@@ -21,12 +21,15 @@ export default function AllListingsPage() {
   )
 
   const visible = filter === "all" ? listings : listings.filter((l) => l.shopId === filter)
+  const live = visible.filter((l) => l.status !== "sold")
+  const value = live.reduce((sum, l) => sum + l.price, 0)
 
   return (
     <div>
       <PageHeader
         label="Marketplace"
-        title="All listings"
+        title="Your inventory"
+        subtitle={`${visible.length} items · ${live.length} live · estimated value ${value.toFixed(0)} €`}
         actions={
           <Button variant="secondary" size="sm" asChild>
             <Link href="/dashboard/shops">

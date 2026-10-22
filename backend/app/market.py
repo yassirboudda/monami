@@ -321,6 +321,28 @@ def history(marketplace: str, keyword: str, weeks: int = 12) -> list[dict[str, A
 
 # ---------------------------------------------------------------- public API
 
+def cached_comps(query: str, marketplace: str, *, own_price: float | None = None) -> dict[str, Any] | None:
+    """Price stats for `query` without calling Apify: the 6 h cache first, else the latest week of price history
+    in ClickHouse. None when we know nothing yet (the UI then offers the 'Market price' button)."""
+    marketplace = (marketplace or "ebay").lower()
+    keyword = normalize_query(query)
+    if marketplace not in ACTORS or len(keyword) < 2:
+        return None
+    cached = _cache_get(f"comps:{marketplace}:{keyword}")
+    if cached is not None:
+        out = stats(cached["rows"], own_price)
+        out.update(marketplace=marketplace, kind=ACTORS[marketplace]["kind"], source="cache")
+        return out
+    weeks = history(marketplace, keyword, weeks=4)
+    if weeks:
+        last = weeks[-1]
+        median = float(last["median"])
+        delta = round((own_price - median) / median * 100) if own_price and median else None
+        return {"n": int(last["n"]), "median": median, "deltaPct": delta, "marketplace": marketplace,
+                "kind": ACTORS[marketplace]["kind"], "source": "history", "week": last["week"]}
+    return None
+
+
 def comps(query: str, marketplace: str, *, own_price: float | None = None, limit: int = 30,
           workspace: str = "", user_id: str = "") -> dict[str, Any]:
     """Comparable prices for `query` on `marketplace`. Raises MarketError with a seller-readable message."""

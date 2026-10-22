@@ -517,6 +517,24 @@ async def market_comps(q: str = "", marketplace: str = "ebay", price: float | No
     return {"comps": result}
 
 
+@app.get("/v1/market/snapshot")
+async def market_snapshot(marketplace: str = "ebay", user: dict[str, Any] = Depends(workspace_user)):
+    """Known market price per listing of the workspace, from cache/price history only (never calls Apify):
+    the inventory grid shows 'your price vs market' pills without burning credits."""
+    with db.connection() as conn:
+        rows = conn.execute("SELECT id, title, price FROM listings WHERE workspace=?", (user["workspace"],)).fetchall()
+
+    def _all() -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for row in rows:
+            hit = market.cached_comps(row["title"], marketplace, own_price=row["price"])
+            if hit and hit.get("median") is not None:
+                out[row["id"]] = hit
+        return out
+
+    return {"snapshot": await asyncio.to_thread(_all), "marketplace": marketplace}
+
+
 @app.get("/v1/analytics/summary")
 async def analytics_summary(days: int = 14, user: dict[str, Any] = Depends(workspace_user)):
     """Activity of the agent for this workspace, read from Aiven for ClickHouse (fed by the Kafka event stream)."""
