@@ -508,17 +508,31 @@ async def get_billing(user: dict[str, Any] = Depends(workspace_user)):
         return {"billing": billing.status(conn, user["workspace"])}
 
 
+def _app_url(request: Request) -> str:
+    """Where Stripe sends the seller back: the app host the request came from (app.try-ami.com or the legacy
+    domain) when it is one of ours, else APP_URL."""
+    origin = request.headers.get("origin") or ""
+    if not origin and (ref := request.headers.get("referer")):
+        m = re.match(r"^(https?://[^/]+)", ref)
+        origin = m.group(1) if m else ""
+    origin = origin.rstrip("/")
+    host = origin.split("://", 1)[-1].lower()
+    if origin in settings.cors_origin_list or host.endswith("try-ami.com") or host.endswith("amirelay.com"):
+        return origin
+    return settings.app_url
+
+
 @app.post("/v1/billing/checkout")
-async def billing_checkout(plan: str = "pro", user: dict[str, Any] = Depends(workspace_user)):
+async def billing_checkout(request: Request, plan: str = "pro", user: dict[str, Any] = Depends(workspace_user)):
     email = (user.get("claims") or {}).get("email")
     with db.connection() as conn:
-        return {"url": billing.checkout_url(conn, user["workspace"], user["user_id"], email, plan)}
+        return {"url": billing.checkout_url(conn, user["workspace"], user["user_id"], email, plan, app_url=_app_url(request))}
 
 
 @app.post("/v1/billing/portal")
-async def billing_portal(user: dict[str, Any] = Depends(workspace_user)):
+async def billing_portal(request: Request, user: dict[str, Any] = Depends(workspace_user)):
     with db.connection() as conn:
-        return {"url": billing.portal_url(conn, user["workspace"])}
+        return {"url": billing.portal_url(conn, user["workspace"], app_url=_app_url(request))}
 
 
 @app.get("/v1/market/comps")
@@ -730,6 +744,12 @@ async def market_snapshot(marketplace: str = "ebay", user: dict[str, Any] = Depe
         return out
 
     return {"snapshot": await asyncio.to_thread(_all), "marketplace": marketplace}
+
+
+@app.get("/v1/analytics/dashboard")
+async def analytics_dashboard(days: int = 30, user: dict[str, Any] = Depends(workspace_user)):
+    """The Analytics page: agent activity + usage + stock vs market + market searches, one call."""
+    return {"dashboard": await asyncio.to_thread(events.dashboard, user["workspace"], max(7, min(days, 90)))}
 
 
 @app.get("/v1/analytics/summary")
