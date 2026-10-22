@@ -32,6 +32,7 @@ EVENT_KINDS = {
     "shop.synced": "Shop listings refreshed from the marketplace",
     "listing.published": "A listing was created from the chat",
     "billing.subscription": "Stripe subscription changed",
+    "market.comps": "Seller checked the market price of an item",
 }
 
 _producer: Any = None
@@ -125,6 +126,21 @@ def emit(kind: str, workspace: str, payload: dict[str, Any] | None = None, *,
     except Exception as e:  # noqa: BLE001 - best effort by design
         log.warning("event %s not published: %s", kind, e)
     return event
+
+
+def publish(topic: str, key: str, value: dict[str, Any]) -> bool:
+    """Best-effort publish of any JSON record to any topic (market data, …)."""
+    try:
+        producer = _get_producer()
+        if producer is None:
+            return False
+        producer.produce(topic, key=key.encode(), value=json.dumps(value, ensure_ascii=False).encode(),
+                         on_delivery=_delivery)
+        producer.poll(0)
+        return True
+    except Exception as e:  # noqa: BLE001
+        log.warning("record not published to %s: %s", topic, e)
+        return False
 
 
 def flush(timeout: float = 5.0) -> None:

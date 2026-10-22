@@ -27,7 +27,7 @@ from jose import jwk, jwt
 from jose.exceptions import JWTError
 from pydantic import BaseModel, Field
 
-from . import billing, db, events
+from . import billing, db, events, market
 from .desktop import _desktop_enabled, _desktop_token
 from .human import HumanProfile, click_point, from_trace, key_delays, move_path, pre_action_delay, typos
 from .marketplaces import agent_context, get_doc, get_marketplace
@@ -487,6 +487,26 @@ async def billing_checkout(user: dict[str, Any] = Depends(workspace_user)):
 async def billing_portal(user: dict[str, Any] = Depends(workspace_user)):
     with db.connection() as conn:
         return {"url": billing.portal_url(conn, user["workspace"])}
+
+
+@app.get("/v1/market/comps")
+async def market_comps(q: str = "", marketplace: str = "ebay", price: float | None = None,
+                       listingId: str | None = None, user: dict[str, Any] = Depends(workspace_user)):
+    """Comparable prices for an item (sold on eBay, asking on Vinted/Leboncoin). Fed to Kafka → ClickHouse."""
+    if listingId:
+        with db.connection() as conn:
+            row = conn.execute("SELECT title, price FROM listings WHERE workspace=? AND id=?",
+                               (user["workspace"], listingId)).fetchone()
+        if row is None:
+            raise HTTPException(404, "Listing not found")
+        q = q or row["title"]
+        price = price if price is not None else row["price"]
+    try:
+        result = await asyncio.to_thread(market.comps, q, marketplace, own_price=price,
+                                         workspace=user["workspace"], user_id=user["user_id"])
+    except market.MarketError as e:
+        raise HTTPException(503, str(e)) from e
+    return {"comps": result}
 
 
 @app.get("/v1/analytics/summary")

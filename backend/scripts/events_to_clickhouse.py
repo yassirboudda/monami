@@ -1,4 +1,4 @@
-"""Kafka → ClickHouse worker: consumes `octohandy.events` and inserts rows in batches.
+"""Kafka → ClickHouse worker: consumes `octohandy.events` + `octohandy.market` and inserts rows in batches.
 
 Run next to the API (same env): `python -m scripts.events_to_clickhouse` from backend/.
 Idempotent: ReplacingMergeTree on the event id, so at-least-once delivery is fine.
@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from confluent_kafka import Consumer, KafkaException  # noqa: E402
 
-from app import events  # noqa: E402
+from app import events, market  # noqa: E402
 from app.settings import settings  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -32,6 +32,7 @@ def main() -> int:
         return 2
     client = events.clickhouse()
     events.ensure_clickhouse_schema(client)
+    market.ensure_schema(client)
     consumer = Consumer({
         **events.kafka_config(),
         "client.id": "octohandy-clickhouse-sink",
@@ -39,7 +40,7 @@ def main() -> int:
         "auto.offset.reset": "earliest",
         "enable.auto.commit": False,
     })
-    consumer.subscribe([settings.kafka_topic])
+    consumer.subscribe([settings.kafka_topic, settings.kafka_market_topic])
     running = True
 
     def stop(*_):
@@ -48,8 +49,9 @@ def main() -> int:
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
-    log.info("consuming %s → ClickHouse %s.events", settings.kafka_topic, settings.clickhouse_database)
+    log.info("consuming %s + %s → ClickHouse %s", settings.kafka_topic, settings.kafka_market_topic, settings.clickhouse_database)
     buf: list[dict] = []
+    market_buf: list[dict] = []
     last_flush = time.monotonic()
     while running:
         msg = consumer.poll(0.5)
@@ -58,15 +60,17 @@ def main() -> int:
                 log.warning("kafka: %s", msg.error())
             else:
                 try:
-                    buf.append(json.loads(msg.value()))
+                    (market_buf if msg.topic() == settings.kafka_market_topic else buf).append(json.loads(msg.value()))
                 except ValueError:
                     log.warning("skipping non-JSON message at offset %s", msg.offset())
-        if buf and (len(buf) >= BATCH or time.monotonic() - last_flush >= MAX_WAIT_S):
+        if (buf or market_buf) and (len(buf) + len(market_buf) >= BATCH or time.monotonic() - last_flush >= MAX_WAIT_S):
             try:
                 events.insert_events(buf, client)
+                market.insert_rows(market_buf, client)
                 consumer.commit(asynchronous=False)
-                log.info("inserted %d events", len(buf))
+                log.info("inserted %d events, %d market rows", len(buf), len(market_buf))
                 buf.clear()
+                market_buf.clear()
             except (KafkaException, Exception) as e:  # noqa: BLE001
                 log.error("insert failed, will retry: %s", e)
                 time.sleep(2)
