@@ -50,7 +50,10 @@ class Settings(BaseSettings):
     # Stripe subscriptions (test mode for the hackathon). Empty = billing UI shows "not configured", everything stays free.
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
-    stripe_price_pro: str = ""  # price_... of the Pro monthly plan
+    stripe_price_pro: str = ""  # legacy €9.99 Pro price (kept so existing subscriptions still map to "pro")
+    stripe_price_starter: str = ""  # $20 / month
+    stripe_price_pro_usd: str = ""  # $100 / month
+    stripe_price_unlimited: str = ""  # $200 / month
     app_url: str = "https://octohandy.amirelay.com"
     # Google connector (Gmail/Calendar/Contacts/Drive for the agent): OAuth web client of the MonAmi GCP project.
     # Empty = the Connectors card shows "Coming soon". Redirect URI: {app_url}/backend/v1/connectors/google/callback

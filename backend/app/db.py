@@ -269,6 +269,14 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 CREATE INDEX IF NOT EXISTS idx_subscriptions_customer ON subscriptions(stripe_customer_id);
+CREATE TABLE IF NOT EXISTS usage (
+    workspace TEXT NOT NULL,
+    period TEXT NOT NULL,
+    desktop_seconds INTEGER NOT NULL DEFAULT 0,
+    ai_tokens INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (workspace, period)
+);
 CREATE TABLE IF NOT EXISTS connectors (
     workspace TEXT NOT NULL,
     provider TEXT NOT NULL,
