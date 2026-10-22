@@ -101,6 +101,18 @@ DEFAULT_WORKFLOWS = (
 )
 
 _SCHEMA = """
+CREATE TABLE IF NOT EXISTS agent_events (
+    id TEXT PRIMARY KEY,
+    workspace TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    marketplace TEXT NOT NULL DEFAULT '',
+    user_id TEXT NOT NULL DEFAULT '',
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    payload TEXT NOT NULL DEFAULT '{}',
+    ts TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS agent_events_ws_ts ON agent_events (workspace, ts);
+
 CREATE TABLE IF NOT EXISTS shops (
     id TEXT NOT NULL,
     workspace TEXT NOT NULL,

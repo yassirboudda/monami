@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     billing_pro_workspaces: str = ""
     # "user:<new clerk id>=user:<existing workspace>,..." — same person signing in from another Clerk instance keeps one workspace
     workspace_aliases: str = ""
+    # analytics events are kept this long in the app database (Aiven PostgreSQL in prod); ClickHouse keeps the long history
+    events_retention_days: int = 90
 
     # Aiven for Apache Kafka: every product event goes to this topic. Empty = events are dropped (local dev).
     kafka_bootstrap_servers: str = ""
