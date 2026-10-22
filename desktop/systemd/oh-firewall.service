@@ -1,0 +1,9 @@
+[Unit]
+Description=OctoHandy firewall + tenant isolation rules (re-applied after init-script resets ufw)
+After=init-script.service network-online.target docker.service
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c "ufw allow 80/tcp; ufw allow 443/tcp; ufw allow from 172.18.0.0/16 to 172.18.0.1 port 8080 proto tcp; ufw allow from 172.18.0.0/16 to any port 6082 proto tcp"
+ExecStart=/opt/octohandy/harden-host.sh
+[Install]
+WantedBy=multi-user.target
