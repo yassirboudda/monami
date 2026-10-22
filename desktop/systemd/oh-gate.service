@@ -1,0 +1,11 @@
+[Unit]
+Description=OctoHandy desktop gate (HTTP API + noVNC token relay)
+After=network.target
+[Service]
+EnvironmentFile=/etc/octohandy/gate.env
+WorkingDirectory=/opt/octohandy
+ExecStart=/opt/octohandy/venv/bin/uvicorn gate:app --host 127.0.0.1 --port 6081
+Restart=always
+RestartSec=2
+[Install]
+WantedBy=multi-user.target

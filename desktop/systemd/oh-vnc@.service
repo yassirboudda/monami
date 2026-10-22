@@ -1,0 +1,11 @@
+[Unit]
+Description=OctoHandy Xvnc display for profile %i
+After=network.target
+[Service]
+EnvironmentFile=/etc/octohandy/profiles/%i.env
+User=oh-%i
+ExecStart=/usr/bin/Xvnc ${DISPLAY} -geometry 1600x900 -depth 24 -rfbport ${OH_VNC_PORT} -localhost -SecurityTypes VncAuth -PasswordFile /home/oh-%i/.vnc/passwd -AcceptSetDesktopSize=0 -AlwaysShared -desktop OctoHandy
+Restart=always
+RestartSec=2
+[Install]
+WantedBy=multi-user.target
