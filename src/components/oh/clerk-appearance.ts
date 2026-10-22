@@ -14,3 +14,16 @@ export const clerkAppearance = {
     cardBox: { boxShadow: "0 1px 2px rgba(67, 48, 46, 0.06)", border: "1px solid rgba(67, 48, 46, 0.13)" },
   },
 }
+
+/** Hosts whose Clerk instance has no Google OAuth credentials yet: hide the Google button instead of sending people to a Google 400. */
+const HOSTS_WITHOUT_GOOGLE = ["try-ami.com"]
+
+export function clerkAppearanceFor(host: string | null | undefined) {
+  const h = (host || "").split(":")[0].toLowerCase()
+  const noGoogle = HOSTS_WITHOUT_GOOGLE.some((d) => h === d || h.endsWith(`.${d}`))
+  if (!noGoogle) return clerkAppearance
+  return {
+    ...clerkAppearance,
+    elements: { ...clerkAppearance.elements, socialButtons: { display: "none" }, dividerRow: { display: "none" } },
+  }
+}

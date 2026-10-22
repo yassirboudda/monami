@@ -1,3 +1,7 @@
+"use client"
+
+import { useId } from "react"
+
 /** MonAmi brand marks, verbatim from Magra's vector file: the "monami" wordmark and the "m" mascot with two blinking eyes. */
 
 const EYE_L = "M 532.85 194.55 C 535.73 194.55 538.05 192.23 538.05 189.35 C 538.05 186.47 535.73 184.23 532.85 184.23 C 529.97 184.23 527.65 186.47 527.65 189.35 C 527.65 192.23 529.97 194.55 532.85 194.55 Z"
@@ -30,12 +34,27 @@ const MASCOT_EYE_R = "M 570.86 321.39 C 573.74 321.39 576.06 319.07 576.06 316.1
 
 /** The mascot: the "m" with two eyes. It floats and blinks; the drawing itself never changes. */
 export function Mascot({ className, still = false, label = "" }: { className?: string; still?: boolean; label?: string }) {
+  const id = `oh-metal-${useId().replace(/:/g, "")}`
   return (
     <span className={`oh-octo inline-block ${still ? "" : "oh-float"} ${className ?? ""}`}>
       <svg viewBox="524.6 308.1 72.9 63.4" role={label ? "img" : undefined} aria-label={label || undefined} aria-hidden={label ? undefined : true} className="block w-full h-auto overflow-visible">
-        <path fill="currentColor" d={MASCOT_M} />
-        <path className="oh-eye" fill="currentColor" d={MASCOT_EYE_L} />
-        <path className="oh-eye" fill="currentColor" d={MASCOT_EYE_R} />
+        <defs>
+          {/* Magra's "metal bordeaux" fill, same stops as the landing's Mascot.tsx */}
+          <linearGradient id={id} x1="0" y1="0" x2="1" y2=".7">
+            <stop offset="0" stopColor="var(--tree-leaf)" />
+            <stop offset=".3" stopColor="var(--tree-leaf-light)" />
+            <stop offset=".4" stopColor="var(--metal-bright)" />
+            <stop offset=".5" stopColor="var(--tree-leaf-light)" />
+            <stop offset=".7" stopColor="var(--tree-leaf)" />
+            <stop offset=".86" stopColor="var(--metal-mid)" />
+            <stop offset="1" stopColor="var(--tree-leaf)" />
+          </linearGradient>
+        </defs>
+        <g fill={`url(#${id})`} stroke="var(--mascot-outline)" strokeWidth=".45">
+          <path d={MASCOT_M} />
+          <path className="oh-eye" d={MASCOT_EYE_L} />
+          <path className="oh-eye" d={MASCOT_EYE_R} />
+        </g>
       </svg>
     </span>
   )
@@ -45,7 +64,7 @@ export function Mascot({ className, still = false, label = "" }: { className?: s
 export function MascotSay({ children, big = false, className = "" }: { children: React.ReactNode; big?: boolean; className?: string }) {
   return (
     <div className={`flex items-end gap-4 ${className}`}>
-      <Mascot className={`shrink-0 text-foreground ${big ? "w-20 sm:w-24" : "w-14 sm:w-16"}`} />
+      <Mascot className={`shrink-0 ${big ? "w-20 sm:w-24" : "w-14 sm:w-16"}`} />
       <div className="oh-bubble relative rounded-3xl rounded-bl-md bg-card px-5 py-4 text-base font-medium shadow-sm sm:text-lg">{children}</div>
     </div>
   )

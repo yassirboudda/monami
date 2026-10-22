@@ -3,7 +3,7 @@ import { JetBrains_Mono } from "next/font/google"
 import { headers } from "next/headers"
 import { ClerkProvider } from "@clerk/nextjs"
 import { Toaster } from "@/components/ui/sonner"
-import { clerkAppearance } from "@/components/oh/clerk-appearance"
+import { clerkAppearanceFor } from "@/components/oh/clerk-appearance"
 import { clerkPublishableKeyFor } from "@/lib/session"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
@@ -44,7 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <ClerkProvider
       publishableKey={clerkPublishableKeyFor(host)}
-      appearance={clerkAppearance}
+      appearance={clerkAppearanceFor(host)}
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
       signInFallbackRedirectUrl="/dashboard"
