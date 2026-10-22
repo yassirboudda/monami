@@ -22,6 +22,7 @@ from typing import Any, Literal
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from jose import jwk, jwt
@@ -148,6 +149,18 @@ async def require_user(authorization: str | None = Header(default=None)) -> dict
         return {"user_id": uid, "workspace": f"user:{uid}", "org_id": None, "via": "app", "claims": {"email": settings.app_user_email}}
 
     # Extension long-lived token (sfx_…)
+    if token.startswith("oh_live_"):
+        key_hash = hashlib.sha256(token.encode()).hexdigest()
+        with db.connection() as conn:
+            row = conn.execute("SELECT * FROM api_keys WHERE key_hash = ? AND revoked_at IS NULL", (key_hash,)).fetchone()
+            if row is None:
+                raise HTTPException(401, "Unknown or revoked API key")
+            conn.execute("UPDATE api_keys SET last_used_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?", (row["id"],))
+            conn.commit()
+        workspace = row["workspace"]
+        return {"user_id": row["user_id"], "workspace": workspace,
+                "org_id": workspace[4:] if workspace.startswith("org:") else None, "via": "api_key", "claims": {}}
+
     if token.startswith("sfx_"):
         with db.connection() as conn:
             row = conn.execute("SELECT * FROM ext_tokens WHERE token = ?", (token,)).fetchone()
@@ -547,6 +560,117 @@ async def public_market_estimate(request: Request, q: str = "", marketplace: str
                 "examples": result.get("examples", [])[:6], "history": result.get("history", [])}
     return {"estimate": {k: known.get(k) for k in ("marketplace", "kind", "n", "median", "p25", "p75", "min", "max")},
             "examples": [], "history": []}
+
+
+# ---------------------------------------------------------------- API keys + MCP for the seller's own agents
+
+class ApiKeyIn(BaseModel):
+    name: str = Field(default="default", max_length=60)
+
+
+def _api_key_dict(row: Any) -> dict[str, Any]:
+    return {"id": row["id"], "name": row["name"], "prefix": row["prefix"], "createdAt": row["created_at"],
+            "lastUsedAt": row["last_used_at"], "revokedAt": row["revoked_at"]}
+
+
+@app.get("/v1/api-keys")
+async def list_api_keys(user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        rows = conn.execute("SELECT * FROM api_keys WHERE workspace = ? AND revoked_at IS NULL ORDER BY created_at",
+                            (user["workspace"],)).fetchall()
+    return {"keys": [_api_key_dict(r) for r in rows], "mcpUrl": f"{settings.app_url.rstrip('/')}/backend/v1/mcp"}
+
+
+@app.post("/v1/api-keys")
+async def create_api_key(body: ApiKeyIn, user: dict[str, Any] = Depends(workspace_user)):
+    """The plain key is returned once; only its sha256 is stored."""
+    if user.get("via") == "api_key":
+        raise HTTPException(403, "Create keys from the app, not with a key")
+    key = "oh_live_" + secrets.token_urlsafe(32)
+    kid = secrets.token_hex(8)
+    with db.connection() as conn:
+        conn.execute("INSERT INTO api_keys (id, workspace, user_id, name, key_hash, prefix) VALUES (?, ?, ?, ?, ?, ?)",
+                     (kid, user["workspace"], user["user_id"], body.name.strip() or "default",
+                      hashlib.sha256(key.encode()).hexdigest(), key[:14]))
+        conn.commit()
+        row = conn.execute("SELECT * FROM api_keys WHERE id = ?", (kid,)).fetchone()
+    return {"key": key, "item": _api_key_dict(row)}
+
+
+@app.delete("/v1/api-keys/{key_id}")
+async def revoke_api_key(key_id: str, user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        n = conn.execute("UPDATE api_keys SET revoked_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND workspace = ? AND revoked_at IS NULL",
+                         (key_id, user["workspace"])).rowcount
+        conn.commit()
+    if not n:
+        raise HTTPException(404, "Key not found")
+    return {"ok": True}
+
+
+def _mcp_tool(name: str, desc: str, props: dict[str, Any] | None = None, required: list[str] | None = None) -> dict[str, Any]:
+    return {"name": name, "description": desc,
+            "inputSchema": {"type": "object", "properties": props or {}, "required": required or []}}
+
+
+_S = {"type": "string"}
+MCP_TOOLS = [
+    _mcp_tool("list_shops", "The seller's connected marketplaces (Vinted, eBay, Leboncoin…) and their status."),
+    _mcp_tool("list_listings", "The seller's listings with price, status, views and favourites.", {"shopId": _S, "status": _S}),
+    _mcp_tool("market_price", "What buyers really pay for an item: sold prices on eBay (default) or asking prices on Vinted / Leboncoin.",
+              {"q": _S, "listingId": _S, "marketplace": _S}),
+    _mcp_tool("price_alerts", "Listings priced well above or below the market, from known market data."),
+    _mcp_tool("desktop_screen", "What is on the seller's remote desktop screen right now (text).", {"minutes": {"type": "integer"}}),
+    _mcp_tool("chat", "Ask MonAmi, the seller's agent, to do something (it acts on the remote desktop, asks approval for consequential actions).",
+              {"message": _S}, ["message"]),
+]
+
+
+async def _mcp_call(name: str, a: dict[str, Any], user: dict[str, Any]) -> Any:
+    if name == "list_shops":
+        return await list_shops(user=user)
+    if name == "list_listings":
+        out = await list_listings(shopId=a.get("shopId"), user=user)
+        if a.get("status"):
+            out["listings"] = [l for l in out["listings"] if l.get("status") == a["status"]]
+        return out
+    if name == "market_price":
+        return await market_comps(q=a.get("q") or "", marketplace=a.get("marketplace") or "ebay", listingId=a.get("listingId"), user=user)
+    if name == "price_alerts":
+        snap = (await market_snapshot(user=user))["snapshot"]
+        listings = (await list_listings(user=user))["listings"]
+        return {"alerts": [{"listing": l, "market": snap[l["id"]]} for l in listings
+                           if l["id"] in snap and snap[l["id"]].get("deltaPct") is not None and abs(snap[l["id"]]["deltaPct"]) >= 8]}
+    if name == "desktop_screen":
+        return await desktop_screen(minutes=int(a.get("minutes") or 2), user=user)
+    if name == "chat":
+        return await chat(ChatIn(message=str(a.get("message") or "")), user=user)
+    raise HTTPException(404, f"unknown tool {name}")
+
+
+@app.post("/v1/mcp")
+async def mcp_endpoint(request: Request, user: dict[str, Any] = Depends(workspace_user)):
+    """MCP (streamable HTTP, JSON-RPC) for the seller's own agents — Claude, Cursor… — authenticated with an API key."""
+    msg = await request.json()
+    mid, method, params = msg.get("id"), msg.get("method"), msg.get("params") or {}
+    if method == "initialize":
+        res: Any = {"protocolVersion": params.get("protocolVersion", "2025-03-26"), "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "monami", "version": "1.0"}}
+    elif method == "tools/list":
+        res = {"tools": MCP_TOOLS}
+    elif method == "tools/call":
+        try:
+            out = await _mcp_call(params.get("name", ""), params.get("arguments") or {}, user)
+            res = {"content": [{"type": "text", "text": json.dumps(out, ensure_ascii=False, default=str)[:60000]}], "isError": False}
+        except HTTPException as e:
+            res = {"content": [{"type": "text", "text": f"error: {e.detail}"}], "isError": True}
+        except Exception as e:  # noqa: BLE001
+            res = {"content": [{"type": "text", "text": f"error: {e}"}], "isError": True}
+    elif method in ("notifications/initialized", "ping"):
+        return JSONResponse({"jsonrpc": "2.0", "id": mid, "result": {}}) if mid is not None else JSONResponse({}, status_code=202)
+    else:
+        return JSONResponse({"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": f"unknown method {method}"}})
+    return JSONResponse({"jsonrpc": "2.0", "id": mid, "result": res})
 
 
 @app.get("/v1/market/snapshot")
