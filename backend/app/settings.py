@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     port: int = 3000
     database_path: str = str(Path(__file__).resolve().parents[1] / "var" / "stockflow.db")
     media_dir: str = str(Path(__file__).resolve().parents[1] / "var" / "media")
+    # Seed every new workspace with the demo shops/listings/stock (PoC). Off = real sellers start empty.
+    seed_demo_data: bool = False
     cors_origins: str = (
         "https://octohandy.amirelay.com,"
         "https://stockflow-nine-ashy.vercel.app,"
