@@ -7,7 +7,7 @@ from typing import Any
 import stripe
 from fastapi import HTTPException
 
-from . import db
+from . import db, events
 from .settings import settings
 
 PLANS: dict[str, dict[str, Any]] = {
@@ -183,6 +183,8 @@ def _apply_subscription(conn, sub: dict[str, Any]) -> None:
         ),
     )
     conn.commit()
+    events.emit("billing.subscription", workspace,
+                {"plan": plan, "status": status_, "cancelAtPeriodEnd": bool(sub.get("cancel_at_period_end"))})
 
 
 def handle_webhook(payload: bytes, signature: str | None) -> dict[str, Any]:

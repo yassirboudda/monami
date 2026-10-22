@@ -54,6 +54,22 @@ class Settings(BaseSettings):
     # Comma-separated workspaces that are Pro without paying (founder accounts, judges demo)
     billing_pro_workspaces: str = ""
 
+    # Aiven for Apache Kafka: every product event goes to this topic. Empty = events are dropped (local dev).
+    kafka_bootstrap_servers: str = ""
+    kafka_topic: str = "octohandy.events"
+    kafka_consumer_group: str = "octohandy-clickhouse-sink"
+    kafka_ca_pem: str = ""  # Aiven project CA (PEM, "\n" escapes accepted)
+    kafka_sasl_username: str = ""  # SASL/SCRAM user (avnadmin) …
+    kafka_sasl_password: str = ""
+    kafka_cert_pem: str = ""  # … or client certificate auth
+    kafka_key_pem: str = ""
+    # Aiven for ClickHouse (HTTPS port). Empty = analytics card shows "not configured".
+    clickhouse_host: str = ""
+    clickhouse_port: int = 443
+    clickhouse_user: str = "avnadmin"
+    clickhouse_password: str = ""
+    clickhouse_database: str = "octohandy"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

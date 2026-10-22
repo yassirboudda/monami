@@ -27,7 +27,7 @@ from jose import jwk, jwt
 from jose.exceptions import JWTError
 from pydantic import BaseModel, Field
 
-from . import billing, db
+from . import billing, db, events
 from .desktop import _desktop_enabled, _desktop_token
 from .human import HumanProfile, click_point, from_trace, key_delays, move_path, pre_action_delay, typos
 from .marketplaces import agent_context, get_doc, get_marketplace
@@ -46,6 +46,7 @@ from .settings import settings
 async def _lifespan(_app: FastAPI):
     db.initialize_database()
     yield
+    events.flush()
 
 
 app = FastAPI(title="OctoHandy API", version="0.1.0", lifespan=_lifespan)
@@ -412,6 +413,11 @@ async def create_agent_message(body: AgentMessageIn, user: dict[str, Any] = Depe
              json.dumps(body.payload, ensure_ascii=False), status, _iso_now()),
         )
         row = conn.execute("SELECT * FROM agent_messages WHERE id = ?", (mid,)).fetchone()
+    events.emit(
+        "agent.approval_requested" if body.kind == "approval" else "agent.reply_sent",
+        user["workspace"], {"messageId": mid, "title": body.title[:200]},
+        marketplace=body.marketplace, user_id=user["user_id"],
+    )
     return {"message": _agent_message_dict(row)}
 
 
@@ -432,6 +438,9 @@ async def decide_agent_message(message_id: str, body: AgentDecisionIn, user: dic
             (body.decision, body.note or None, _iso_now(), message_id),
         )
         row = conn.execute("SELECT * FROM agent_messages WHERE id = ?", (message_id,)).fetchone()
+    events.emit("agent.approval_decided", user["workspace"],
+                {"messageId": message_id, "decision": body.decision},
+                marketplace=row["marketplace"], user_id=user["user_id"])
     return {"message": _agent_message_dict(row)}
 
 
@@ -478,6 +487,12 @@ async def billing_checkout(user: dict[str, Any] = Depends(workspace_user)):
 async def billing_portal(user: dict[str, Any] = Depends(workspace_user)):
     with db.connection() as conn:
         return {"url": billing.portal_url(conn, user["workspace"])}
+
+
+@app.get("/v1/analytics/summary")
+async def analytics_summary(days: int = 14, user: dict[str, Any] = Depends(workspace_user)):
+    """Activity of the agent for this workspace, read from Aiven for ClickHouse (fed by the Kafka event stream)."""
+    return {"analytics": await asyncio.to_thread(events.summary, user["workspace"], max(1, min(days, 90)))}
 
 
 @app.post("/v1/billing/webhook")
@@ -862,6 +877,8 @@ async def create_desktop_session(body: DesktopSessionIn, user: dict[str, Any] = 
     url = f"{settings.desktop_base_url.rstrip('/')}/vnc.html?{urlencode(params)}"
     start_url = _marketplace_start_url(body.marketplace) if body.purpose == "connect" else None
     opened = await _desktop_open(start_url) if start_url else False
+    events.emit("desktop.session", user["workspace"], {"purpose": body.purpose},
+                marketplace=body.marketplace, user_id=user["user_id"])
     return {
         "url": url,
         "expiresAt": datetime.fromtimestamp(exp, tz=timezone.utc).isoformat(),
@@ -2240,6 +2257,9 @@ async def shops_sync(body: ShopsSyncIn, user: dict[str, Any] = Depends(workspace
                                   listing.get("url"), listing.get("views"), listing.get("favorites"), _iso_now()))
         report.append({"marketplace": marketplace, "ok": True, "loggedIn": bool(data.get("loggedIn")), "username": account.get("username"),
                        "listings": len(listings) if data.get("loggedIn") else 0, "images": images})
+        events.emit("shop.synced", user["workspace"],
+                    {"loggedIn": bool(data.get("loggedIn")), "listings": len(listings) if data.get("loggedIn") else 0},
+                    marketplace=marketplace, user_id=user["user_id"])
     return {"report": report, "syncedAt": _iso_now()}
 
 
@@ -2419,6 +2439,10 @@ async def log_run(body: RunLogIn, user: dict[str, Any] = Depends(workspace_user)
              json.dumps(log, ensure_ascii=False), _iso_now()),
         )
         run = _run_row(conn, user["workspace"], run_id)
+    events.emit("desktop.run", user["workspace"],
+                {"runId": run_id, "workflowId": body.workflowId, "status": body.status,
+                 "steps": len(body.stepsDone), "recording": bool(recording)},
+                user_id=user["user_id"])
     return {"run": _run_dict(run)}
 
 
@@ -2802,7 +2826,12 @@ async def chat(body: ChatIn, user: dict[str, Any] = Depends(workspace_user)):
                 "do not start any action or workflow on the desktop, do not create a run. "
                 f"Tell the user the desktop is busy and they can retry in about {minutes} minute(s)."
             )
-        return await _chat_response(body, user, system)
+        started = time.monotonic()
+        result = await _chat_response(body, user, system)
+        events.emit("chat.message", workspace,
+                    {"chars": len(body.message or ""), "attachments": len(getattr(body, "attachments", None) or [])},
+                    user_id=user["user_id"], duration_ms=int((time.monotonic() - started) * 1000))
+        return result
     finally:
         if lease_id:
             db.release_desktop_lease(workspace, lease_id)
