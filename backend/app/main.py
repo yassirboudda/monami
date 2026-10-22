@@ -20,14 +20,14 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from jose import jwk, jwt
 from jose.exceptions import JWTError
 from pydantic import BaseModel, Field
 
-from . import db
+from . import billing, db
 from .desktop import _desktop_enabled, _desktop_token
 from .human import HumanProfile, click_point, from_trace, key_delays, move_path, pre_action_delay, typos
 from .marketplaces import agent_context, get_doc, get_marketplace
@@ -373,6 +373,9 @@ async def get_agent_policy(user: dict[str, Any] = Depends(workspace_user)):
     policy = dict(_inbox_policy(user["user_id"]))
     with db.connection() as conn:
         policy["inboxAutopilot"] = _inbox_autopilot_state(conn, user["workspace"])
+        ent = billing.entitlements(conn, user["workspace"])
+    policy["plan"] = ent["plan"]
+    policy["autoReply"] = bool(policy.get("autoReply")) and ent["autopilot"]
     return {"policy": policy}
 
 
@@ -439,7 +442,10 @@ async def get_profile(user: dict[str, Any] = Depends(workspace_user)):
 
 @app.put("/v1/me/profile")
 async def put_profile(body: ProfileIn, user: dict[str, Any] = Depends(workspace_user)):
+    inbox = body.preferences.get("inbox") if isinstance(body.preferences, dict) else None
     with db.connection() as conn:
+        if isinstance(inbox, dict) and inbox.get("autoReply"):
+            billing.require_autopilot(conn, user["workspace"])
         conn.execute(
             """INSERT INTO profiles (user_id, display_name, preferences, updated_at)
                VALUES (?, ?, ?, ?)
@@ -453,6 +459,30 @@ async def put_profile(body: ProfileIn, user: dict[str, Any] = Depends(workspace_
             ),
         )
     return {"profile": _profile(user["user_id"])}
+
+
+@app.get("/v1/billing")
+async def get_billing(user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        return {"billing": billing.status(conn, user["workspace"])}
+
+
+@app.post("/v1/billing/checkout")
+async def billing_checkout(user: dict[str, Any] = Depends(workspace_user)):
+    email = (user.get("claims") or {}).get("email")
+    with db.connection() as conn:
+        return {"url": billing.checkout_url(conn, user["workspace"], user["user_id"], email)}
+
+
+@app.post("/v1/billing/portal")
+async def billing_portal(user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        return {"url": billing.portal_url(conn, user["workspace"])}
+
+
+@app.post("/v1/billing/webhook")
+async def billing_webhook(request: Request, stripe_signature: str | None = Header(default=None)):
+    return billing.handle_webhook(await request.body(), stripe_signature)
 
 
 def _shop_dict(row: Any) -> dict[str, Any]:
@@ -676,6 +706,10 @@ async def create_shop(body: ShopIn, user: dict[str, Any] = Depends(workspace_use
         raise HTTPException(404, "Marketplace inconnue")
     shop_id = f"s-{uuid.uuid4().hex[:8]}"
     with db.connection() as conn:
+        current = conn.execute(
+            "SELECT COUNT(*) AS n FROM shops WHERE workspace = ?", (user["workspace"],)
+        ).fetchone()["n"]
+        billing.check_shop_limit(conn, user["workspace"], current)
         conn.execute(
             """INSERT INTO shops (id, workspace, created_by, marketplace, display_name, status, listing_count)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",

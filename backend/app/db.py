@@ -258,6 +258,17 @@ CREATE TABLE IF NOT EXISTS agent_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_agent_messages_ws ON agent_messages(workspace, created_at);
 CREATE INDEX IF NOT EXISTS idx_workflows_workspace ON workflows(workspace);
+CREATE TABLE IF NOT EXISTS subscriptions (
+    workspace TEXT PRIMARY KEY,
+    stripe_customer_id TEXT,
+    stripe_subscription_id TEXT,
+    plan TEXT NOT NULL DEFAULT 'free',
+    status TEXT NOT NULL DEFAULT 'none',
+    current_period_end TEXT,
+    cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_customer ON subscriptions(stripe_customer_id);
 """
 
 
