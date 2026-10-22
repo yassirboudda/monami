@@ -77,6 +77,11 @@ TOOLS = [
     T("account_info", "Is the seller logged in on this marketplace, and which listings do they have (read from their own session).", {"marketplace": S}, ["marketplace"]),
     T("list_workflows", "Seller's saved workflows (name, marketplace, steps)."),
     T("market_price", "Market comparables for an item (eBay sold, Vinted/Leboncoin asking) from the data pipeline.", {"query": S, "marketplace": S}, ["query"]),
+    T("gmail_search", "Search the seller's Gmail (Google connector). q uses Gmail syntax, e.g. 'from:vinted.fr newer_than:2d'.", {"q": S, "limit": I}, ["q"]),
+    T("gmail_read", "Read one email (headers + plain-text body) by id from gmail_search.", {"id": S}, ["id"]),
+    T("gmail_send", "Send an email as the seller. Consequential: needs approved=true after the seller agreed to the exact text. reply_to_id keeps the thread.", {"to": S, "subject": S, "body": S, "reply_to_id": S, "approved": B}, ["to", "subject", "body"]),
+    T("calendar_events", "Seller's upcoming Google Calendar events (next N days, optional text filter).", {"days": I, "q": S}),
+    T("calendar_create", "Add an event to the seller's Google Calendar (pickup, shipping deadline…). Needs approved=true. start/end ISO 8601, or YYYY-MM-DD for all-day.", {"title": S, "start": S, "end": S, "description": S, "location": S, "approved": B}, ["title", "start"]),
 ]
 BROWSER_MAP = {"desktop_tabs": "tabs", "desktop_read": "read", "desktop_navigate": "navigate", "desktop_click": "click", "desktop_type": "type",
                "desktop_scroll": "scroll", "desktop_press": "press", "desktop_back": "back", "desktop_upload_files": "upload"}
@@ -103,6 +108,20 @@ def call(name: str, a: dict) -> Any:
         return backend("/v1/workflows")
     if name == "market_price":
         return backend(f"/v1/market/comps?{urllib.parse.urlencode({k: v for k, v in {'query': a.get('query'), 'marketplace': a.get('marketplace')}.items() if v})}")
+    if name == "gmail_search":
+        return backend(f"/v1/connectors/google/gmail/search?{urllib.parse.urlencode({'q': a.get('q', ''), 'limit': int(a.get('limit', 10))})}")
+    if name == "gmail_read":
+        return backend(f"/v1/connectors/google/gmail/messages/{urllib.parse.quote(str(a.get('id', '')))}")
+    if name == "gmail_send":
+        if not a.get("approved"):
+            return {"ok": False, "needs_approval": True, "error": "Sending an email is consequential: show the seller the recipient, subject and full text, then call again with approved=true once they agree."}
+        return backend("/v1/connectors/google/gmail/send", {"to": a.get("to"), "subject": a.get("subject"), "body": a.get("body"), "replyToId": a.get("reply_to_id") or None}, "POST")
+    if name == "calendar_events":
+        return backend(f"/v1/connectors/google/calendar/events?{urllib.parse.urlencode({k: v for k, v in {'days': a.get('days', 7), 'q': a.get('q')}.items() if v})}")
+    if name == "calendar_create":
+        if not a.get("approved"):
+            return {"ok": False, "needs_approval": True, "error": "Adding a calendar event needs the seller's approval: confirm title and time, then call again with approved=true."}
+        return backend("/v1/connectors/google/calendar/events", {"title": a.get("title"), "start": a.get("start"), "end": a.get("end") or None, "description": a.get("description", ""), "location": a.get("location", "")}, "POST")
     raise ValueError(f"unknown tool {name}")
 
 

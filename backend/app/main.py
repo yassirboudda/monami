@@ -21,13 +21,13 @@ from typing import Any, Literal
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from jose import jwk, jwt
 from jose.exceptions import JWTError
 from pydantic import BaseModel, Field
 
-from . import billing, db, events, market
+from . import billing, connectors, db, events, market
 from .desktop import _desktop_enabled, _desktop_token
 from .human import HumanProfile, click_point, from_trace, key_delays, move_path, pre_action_delay, typos
 from .marketplaces import agent_context, get_doc, get_marketplace
@@ -2859,3 +2859,92 @@ async def chat(body: ChatIn, user: dict[str, Any] = Depends(workspace_user)):
     finally:
         if lease_id:
             db.release_desktop_lease(workspace, lease_id)
+
+
+# ---------------------------------------------------------------- Connectors (Google: Gmail / Calendar for the agent)
+
+class GmailSendIn(BaseModel):
+    to: str
+    subject: str
+    body: str
+    replyToId: str | None = None
+
+
+class CalendarEventIn(BaseModel):
+    title: str
+    start: str  # ISO date-time, or YYYY-MM-DD for an all-day event
+    end: str | None = None
+    description: str = ""
+    location: str = ""
+
+
+def _connector_call(fn, workspace: str, *args):
+    def run():
+        with db.connection() as conn:
+            return fn(conn, workspace, *args)
+    return asyncio.to_thread(run)
+
+
+@app.get("/v1/connectors")
+async def list_connectors(user: dict[str, Any] = Depends(workspace_user)):
+    with db.connection() as conn:
+        return {"connectors": connectors.status(conn, user["workspace"])}
+
+
+@app.post("/v1/connectors/google/start")
+async def connector_google_start(user: dict[str, Any] = Depends(workspace_user)):
+    return {"url": connectors.auth_url(user["workspace"], user["user_id"])}
+
+
+@app.get("/v1/connectors/google/callback")
+async def connector_google_callback(code: str = "", state: str = "", error: str = ""):
+    target = f"{settings.app_url}/dashboard/settings"
+    if error or not code:
+        return RedirectResponse(f"{target}?google=error&reason={error or 'no_code'}", status_code=302)
+    try:
+        data = connectors.verify_state(state)
+        tokens = await asyncio.to_thread(connectors.exchange_code, code)
+        info = await asyncio.to_thread(connectors.userinfo, tokens.get("access_token", ""))
+        with db.connection() as conn:
+            connectors.save_tokens(conn, data["ws"], tokens, info.get("email"))  # same thread as the connection
+        events.emit("connector.connected", data["ws"], {"provider": "google", "email": info.get("email")}, user_id=data.get("u"))
+    except HTTPException as e:
+        return RedirectResponse(f"{target}?google=error&reason={urlencode({'': e.detail})[1:]}", status_code=302)
+    return RedirectResponse(f"{target}?google=connected", status_code=302)
+
+
+@app.delete("/v1/connectors/google")
+async def connector_google_disconnect(user: dict[str, Any] = Depends(workspace_user)):
+    removed = await _connector_call(connectors.disconnect, user["workspace"])
+    if removed:
+        events.emit("connector.disconnected", user["workspace"], {"provider": "google"}, user_id=user["user_id"])
+    return {"ok": True, "removed": removed}
+
+
+@app.get("/v1/connectors/google/gmail/search")
+async def connector_gmail_search(q: str = "", limit: int = 10, user: dict[str, Any] = Depends(workspace_user)):
+    return await _connector_call(connectors.gmail_search, user["workspace"], q, limit)
+
+
+@app.get("/v1/connectors/google/gmail/messages/{message_id}")
+async def connector_gmail_read(message_id: str, user: dict[str, Any] = Depends(workspace_user)):
+    return await _connector_call(connectors.gmail_read, user["workspace"], message_id)
+
+
+@app.post("/v1/connectors/google/gmail/send")
+async def connector_gmail_send(body: GmailSendIn, user: dict[str, Any] = Depends(workspace_user)):
+    out = await _connector_call(connectors.gmail_send, user["workspace"], body.to, body.subject, body.body, body.replyToId)
+    events.emit("connector.gmail_sent", user["workspace"], {"to": body.to, "subject": body.subject}, user_id=user["user_id"])
+    return out
+
+
+@app.get("/v1/connectors/google/calendar/events")
+async def connector_calendar_events(days: int = 7, q: str | None = None, user: dict[str, Any] = Depends(workspace_user)):
+    return await _connector_call(connectors.calendar_events, user["workspace"], days, q)
+
+
+@app.post("/v1/connectors/google/calendar/events")
+async def connector_calendar_create(body: CalendarEventIn, user: dict[str, Any] = Depends(workspace_user)):
+    out = await _connector_call(connectors.calendar_create, user["workspace"], body.title, body.start, body.end, body.description, body.location)
+    events.emit("connector.calendar_event_created", user["workspace"], {"title": body.title, "start": body.start}, user_id=user["user_id"])
+    return out
