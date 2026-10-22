@@ -56,3 +56,10 @@ DEVIN_HANDOFF.md
 
 # Playwright MCP screenshots and test files
 .playwright-mcp/
+
+# landing (TanStack Start, separate Vercel project)
+landing/node_modules
+landing/.output
+landing/.vercel
+landing/.nitro
+landing/.tanstack

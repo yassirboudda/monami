@@ -517,6 +517,38 @@ async def market_comps(q: str = "", marketplace: str = "ebay", price: float | No
     return {"comps": result}
 
 
+_public_estimate_hits: dict[str, list[float]] = {}
+
+
+@app.get("/v1/public/market/estimate")
+async def public_market_estimate(request: Request, q: str = "", marketplace: str = "ebay"):
+    """Price estimate for the public landing page (no account): cached comps only when possible, at most
+    12 fresh lookups per IP per hour so the demo cannot burn the Apify credits."""
+    keyword = (q or "").strip()
+    if len(keyword) < 2:
+        raise HTTPException(400, "Give a few words describing the item.")
+    marketplace = marketplace.lower()
+    if marketplace not in ("ebay", "vinted", "leboncoin"):
+        raise HTTPException(400, "Unknown marketplace")
+    known = market.cached_comps(keyword, marketplace)
+    if known is None:
+        ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
+        now = time.time()
+        hits = [t for t in _public_estimate_hits.get(ip, []) if now - t < 3600]
+        if len(hits) >= 12:
+            raise HTTPException(429, "Too many estimates for now, try again in an hour or sign up.")
+        hits.append(now)
+        _public_estimate_hits[ip] = hits
+        try:
+            result = await asyncio.to_thread(market.comps, keyword, marketplace, limit=20)
+        except market.MarketError as e:
+            raise HTTPException(503, str(e)) from e
+        return {"estimate": {k: result.get(k) for k in ("marketplace", "kind", "n", "median", "p25", "p75", "min", "max", "fetchedAt")},
+                "examples": result.get("examples", [])[:6], "history": result.get("history", [])}
+    return {"estimate": {k: known.get(k) for k in ("marketplace", "kind", "n", "median", "p25", "p75", "min", "max")},
+            "examples": [], "history": []}
+
+
 @app.get("/v1/market/snapshot")
 async def market_snapshot(marketplace: str = "ebay", user: dict[str, Any] = Depends(workspace_user)):
     """Known market price per listing of the workspace, from cache/price history only (never calls Apify):
