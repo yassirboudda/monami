@@ -11,6 +11,7 @@ export default function SignInPage() {
         <MonamiLogo className="text-[40px]" />
       </Link>
       <p className="text-muted-foreground text-center max-w-sm -mt-2">Your marketplace assistant: it watches your shops, drafts your replies and acts on your remote desktop.</p>
+      <p className="text-xs text-muted-foreground text-center max-w-sm -mt-3">Email, then password. On a new device we email you a 6-digit code — check spam if it takes a minute.</p>
       <SignIn />
     </div>
   )
