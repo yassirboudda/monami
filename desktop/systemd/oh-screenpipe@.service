@@ -4,8 +4,9 @@ After=oh-desktop@%i.service docker.service
 Requires=docker.service
 [Service]
 EnvironmentFile=/etc/octohandy/profiles/%i.env
+EnvironmentFile=/etc/octohandy/gate.env
 ExecStartPre=-/usr/bin/docker rm -f oh-screenpipe-%i
-ExecStart=/usr/bin/docker run --rm --name oh-screenpipe-%i --network host --security-opt apparmor=unconfined -e DISPLAY=${DISPLAY} -v /tmp/.X11-unix:/tmp/.X11-unix -v ${OH_HOME}/.screenpipe:/root/.screenpipe octohandy-screenpipe record --port ${OH_SP_PORT} --disable-audio --app-context both --language french --fps 0.5
+ExecStart=/usr/bin/docker run --rm --name oh-screenpipe-%i --network host --security-opt apparmor=unconfined -e DISPLAY=${DISPLAY} -e SCREENPIPE_API_KEY=${SCREENPIPE_API_KEY} -v /tmp/.X11-unix:/tmp/.X11-unix -v ${OH_HOME}/.screenpipe:/root/.screenpipe octohandy-screenpipe record --port ${OH_SP_PORT} --disable-audio --app-context both --language french
 ExecStop=/usr/bin/docker stop oh-screenpipe-%i
 Restart=always
 RestartSec=5
