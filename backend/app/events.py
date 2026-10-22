@@ -15,7 +15,7 @@ import json
 import logging
 import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .settings import settings
@@ -111,6 +111,7 @@ def emit(kind: str, workspace: str, payload: dict[str, Any] | None = None, *,
         "duration_ms": int(duration_ms or 0),
         "payload": payload or {},
     }
+    _store(event)
     try:
         producer = _get_producer()
         if producer is None:
@@ -216,6 +217,50 @@ def insert_events(rows: list[dict[str, Any]], client=None) -> None:
     )
 
 
+def _store(event: dict[str, Any]) -> None:
+    """Keep the event in the app database (Aiven PostgreSQL in prod) for the Analytics card, with retention."""
+    try:
+        from . import db  # local import: events is imported by db-free scripts too
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=max(1, settings.events_retention_days))).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        with db.connection() as conn:
+            conn.execute(
+                "INSERT INTO agent_events (id, workspace, kind, marketplace, user_id, duration_ms, payload, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (event["id"], event["workspace"], event["kind"], event["marketplace"], event["user_id"], event["duration_ms"],
+                 json.dumps(event["payload"], ensure_ascii=False)[:4000], event["ts"]),
+            )
+            if event["id"][-1] in "01":  # purge on ~1/8 of writes
+                conn.execute("DELETE FROM agent_events WHERE ts < ?", (cutoff,))
+    except Exception as e:  # noqa: BLE001
+        log.debug("event not stored: %s", e)
+
+
+def _summary_from_db(out: dict[str, Any], workspace: str, days: int) -> dict[str, Any]:
+    from . import db
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    with db.connection() as conn:
+        rows = conn.execute("SELECT kind, COUNT(*) AS c FROM agent_events WHERE workspace = ? AND ts >= ? GROUP BY kind", (workspace, since)).fetchall()
+        out["totals"] = {r["kind"]: int(r["c"]) for r in rows}
+        rows = conn.execute("SELECT substr(ts, 1, 10) AS d, kind, COUNT(*) AS c FROM agent_events WHERE workspace = ? AND ts >= ? GROUP BY d, kind ORDER BY d", (workspace, since)).fetchall()
+        by_day: dict[str, dict[str, int]] = {}
+        for r in rows:
+            by_day.setdefault(str(r["d"]), {})[r["kind"]] = int(r["c"])
+        out["byDay"] = [{"day": d, **kinds} for d, kinds in by_day.items()]
+        rows = conn.execute(
+            "SELECT marketplace, "
+            "SUM(CASE WHEN kind = 'agent.reply_sent' THEN 1 ELSE 0 END) AS r, "
+            "SUM(CASE WHEN kind = 'agent.approval_decided' THEN 1 ELSE 0 END) AS a, "
+            "SUM(CASE WHEN kind = 'desktop.run' THEN 1 ELSE 0 END) AS d "
+            "FROM agent_events WHERE workspace = ? AND marketplace != '' AND ts >= ? GROUP BY marketplace ORDER BY marketplace",
+            (workspace, since)).fetchall()
+        out["byMarketplace"] = [{"marketplace": r["marketplace"], "repliesSent": int(r["r"] or 0), "decisions": int(r["a"] or 0), "runs": int(r["d"] or 0)} for r in rows]
+        row = conn.execute("SELECT AVG(duration_ms) AS avg FROM agent_events WHERE workspace = ? AND kind = 'chat.message' AND duration_ms > 0 AND ts >= ?", (workspace, since)).fetchone()
+        avg = row["avg"] if row else None
+        out["avgAgentSeconds"] = round(float(avg) / 1000, 1) if avg else None
+    out["configured"] = True
+    out["source"] = "postgres"
+    return out
+
+
 def summary(workspace: str, days: int = 14) -> dict[str, Any]:
     """What the seller sees on the Analytics card. Empty structure when ClickHouse is off."""
     out: dict[str, Any] = {
@@ -227,9 +272,15 @@ def summary(workspace: str, days: int = 14) -> dict[str, Any]:
         "byMarketplace": [],
         "avgAgentSeconds": None,
     }
+    out["retentionDays"] = settings.events_retention_days
     client = clickhouse()
     if client is None:
-        return out
+        try:
+            return _summary_from_db(out, workspace, days)
+        except Exception as e:  # noqa: BLE001
+            log.warning("analytics (db) failed: %s", e)
+            return out
+    out["source"] = "clickhouse"
     try:
         params = {"ws": workspace, "days": days}
         res = client.query(

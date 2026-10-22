@@ -632,6 +632,13 @@ MCP_TOOLS = [
               {"q": _S, "listingId": _S, "marketplace": _S}),
     _mcp_tool("price_alerts", "Listings priced well above or below the market, from known market data."),
     _mcp_tool("desktop_screen", "What is on the seller's remote desktop screen right now (text).", {"minutes": {"type": "integer"}}),
+    _mcp_tool("desktop_session", "Open the seller's own remote desktop (isolated Linux desktop + Chrome logged in to their shops) and return a browser URL valid 15 minutes. Uses the plan's desktop minutes.",
+              {"purpose": {"type": "string", "enum": ["browse", "connect", "teach"]}}),
+    _mcp_tool("desktop_open", "Open a URL in the remote desktop's Chrome.", {"url": _S}, ["url"]),
+    _mcp_tool("desktop_browser", "Drive the remote desktop's Chrome: action = tabs | navigate(url) | read(tabId?) | click(selector|text|x,y) | type(selector, text) | scroll(dy) | press(key) | back | wait(ms) | screenshot. Payments, deletions and publishing still need the seller's approval in the app.",
+              {"action": {"type": "string", "enum": ["tabs", "navigate", "read", "click", "type", "scroll", "press", "back", "wait", "screenshot"]}, "args": {"type": "object"}}, ["action"]),
+    _mcp_tool("desktop_record", "Start or stop a screen recording of the remote desktop; stop returns the mp4 URL.", {"action": {"type": "string", "enum": ["start", "stop"]}, "label": _S, "recordingId": _S}, ["action"]),
+    _mcp_tool("desktop_clipboard", "Read the remote desktop clipboard, or set it when text is given.", {"text": _S}),
     _mcp_tool("chat", "Ask MonAmi, the seller's agent, to do something (it acts on the remote desktop, asks approval for consequential actions).",
               {"message": _S}, ["message"]),
 ]
@@ -656,6 +663,29 @@ async def _mcp_call(name: str, a: dict[str, Any], user: dict[str, Any]) -> Any:
         return await desktop_screen(minutes=int(a.get("minutes") or 2), user=user)
     if name == "chat":
         return await chat(ChatIn(message=str(a.get("message") or "")), user=user)
+    ws = user["workspace"]
+    if name == "desktop_session":
+        return await create_desktop_session(DesktopSessionIn(purpose=a.get("purpose") or "browse"), user)
+    if name == "desktop_open":
+        if not str(a.get("url", "")).startswith("http"):
+            raise HTTPException(400, "url must start with http(s)")
+        return await _gate_json("/open", {"url": a["url"]}, timeout=20, workspace=ws)
+    if name == "desktop_browser":
+        action = a.get("action")
+        if action not in {"tabs", "navigate", "read", "click", "type", "scroll", "press", "back", "wait", "screenshot"}:
+            raise HTTPException(400, f"unknown browser action {action}")
+        return await _gate_json("/browser", {"action": action, "args": a.get("args") or {}}, timeout=60, workspace=ws)
+    if name == "desktop_record":
+        if a.get("action") == "start":
+            return await _gate_json("/record/start", {"label": a.get("label") or "mcp"}, timeout=20, workspace=ws)
+        res = await _gate_json("/record/stop", {"id": a.get("recordingId") or ""}, timeout=30, workspace=ws)
+        if res.get("id"):
+            res["url"] = f"/v1/desktop/recordings/{res['id']}.mp4"
+        return res
+    if name == "desktop_clipboard":
+        if a.get("text"):
+            return await desktop_clipboard_set(ClipboardIn(text=str(a["text"])), user)
+        return await desktop_clipboard_get(user)
     raise HTTPException(404, f"unknown tool {name}")
 
 

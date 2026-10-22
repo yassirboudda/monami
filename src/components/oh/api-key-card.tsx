@@ -50,7 +50,7 @@ export function ApiKeyCard() {
         <KeyRound className="w-5 h-5 mt-0.5 text-muted-foreground" />
         <div className="flex-1 min-w-0">
           <h2 className="font-medium">API key &amp; MCP</h2>
-          <p className="text-caption mt-1">Drive MonAmi from your own agent (Claude, Cursor, n8n…): your shops, listings, market prices, the remote desktop screen and the chat are exposed as MCP tools.</p>
+          <p className="text-caption mt-1">Drive monami from your own agent (Claude, Cursor, n8n…): shops, listings, market prices, price alerts, the chat and the full remote desktop (open a session, navigate, read, click, type, record, clipboard) are exposed as MCP tools. Your plan&apos;s desktop minutes and approvals apply.</p>
         </div>
         <Button size="sm" onClick={() => void create()} loading={busy === "create"}>
           <Plus className="w-3.5 h-3.5" /> New key

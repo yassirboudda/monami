@@ -12,6 +12,8 @@ type Summary = {
   byDay: ({ day: string } & Record<string, number | string>)[]
   byMarketplace: { marketplace: string; repliesSent: number; decisions: number; runs: number }[]
   avgAgentSeconds: number | null
+  source?: string
+  retentionDays?: number
   error?: string
 }
 
@@ -38,6 +40,7 @@ export function AnalyticsCard() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h2 className="font-medium">Agent activity</h2>
+            <p className="text-caption">{a?.retentionDays ? `Stored on Aiven · kept ${a.retentionDays} days · ${a.source === "clickhouse" ? "full history" : "PostgreSQL"}` : "Stored on Aiven"}</p>
             {a && (
               <Badge tone={a.configured ? "green" : "slate"}>{a.configured ? "Last 14 days" : "Not configured"}</Badge>
             )}
