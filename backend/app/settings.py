@@ -46,9 +46,16 @@ class Settings(BaseSettings):
     screenpipe_api_url: str = ""
     screenpipe_api_key: str = ""
 
+    # Stripe subscriptions (test mode for the hackathon). Empty = billing UI shows "not configured", everything stays free.
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_pro: str = ""  # price_... of the Pro monthly plan
+    app_url: str = "https://octohandy.amirelay.com"
+    # Comma-separated workspaces that are Pro without paying (founder accounts, judges demo)
+    billing_pro_workspaces: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
-
 
 settings = Settings()

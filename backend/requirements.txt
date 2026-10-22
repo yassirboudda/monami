@@ -7,3 +7,4 @@ python-jose[cryptography]==3.4.0
 python-multipart==0.0.20
 websockets==17.2
 psycopg[binary,pool]==3.2.9
+stripe==16.0.0
