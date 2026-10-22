@@ -83,7 +83,7 @@ export function PlanCard() {
             {isLoading || !billing
               ? "Loading your plan…"
               : billing.complimentary
-                ? "Unlimited access included with your account."
+                ? "Unlimited access included with your account — you can still subscribe below to try the card payment."
                 : billing.plan === "trial"
                   ? "Try the remote desktop for 30 minutes, then pick a plan to keep going."
                   : billing.cancelAtPeriodEnd
@@ -131,8 +131,8 @@ export function PlanCard() {
                       <Badge tone="green">Current plan</Badge>
                     )
                   ) : (
-                    <Button size="sm" variant={p.id === "pro" ? "primary" : "secondary"} className="w-full" disabled={!billing.configured || !p.available || billing.complimentary} loading={busy === p.id} onClick={() => void go("checkout", p.id)}>
-                      {billing.configured && p.available ? (billing.plan === "trial" ? `Choose ${p.name}` : "Switch") : "Coming soon"}
+                    <Button size="sm" variant={p.id === "pro" ? "primary" : "secondary"} className="w-full" disabled={!billing.configured || !p.available} loading={busy === p.id} onClick={() => void go("checkout", p.id)}>
+                      {billing.configured && p.available ? (billing.plan === "trial" || billing.complimentary ? `Subscribe · ${p.priceLabel.split(" / ")[0]}/mo` : "Switch") : "Coming soon"}
                     </Button>
                   )}
                 </div>
@@ -140,6 +140,9 @@ export function PlanCard() {
             )
           })}
         </div>
+      )}
+      {billing?.configured && (
+        <p className="text-xs text-muted-foreground">Secure card payment by Stripe (Visa, Mastercard, Amex, Apple Pay / Google Pay). Monthly, cancel any time from “Manage billing”; quotas reset on the 1st.</p>
       )}
     </Card>
   )
