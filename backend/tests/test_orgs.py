@@ -12,6 +12,7 @@ from app import db, main
 @pytest.fixture
 def app_state(monkeypatch, tmp_path):
     monkeypatch.setattr(main.settings, "database_path", str(tmp_path / "stockflow.db"))
+    monkeypatch.setattr(main.settings, "seed_demo_data", True)
     monkeypatch.setattr(main.settings, "clerk_secret_key", "sk_test_local")
     main._organization_names.clear()
     current_user = {
