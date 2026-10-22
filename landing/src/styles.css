@@ -129,9 +129,9 @@
   --sidebar-ring: oklch(0.72 0.09 250);
 }
 
-@font-face { font-family: "Chillax"; src: url("/__l5e/assets-v1/d2ca9f41-7b17-4646-859d-c77c7eb41268/Chillax-Variable.ttf") format("truetype"); font-weight: 200 700; font-display: swap; }
-@font-face { font-family: "Chillax Fallback"; src: url("/__l5e/assets-v1/21c781ad-08f6-42d1-8996-8be46246d4e4/Chillax-Medium.otf") format("opentype"); font-weight: 500; font-display: swap; }
-@font-face { font-family: "Chillax Fallback"; src: url("/__l5e/assets-v1/125e6ffb-8cf7-44ee-8215-817cb06edbfd/Chillax-Light.otf") format("opentype"); font-weight: 300; font-display: swap; }
+@font-face { font-family: "Chillax"; src: url("/assets/fonts/Chillax-Variable.ttf") format("truetype"); font-weight: 200 700; font-display: swap; }
+@font-face { font-family: "Chillax Fallback"; src: url("/assets/fonts/Chillax-Medium.otf") format("opentype"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Chillax Fallback"; src: url("/assets/fonts/Chillax-Light.otf") format("opentype"); font-weight: 300; font-display: swap; }
 
 @utility surface {
   background: var(--card);
