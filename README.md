@@ -77,7 +77,7 @@ MonAmi keeps a **real browser on a real desktop** (a remote GPU box) logged in t
 Three pieces:
 
 1. **Front** (`/`, Next.js 16): `cp .env.example .env.local && npm install && npm run dev`. The browser talks to the API through the same-origin `/backend/*` rewrite, so Vercel needs no secrets.
-2. **API** (`backend/`, FastAPI + SQLite): `cp backend/.env.example backend/.env`, fill `APP_ACCESS_PASSWORD`, `APP_SESSION_SECRET`, `DESKTOP_*`, `NEBIUS_*`, `HERMES_*`, then `uvicorn app.main:app --host 127.0.0.1 --port 3000`.
+2. **API** (`backend/`, FastAPI + SQLite): `cp backend/.env.example backend/.env`, fill `APP_ACCESS_PASSWORD`, `APP_SESSION_SECRET`, `DESKTOP_*`, `HERMES_*`, then `uvicorn app.main:app --host 127.0.0.1 --port 3000`.
 3. **Remote desktop**: a Linux box with Xfce + Chrome (remote-debugging on `127.0.0.1:9222`), a screen OCR service on `127.0.0.1:3030`, Hermes (NemoClaw) with the MonAmi MCP tools, and the small desktop gate / inbox monitor services. `DESKTOP_BASE_URL` of the API points at that gate.
 
 ## Security
