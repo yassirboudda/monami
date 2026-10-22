@@ -485,10 +485,10 @@ async def get_billing(user: dict[str, Any] = Depends(workspace_user)):
 
 
 @app.post("/v1/billing/checkout")
-async def billing_checkout(user: dict[str, Any] = Depends(workspace_user)):
+async def billing_checkout(plan: str = "pro", user: dict[str, Any] = Depends(workspace_user)):
     email = (user.get("claims") or {}).get("email")
     with db.connection() as conn:
-        return {"url": billing.checkout_url(conn, user["workspace"], user["user_id"], email)}
+        return {"url": billing.checkout_url(conn, user["workspace"], user["user_id"], email, plan)}
 
 
 @app.post("/v1/billing/portal")
@@ -939,7 +939,11 @@ async def create_desktop_session(body: DesktopSessionIn, user: dict[str, Any] = 
         raise HTTPException(503, "Remote desktop not configured (DESKTOP_BASE_URL / DESKTOP_SIGNING_SECRET)")
     if body.marketplace and get_marketplace(body.marketplace) is None and body.marketplace not in LOGIN_URLS:
         raise HTTPException(404, "Marketplace inconnue")
+    with db.connection() as conn:
+        billing.require_desktop_time(conn, user["workspace"], settings.desktop_session_ttl)
     _acquire_desktop_lease(user, body.marketplace, settings.desktop_session_ttl)
+    with db.connection() as conn:  # a session counts for its whole lease, whether or not the tab stays open
+        billing.record_usage(conn, user["workspace"], desktop_seconds=settings.desktop_session_ttl)
     try:
         await _gate_json("/desktop/profiles/ensure"[8:], {"workspace": user["workspace"]}, timeout=150)
     except (httpx.HTTPError, ValueError):
@@ -2789,7 +2793,10 @@ async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dic
             if response.status_code >= 400:
                 hermes_error = f"Hermes returned HTTP {response.status_code}"
             else:
-                choice = response.json()["choices"][0]
+                _hermes_json = response.json()
+                choice = _hermes_json["choices"][0]
+                with db.connection() as _conn:
+                    billing.record_usage(_conn, workspace, ai_tokens=int(((_hermes_json.get("usage") or {}).get("total_tokens")) or 0))
                 finish_reason = choice.get("finish_reason")
                 if finish_reason in ("error", "cancelled"):
                     hermes_error = f"Hermes finish_reason: {finish_reason}"
@@ -2855,6 +2862,8 @@ async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dic
                 raise HTTPException(502, f"Nebius error {r.status_code}: {r.text[:300]}")
             data = r.json()
             content = data["choices"][0]["message"]["content"]
+            with db.connection() as _conn:
+                billing.record_usage(_conn, workspace, ai_tokens=int(((data.get("usage") or {}).get("total_tokens")) or 0))
             result = {
                 "role": "assistant",
                 "content": content,
@@ -2890,6 +2899,8 @@ async def chat_reset(user: dict[str, Any] = Depends(workspace_user)):
 @app.post("/v1/chat")
 async def chat(body: ChatIn, user: dict[str, Any] = Depends(workspace_user)):
     workspace = user["workspace"]
+    with db.connection() as conn:
+        billing.require_ai_tokens(conn, workspace)
     lease_id = None
     busy_seconds = None
     if not db.desktop_lease_held(workspace):
