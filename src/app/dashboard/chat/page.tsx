@@ -1,7 +1,7 @@
 "use client"
 
 import { useChat } from "@ai-sdk/react"
-import { lastAssistantMessageIsCompleteWithToolCalls, type FileUIPart } from "ai"
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls, type FileUIPart } from "ai"
 import { AnimatePresence, motion, MotionConfig } from "framer-motion"
 import { ArrowUp, Check, ChevronRight, GraduationCap, ImagePlus, Play, ShieldAlert, Sparkles, Square, Trash2 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
@@ -167,8 +167,13 @@ export default function ChatPage() {
     .filter((a) => (a.kind === "approval" ? a.status === "pending" : a.kind === "sent" && Date.parse(a.created_at) > dayAgo))
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
 
-  // The default transport posts to /api/chat with the OctoHandy session cookie.
+  // /api/chat forwards to the Hetzner API with the seller's Clerk JWT (fetched fresh for every request).
+  const transport = useMemo(
+    () => new DefaultChatTransport({ api: "/api/chat", headers: async () => ({ Authorization: `Bearer ${(await getToken()) ?? ""}` }) }),
+    [getToken]
+  )
   const { messages, sendMessage, setMessages, addToolOutput, status, error, stop } = useChat({
+    transport,
     // A new id (user/org switch) makes useChat start a fresh Chat seeded with that workspace's history.
     id: chatKey(storeUser, activeOrgId),
     messages: store.getChat(storeUser, activeOrgId),

@@ -76,8 +76,10 @@ function noReply(status: number) {
 }
 
 export async function POST(req: Request) {
+  // The chat page sends a fresh Clerk JWT as Bearer; the short-lived __session cookie is the fallback.
+  const auth = req.headers.get("authorization") || ""
   const jar = await cookies()
-  const token = jar.get(SESSION_COOKIE)?.value
+  const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : jar.get(SESSION_COOKIE)?.value
   if (!tokenLooksValid(token)) return new Response("Unauthorized", { status: 401 })
 
   const body = (await req.json()) as { messages?: UIMessage[] }

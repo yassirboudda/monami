@@ -24,7 +24,7 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
     const load = async () => {
       try {
         const authToken = await getToken()
-        if (!authToken) throw new Error("Sign in with the access password to view this invitation.")
+        if (!authToken) throw new Error("Sign in to view this invitation.")
         const result = await apiFetch<InviteInfo>(`/v1/invites/${encodeURIComponent(inviteToken)}`, { token: authToken })
         if (!cancelled) setInvite(result)
       } catch (cause) {

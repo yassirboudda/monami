@@ -48,7 +48,7 @@ export default function TeamPage() {
       />
       {inviteUrl && (
         <Card className="mb-4 rounded-2xl p-5">
-          <p className="mb-3 text-sm font-medium">Invitation link (valid 7 days) — the person signs in with the access password and shares your stock, shops and workflows.</p>
+          <p className="mb-3 text-sm font-medium">Invitation link (valid 7 days) — the person signs in (or creates an account) and shares your stock, shops and workflows.</p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <code className="min-w-0 flex-1 break-all rounded-lg bg-muted px-3 py-2 text-xs">{inviteUrl}</code>
             <Button variant="secondary" size="sm" onClick={() => void copyInvite()}>
@@ -60,7 +60,7 @@ export default function TeamPage() {
       )}
       <div className="mb-5 flex items-start gap-3 rounded-xl border border-sky/70 bg-sky/30 p-4 text-sm">
         <Users className="mt-0.5 size-4 shrink-0" />
-        <p>A shared workspace: invited people sign in with the access password and share your stock, shops and workflows.</p>
+        <p>A shared workspace: invited people sign in with their own account and share your stock, shops and workflows.</p>
       </div>
       <Card className="overflow-hidden rounded-2xl">
         <div className="flex items-center gap-3 border-b p-5">

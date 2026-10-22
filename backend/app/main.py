@@ -192,9 +192,9 @@ async def workspace_user(user: dict[str, Any] = Depends(require_user)) -> dict[s
         user["workspace"],
         user["user_id"],
         personal=user.get("org_id") is None,
-        shops=_default_shops(),
-        listings=_default_listings(),
-        stock=_default_stock("toi"),
+        shops=_default_shops() if settings.seed_demo_data else [],
+        listings=_default_listings() if settings.seed_demo_data else [],
+        stock=_default_stock("toi") if settings.seed_demo_data else [],
     )
     return user
 
