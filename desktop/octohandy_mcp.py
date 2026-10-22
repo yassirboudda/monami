@@ -5,7 +5,7 @@ Screenpipe. Hermes runs one shared sandbox, so tools act on the profile named by
 (default: the gate's default profile).
 """
 from __future__ import annotations
-import json, os, time, urllib.parse, urllib.request
+import json, os, time, urllib.error, urllib.parse, urllib.request
 from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -20,11 +20,32 @@ BACKEND_TOKEN = os.environ.get("OH_BACKEND_TOKEN", "")
 app = FastAPI()
 
 
+HINTS = {
+    "/v1/connectors/google": "Google (Gmail/Agenda) is not connected for this seller. Say so plainly and suggest Settings → Connectors; do not retry.",
+    "/v1/market/comps": "Give market_price a short description of the item (brand + model), e.g. 'iphone 13 128go'.",
+}
+
+
+class ToolFailure(Exception):
+    """A clean, non-retryable failure the agent should read and explain to the seller."""
+
+
 def _http(method: str, url: str, body: Any = None, headers: dict | None = None, timeout: int = 150) -> Any:
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, method=method, headers={"Content-Type": "application/json", **(headers or {})})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        raw = r.read()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            raw = r.read()
+    except urllib.error.HTTPError as e:
+        raw = e.read()
+        try:
+            detail = json.loads(raw).get("detail") or raw.decode(errors="replace")
+        except (ValueError, AttributeError):
+            detail = raw[:500].decode(errors="replace")
+        hint = next((h for k, h in HINTS.items() if k in url), "")
+        raise ToolFailure(f"{detail} {hint}".strip()) from None
+    except (urllib.error.URLError, TimeoutError) as e:
+        raise ToolFailure(f"service unreachable ({e}); try again in a minute or use the desktop tools") from None
     try:
         return json.loads(raw)
     except ValueError:
@@ -107,7 +128,7 @@ def call(name: str, a: dict) -> Any:
     if name == "list_workflows":
         return backend("/v1/workflows")
     if name == "market_price":
-        return backend(f"/v1/market/comps?{urllib.parse.urlencode({k: v for k, v in {'query': a.get('query'), 'marketplace': a.get('marketplace')}.items() if v})}")
+        return backend(f"/v1/market/comps?{urllib.parse.urlencode({k: v for k, v in {'q': a.get('query') or a.get('q'), 'marketplace': a.get('marketplace')}.items() if v})}")
     if name == "gmail_search":
         return backend(f"/v1/connectors/google/gmail/search?{urllib.parse.urlencode({'q': a.get('q', ''), 'limit': int(a.get('limit', 10))})}")
     if name == "gmail_read":
@@ -137,6 +158,10 @@ async def mcp(req: Request):
         try:
             out = call(params.get("name", ""), params.get("arguments") or {})
             res = {"content": [{"type": "text", "text": json.dumps(out, ensure_ascii=False)[:60000]}], "isError": False}
+        except (ToolFailure, ValueError) as e:
+            # Expected failures (not connected, bad arguments) are returned as a normal result: Hermes trips its
+            # per-server circuit breaker on isError=True and then refuses the *desktop* tools for a minute.
+            res = {"content": [{"type": "text", "text": json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False)}], "isError": False}
         except Exception as e:  # noqa: BLE001
             res = {"content": [{"type": "text", "text": f"error: {e}"}], "isError": True}
     elif method in ("notifications/initialized", "ping"):
