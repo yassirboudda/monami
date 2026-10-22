@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = ""
     stripe_price_pro: str = ""  # price_... of the Pro monthly plan
     app_url: str = "https://octohandy.amirelay.com"
+    # Google connector (Gmail/Calendar/Contacts/Drive for the agent): OAuth web client of the OctoHandy GCP project.
+    # Empty = the Connectors card shows "Coming soon". Redirect URI: {app_url}/backend/v1/connectors/google/callback
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    connectors_secret: str = ""  # encrypts stored refresh tokens (falls back to APP_SESSION_SECRET)
     # Comma-separated workspaces that are Pro without paying (founder accounts, judges demo)
     billing_pro_workspaces: str = ""
 

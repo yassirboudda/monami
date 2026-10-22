@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
 import { PlanCard } from "@/components/oh/plan-card"
 import { AnalyticsCard } from "@/components/oh/analytics-card"
+import { ConnectorsCard } from "@/components/oh/connectors-card"
 
 type InboxPolicy = { autoReply: boolean; maxAutoDiscountPct: number; tone: string; signature: string }
 type Profile = { displayName: string; preferences: Record<string, unknown> & { inbox?: Partial<InboxPolicy> } }
@@ -99,6 +100,8 @@ export default function SettingsPage() {
           </Button>
         </div>
       </Card>
+
+      <ConnectorsCard />
 
       <PlanCard />
 
