@@ -11,15 +11,15 @@ const WORD = [
   "M 824.19 194.62 C 827.07 194.62 829.31 192.30 829.31 189.42 C 829.31 186.54 827.07 184.14 824.19 184.14 C 821.31 184.14 818.99 186.54 818.99 189.42 C 818.99 192.30 821.31 194.62 824.19 194.62 Z M 820.27 202.38 L 820.27 241.58 L 828.19 241.58 L 828.19 202.38 L 820.27 202.38 Z",
 ]
 
-/** The "monami" wordmark. Height follows the font-size of the element (e.g. className="text-[22px]"), color follows currentColor. */
+/** The "monami" wordmark. On hover the two dots jump and the letters ripple (see .oh-logo in oh.css). Height follows the font-size of the element (e.g. className="text-[22px]"), color follows currentColor. */
 export function MonamiLogo({ className, label = "MonAmi" }: { className?: string; label?: string }) {
   return (
-    <svg viewBox="509.8 181.1 322.5 64.4" className={`block w-auto ${className ?? ""}`} style={{ height: "1em" }} role="img" aria-label={label}>
+    <svg viewBox="509.8 181.1 322.5 64.4" className={`oh-logo block w-auto overflow-visible ${className ?? ""}`} style={{ height: "1em" }} role="img" aria-label={label}>
       {WORD.map((d, i) => (
-        <path key={i} fill="currentColor" fillRule="evenodd" d={d} />
+        <path key={i} className="oh-logo-letter" style={{ "--i": i } as React.CSSProperties} fill="currentColor" fillRule="evenodd" d={d} />
       ))}
-      <path className="oh-eye" fill="currentColor" d={EYE_L} />
-      <path className="oh-eye" fill="currentColor" d={EYE_R} />
+      <path className="oh-eye oh-logo-eye" fill="currentColor" d={EYE_L} />
+      <path className="oh-eye oh-logo-eye oh-logo-eye-r" fill="currentColor" d={EYE_R} />
     </svg>
   )
 }
