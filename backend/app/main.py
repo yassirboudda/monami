@@ -2196,8 +2196,11 @@ async def shops_sync(body: ShopsSyncIn, user: dict[str, Any] = Depends(workspace
                 if stored:
                     images += 1
                 with db.connection() as conn:
-                    conn.execute("""INSERT OR REPLACE INTO listings (id, workspace, created_by, shop_id, marketplace, title, price, status, image_url, url, views, favorites, updated_at)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    conn.execute("""INSERT INTO listings (id, workspace, created_by, shop_id, marketplace, title, price, status, image_url, url, views, favorites, updated_at)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    ON CONFLICT(workspace, id) DO UPDATE SET shop_id=excluded.shop_id, marketplace=excluded.marketplace,
+                                      title=excluded.title, price=excluded.price, status=excluded.status, image_url=excluded.image_url,
+                                      url=excluded.url, views=excluded.views, favorites=excluded.favorites, updated_at=excluded.updated_at""",
                                  (listing["id"], user["workspace"], user["user_id"], shop_id, marketplace, str(listing.get("title") or "")[:200],
                                   float(listing.get("price") or 0), listing.get("status") or "active", stored or listing.get("imageUrl"),
                                   listing.get("url"), listing.get("views"), listing.get("favorites"), _iso_now()))

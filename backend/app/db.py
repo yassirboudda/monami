@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
+import threading
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -259,8 +261,91 @@ CREATE INDEX IF NOT EXISTS idx_workflows_workspace ON workflows(workspace);
 """
 
 
+_PG_TS_DEFAULT = "to_char(now() at time zone 'utc', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')"
+_SQLITE_TS_DEFAULT = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
+_pool = None
+_pool_lock = threading.Lock()
+
+
+def using_postgres() -> bool:
+    return bool(settings.database_url)
+
+
+def _pg_sql(sql: str) -> str:
+    """Translate the sqlite dialect used across the app to PostgreSQL."""
+    parts = sql.split("'")
+    for i in range(0, len(parts), 2):  # only outside string literals
+        parts[i] = parts[i].replace("?", "%s")
+    sql = "'".join(parts)
+    sql = sql.replace(_SQLITE_TS_DEFAULT, _PG_TS_DEFAULT)
+    if re.match(r"\s*CREATE TABLE", sql, re.I):
+        sql = re.sub(r"\bREAL\b", "DOUBLE PRECISION", sql)
+    return sql
+
+
+class _NoResult:
+    rowcount = 0
+
+    def fetchone(self):
+        return None
+
+    def fetchall(self):
+        return []
+
+    def __iter__(self):
+        return iter(())
+
+
+class PgConnection:
+    """sqlite3.Connection look-alike on top of psycopg (dict rows, '?' placeholders)."""
+
+    def __init__(self, conn) -> None:
+        self._c = conn
+
+    def execute(self, sql: str, params=()):
+        head = sql.lstrip()[:6].upper()
+        if head.startswith("BEGIN") or head.startswith("PRAGMA"):
+            return _NoResult()
+        return self._c.execute(_pg_sql(sql), tuple(params) if params else None)
+
+    def executemany(self, sql: str, seq) -> None:
+        rows = [tuple(p) for p in seq]
+        if rows:
+            with self._c.cursor() as cur:
+                cur.executemany(_pg_sql(sql), rows)
+
+    def executescript(self, script: str) -> None:
+        for stmt in script.split(";"):
+            if stmt.strip():
+                self._c.execute(_pg_sql(stmt))
+
+    def commit(self) -> None:
+        self._c.commit()
+
+    def rollback(self) -> None:
+        self._c.rollback()
+
+
+def _pg_pool():
+    global _pool
+    with _pool_lock:
+        if _pool is None:
+            from psycopg.rows import dict_row
+            from psycopg_pool import ConnectionPool
+
+            _pool = ConnectionPool(
+                settings.database_url, min_size=1, max_size=settings.database_pool_size,
+                kwargs={"row_factory": dict_row, "connect_timeout": 15}, open=True,
+            )
+        return _pool
+
+
 @contextmanager
-def connection() -> Iterator[sqlite3.Connection]:
+def connection() -> Iterator[Any]:
+    if using_postgres():
+        with _pg_pool().connection() as raw:
+            yield PgConnection(raw)
+        return
     path = Path(settings.database_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, timeout=30)
@@ -280,12 +365,13 @@ def connection() -> Iterator[sqlite3.Connection]:
 def initialize_database() -> None:
     with connection() as conn:
         conn.executescript(_SCHEMA)
-        migrate_workflow_columns(conn)
-        migrate_desktop_lease_id(conn)
+        if not using_postgres():
+            migrate_workflow_columns(conn)
+            migrate_desktop_lease_id(conn)
         migrate_default_workflow_copy(conn)
 
 
-def migrate_workflow_columns(conn: sqlite3.Connection) -> None:
+def migrate_workflow_columns(conn: Any) -> None:
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(workflows)")}
     missing = {
         "trigger": "TEXT",
@@ -302,7 +388,7 @@ def migrate_workflow_columns(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE workflows ADD COLUMN {quoted_name} {column_type}")
 
 
-def migrate_desktop_lease_id(conn: sqlite3.Connection) -> None:
+def migrate_desktop_lease_id(conn: Any) -> None:
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(desktop_leases)")}
     if "lease_id" not in columns:
         conn.execute("ALTER TABLE desktop_leases ADD COLUMN lease_id TEXT")
@@ -311,7 +397,7 @@ def migrate_desktop_lease_id(conn: sqlite3.Connection) -> None:
         conn.execute("UPDATE desktop_leases SET lease_id=? WHERE id=?", (uuid.uuid4().hex, row["id"]))
 
 
-def migrate_default_workflow_copy(conn: sqlite3.Connection) -> None:
+def migrate_default_workflow_copy(conn: Any) -> None:
     legacy = {
         "vinted-fav-offer": (
             "Favoris → offre discount",
