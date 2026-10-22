@@ -8,6 +8,7 @@ import Link from "next/link"
 import { useLayoutEffect, useRef } from "react"
 import { BoxImg } from "@/components/oh/box"
 import { Octopus } from "@/components/oh/octopus"
+import { TreeBackground } from "@/components/oh/tree/tree-background"
 import { MonamiLogo } from "@/components/oh/monami-brand"
 import { OhShell } from "@/components/oh/shell"
 import { Button } from "@/components/ui/button"
@@ -68,7 +69,9 @@ function HomeContent() {
   }, [])
 
   return (
-    <main>
+    <main className="relative">
+      <TreeBackground />
+      <div className="relative z-10">
       {/* Hero */}
       <section className="relative overflow-hidden pb-14 sm:pb-20">
         <motion.div className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 sm:pt-10 text-center" variants={hero} initial="hidden" animate="show">
@@ -203,6 +206,7 @@ function HomeContent() {
           <span>{t.home.footer}</span>
         </div>
       </footer>
+      </div>
     </main>
   )
 }
