@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { CONNECTABLE_MARKETPLACES, ConnectMarketplaceModal, marketplaceName } from "@/components/connect-marketplace"
 import { Octopus } from "@/components/oh/octopus"
+import { MonamiLogo } from "@/components/oh/monami-brand"
 import { Button, Card, MarketplaceLogo } from "@/components/ui"
 import { Progress } from "@/components/ui/progress"
 import type { Shop } from "@/lib/store"
@@ -56,7 +57,7 @@ export default function OnboardingPage() {
       <header className="mx-auto w-full max-w-2xl px-4 pt-6 flex items-center gap-3">
         <Link href="/" className="flex items-center gap-2 mr-auto" aria-label="MonAmi">
           <Octopus still className="w-8" label="" />
-          <span className="font-heading text-lg">MonAmi</span>
+          <MonamiLogo className="text-[22px]" />
         </Link>
         <Button variant="ghost" size="sm" onClick={() => void finish()} disabled={leaving}>
           Skip

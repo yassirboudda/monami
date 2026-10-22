@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next"
-import { Fraunces, Hanken_Grotesk, JetBrains_Mono } from "next/font/google"
+import { JetBrains_Mono } from "next/font/google"
 import { headers } from "next/headers"
 import { ClerkProvider } from "@clerk/nextjs"
 import { Toaster } from "@/components/ui/sonner"
@@ -8,20 +8,6 @@ import { clerkPublishableKeyFor } from "@/lib/session"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
 import "./oh.css"
-
-// Variable Fraunces with its SOFT/WONK axes: the rounded "soft" cut echoes the octopus drawing.
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
-  subsets: ["latin"],
-  display: "swap",
-  axes: ["SOFT", "WONK", "opsz"],
-})
-
-const hanken = Hanken_Grotesk({
-  variable: "--font-hanken",
-  subsets: ["latin"],
-  display: "swap",
-})
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
@@ -65,7 +51,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       signUpFallbackRedirectUrl="/onboarding"
       afterSignOutUrl="/"
     >
-      <html lang="en" className={`${jetbrainsMono.variable} ${fraunces.variable} ${hanken.variable}`}>
+      <html lang="en" className={jetbrainsMono.variable}>
+        <head>
+          <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=chillax@300,400,500,600,700&display=swap" />
+        </head>
         <body className="antialiased">
           <TooltipProvider>{children}</TooltipProvider>
           <Toaster richColors position="top-center" />

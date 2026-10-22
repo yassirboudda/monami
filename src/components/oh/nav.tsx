@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useT } from "@/lib/oh-i18n"
 import { Octopus } from "./octopus"
+import { MonamiLogo } from "./monami-brand"
 
 export function OhNav() {
   const { t, lang, setLang } = useT()
@@ -14,7 +15,7 @@ export function OhNav() {
       <nav className="mx-auto max-w-6xl px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3">
         <Link href="/" className="flex items-center gap-2 mr-auto" aria-label="MonAmi">
           <Octopus still className="w-8 sm:w-9" label="" />
-          <span className="font-heading text-lg sm:text-xl text-foreground">MonAmi</span>
+          <MonamiLogo className="text-[22px] sm:text-[26px] text-foreground" />
         </Link>
         <ToggleGroup
           type="single"
