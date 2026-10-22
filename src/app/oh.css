@@ -101,3 +101,6 @@
 /* Mascot eyes blink every few seconds (transform-box keeps the pivot on each eye). */
 .oh-eye { transform-box: fill-box; transform-origin: center; animation: oh-blink 4.2s ease-in-out infinite; }
 @keyframes oh-blink { 0%, 91%, 100% { transform: scaleY(1) } 94% { transform: scaleY(0.12) } }
+
+/* speech bubble tail (MascotSay) */
+.oh-bubble::before { content: ""; position: absolute; left: -6px; bottom: 10px; width: 14px; height: 14px; background: var(--card); transform: rotate(45deg); border-radius: 2px; }

@@ -40,3 +40,13 @@ export function Mascot({ className, still = false, label = "" }: { className?: s
     </span>
   )
 }
+
+/** The mascot speaking: Magra's onboarding pattern — the "m" on the left, a rounded speech bubble on the right. */
+export function MascotSay({ children, big = false, className = "" }: { children: React.ReactNode; big?: boolean; className?: string }) {
+  return (
+    <div className={`flex items-end gap-4 ${className}`}>
+      <Mascot className={`shrink-0 text-foreground ${big ? "w-20 sm:w-24" : "w-14 sm:w-16"}`} />
+      <div className="oh-bubble relative rounded-3xl rounded-bl-md bg-card px-5 py-4 text-base font-medium shadow-sm sm:text-lg">{children}</div>
+    </div>
+  )
+}

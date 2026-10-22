@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { CONNECTABLE_MARKETPLACES, ConnectMarketplaceModal, marketplaceName } from "@/components/connect-marketplace"
 import { Octopus } from "@/components/oh/octopus"
-import { MonamiLogo } from "@/components/oh/monami-brand"
+import { MascotSay, MonamiLogo } from "@/components/oh/monami-brand"
 import { Button, Card, MarketplaceLogo } from "@/components/ui"
 import { Progress } from "@/components/ui/progress"
 import type { Shop } from "@/lib/store"
@@ -47,8 +47,8 @@ export default function OnboardingPage() {
 
   const missions: { id: MissionId; icon: typeof Reply; title: string; text: string }[] = [
     { id: "summary", icon: MessageSquareText, title: `See my ${mainName} listings`, text: "A summary of what is live, sold, or needs a nudge." },
-    { id: "reply", icon: Reply, title: "Reply to my buyers", text: "Show the octopus once, it will reply for you afterwards." },
-    { id: "publish", icon: PackagePlus, title: "Publish an item", text: "Describe it in one sentence, the octopus drafts the listing." },
+    { id: "reply", icon: Reply, title: "Reply to my buyers", text: "Show me once, I reply for you afterwards." },
+    { id: "publish", icon: PackagePlus, title: "Publish an item", text: "Describe it in one sentence, I draft the listing." },
   ]
 
   return (
@@ -77,7 +77,7 @@ export default function OnboardingPage() {
         <AnimatePresence mode="wait" custom={dir} initial={false}>
         {step === 0 && (
           <motion.section key={0} custom={dir} variants={slide} initial="enter" animate="center" exit="exit">
-            <h1 className="text-title">Where do you sell today?</h1>
+            <MascotSay big><h1 className="text-lg sm:text-xl font-semibold">Hi! I&apos;m MonAmi, your second-hand buddy.<span className="mt-1 block font-normal text-muted-foreground">Where do you sell today?</span></h1></MascotSay>
             <p className="text-body-muted mt-1">The octopus will watch these marketplaces for you. You can add more later.</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6" role="group" aria-label="Marketplaces">
               {CONNECTABLE_MARKETPLACES.map((m) => {
@@ -122,7 +122,7 @@ export default function OnboardingPage() {
 
         {step === 1 && (
           <motion.section key={1} custom={dir} variants={slide} initial="enter" animate="center" exit="exit">
-            <h1 className="text-title">Connect your first shop</h1>
+            <MascotSay><h1 className="text-lg sm:text-xl font-semibold">Connect your first shop<span className="mt-1 block font-normal text-muted-foreground">You log in yourself, in a secure browser. I never see your password.</span></h1></MascotSay>
             <p className="text-body-muted mt-1">
               You log in yourself in a secure browser. MonAmi never sees your password.
             </p>
@@ -162,15 +162,10 @@ export default function OnboardingPage() {
 
         {step === 2 && (
           <motion.section key={2} custom={dir} variants={slide} initial="enter" animate="center" exit="exit">
-            <div className="flex items-center gap-4">
-              <div className="rounded-xl bg-sky/60 p-2">
-                <Octopus className="w-14" label="" />
-              </div>
-              <div>
-                <h1 className="text-title">{connected.length ? "All set." : "Almost there."} What should we do first?</h1>
-                <p className="text-body-muted mt-1">Everything happens in the chat. Pick a first mission, or write your own.</p>
-              </div>
-            </div>
+            <MascotSay>
+              <h1 className="text-lg sm:text-xl font-semibold">{connected.length ? "All set." : "Almost there."} What should we do first?</h1>
+              <p className="mt-1 font-normal text-muted-foreground">Everything happens in the chat. Pick a first mission, or write your own.</p>
+            </MascotSay>
             <div className="mt-6 grid gap-3">
               {missions.map((m, i) => (
                 <motion.button
