@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next"
 import { Fraunces, Hanken_Grotesk, JetBrains_Mono } from "next/font/google"
+import { ClerkProvider } from "@clerk/nextjs"
 import { Toaster } from "@/components/ui/sonner"
+import { clerkAppearance } from "@/components/oh/clerk-appearance"
+import { CLERK_PUBLISHABLE_KEY } from "@/lib/session"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
 import "./oh.css"
@@ -51,11 +54,21 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${jetbrainsMono.variable} ${fraunces.variable} ${hanken.variable}`}>
-      <body className="antialiased">
-        <TooltipProvider>{children}</TooltipProvider>
-        <Toaster richColors position="top-center" />
-      </body>
-    </html>
+    <ClerkProvider
+      publishableKey={CLERK_PUBLISHABLE_KEY}
+      appearance={clerkAppearance}
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/onboarding"
+      afterSignOutUrl="/"
+    >
+      <html lang="en" className={`${jetbrainsMono.variable} ${fraunces.variable} ${hanken.variable}`}>
+        <body className="antialiased">
+          <TooltipProvider>{children}</TooltipProvider>
+          <Toaster richColors position="top-center" />
+        </body>
+      </html>
+    </ClerkProvider>
   )
 }
