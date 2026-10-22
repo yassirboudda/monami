@@ -882,6 +882,10 @@ async def create_desktop_session(body: DesktopSessionIn, user: dict[str, Any] = 
     if body.marketplace and get_marketplace(body.marketplace) is None and body.marketplace not in LOGIN_URLS:
         raise HTTPException(404, "Marketplace inconnue")
     _acquire_desktop_lease(user, body.marketplace, settings.desktop_session_ttl)
+    try:
+        await _gate_json("/desktop/profiles/ensure"[8:], {"workspace": user["workspace"]}, timeout=150)
+    except (httpx.HTTPError, ValueError):
+        pass  # gate without multi-profile support: falls back to its default profile
     token, exp = _desktop_token(user["workspace"], body.marketplace, settings.desktop_session_ttl)
     params = {
         "autoconnect": "1",
@@ -1579,7 +1583,7 @@ async def run_workflow(workflow_id: str, user: dict[str, Any] = Depends(workspac
         detail, ok = "Desktop not configured", False
         if _desktop_enabled():
             try:
-                out = await _gate_json("/inbox/run", {"marketplace": workflow["marketplace"]}, timeout=30)
+                out = await _gate_json("/inbox/run", {"marketplace": workflow["marketplace"]}, timeout=30, workspace=user["workspace"])
                 ok = bool(out.get("ok"))
                 detail = (f"Inbox check started on the desktop for {workflow['marketplace']}: Screenpipe reads the Messages tab, "
                           "Hermes replies to new buyer messages (approval cards in the chat above the discount limit)."
@@ -2141,10 +2145,10 @@ def _media_path(workspace: str, listing_id: str) -> Path:
     return Path(settings.media_dir) / f"{key}.jpg"
 
 
-async def _gate_json(path: str, body: dict[str, Any], timeout: float = 150) -> dict[str, Any]:
+async def _gate_json(path: str, body: dict[str, Any], timeout: float = 150, workspace: str = "") -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.post(f"{settings.desktop_base_url.rstrip('/')}/desktop{path}",
-                                     headers={"X-Gate-Secret": settings.desktop_signing_secret}, json=body)
+                                     headers={"X-Gate-Secret": settings.desktop_signing_secret, **({"X-Workspace": workspace} if workspace else {})}, json=body)
     response.raise_for_status()
     return response.json()
 
@@ -2232,7 +2236,7 @@ async def shops_sync(body: ShopsSyncIn, user: dict[str, Any] = Depends(workspace
     report: list[dict[str, Any]] = []
     for marketplace in wanted:
         try:
-            data = await _gate_json("/sync", {"marketplace": marketplace})
+            data = await _gate_json("/sync", {"marketplace": marketplace}, workspace=user["workspace"])
         except (httpx.HTTPError, ValueError) as e:
             report.append({"marketplace": marketplace, "ok": False, "error": f"bureau injoignable ({type(e).__name__})"})
             continue
@@ -2659,7 +2663,7 @@ async def _push_chat_images_to_desktop(workspace: str, images: list[str]) -> lis
         except Exception:
             pass
         try:
-            out = await _gate_json("/files/put", {"name": name, "b64": base64.b64encode(raw).decode()}, timeout=60)
+            out = await _gate_json("/files/put", {"name": name, "b64": base64.b64encode(raw).decode()}, timeout=60, workspace=workspace)
             if out.get("ok") and out.get("path"):
                 paths.append(out["path"])
         except Exception:
@@ -2701,7 +2705,7 @@ async def _chat_response(body: ChatIn, user: dict[str, Any], system: str) -> dic
         recording_id: str | None = None
         if _desktop_enabled():
             try:
-                started = await _gate_json("/record/start", {"label": body.message[:120]}, timeout=10)
+                started = await _gate_json("/record/start", {"label": body.message[:120]}, timeout=10, workspace=user["workspace"])
                 recording_id = started.get("id") if started.get("ok") else None
             except Exception:
                 recording_id = None

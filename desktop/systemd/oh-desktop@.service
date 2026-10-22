@@ -1,0 +1,15 @@
+[Unit]
+Description=OctoHandy XFCE session for profile %i
+After=oh-vnc@%i.service
+Requires=oh-vnc@%i.service
+[Service]
+EnvironmentFile=/etc/octohandy/profiles/%i.env
+User=oh-%i
+Environment=LANG=fr_FR.UTF-8 LC_ALL=C.UTF-8 XDG_RUNTIME_DIR=/run/user/%U
+PAMName=login
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do xdpyinfo -display ${DISPLAY} >/dev/null 2>&1 && exit 0; sleep 0.5; done; exit 1'
+ExecStart=/usr/bin/dbus-launch --exit-with-session /usr/bin/startxfce4
+Restart=always
+RestartSec=3
+[Install]
+WantedBy=multi-user.target
