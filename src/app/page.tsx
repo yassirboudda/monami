@@ -98,7 +98,7 @@ function HomeContent() {
         <div className="oh-bg-sky rounded-xl border overflow-hidden">
         <div ref={stage} className="relative mx-auto w-full max-w-[1100px] aspect-[11/6.4] sm:aspect-[11/5.2]">
           <div className="oh-hero-octo absolute left-1/2 -translate-x-1/2 bottom-[8%] w-[46%] sm:w-[38%] z-[3]">
-            <Octopus label="OctoHandy" className="w-full" />
+            <Octopus label="MonAmi" className="w-full" />
           </div>
           {PILE.map(([name, left, bottom, width, rot, z, speed]) => (
             <div
@@ -197,7 +197,7 @@ function HomeContent() {
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 flex flex-wrap items-center gap-3 justify-between text-sm text-[var(--ink-soft)]">
           <span className="flex items-center gap-2">
             <Octopus still className="w-7" label="" />
-            <span className="font-heading text-base text-foreground">OctoHandy</span>
+            <span className="font-heading text-base text-foreground">MonAmi</span>
           </span>
           <span>{t.home.footer}</span>
         </div>

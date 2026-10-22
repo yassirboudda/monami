@@ -54,9 +54,9 @@ export default function OnboardingPage() {
     <MotionConfig reducedMotion="user">
     <div className="min-h-dvh bg-background flex flex-col">
       <header className="mx-auto w-full max-w-2xl px-4 pt-6 flex items-center gap-3">
-        <Link href="/" className="flex items-center gap-2 mr-auto" aria-label="OctoHandy">
+        <Link href="/" className="flex items-center gap-2 mr-auto" aria-label="MonAmi">
           <Octopus still className="w-8" label="" />
-          <span className="font-heading text-lg">OctoHandy</span>
+          <span className="font-heading text-lg">MonAmi</span>
         </Link>
         <Button variant="ghost" size="sm" onClick={() => void finish()} disabled={leaving}>
           Skip
@@ -123,7 +123,7 @@ export default function OnboardingPage() {
           <motion.section key={1} custom={dir} variants={slide} initial="enter" animate="center" exit="exit">
             <h1 className="text-title">Connect your first shop</h1>
             <p className="text-body-muted mt-1">
-              You log in yourself in a secure browser. OctoHandy never sees your password.
+              You log in yourself in a secure browser. MonAmi never sees your password.
             </p>
             <div className="mt-6 grid gap-3">
               {picked.map((id) => {

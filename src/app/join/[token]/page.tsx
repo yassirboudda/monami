@@ -61,7 +61,7 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
         <span className="mx-auto mb-4 grid size-12 place-items-center rounded-xl bg-butter text-foreground">
           <Users className="size-6" />
         </span>
-        <h1 className="font-heading text-2xl text-foreground">Invitation OctoHandy</h1>
+        <h1 className="font-heading text-2xl text-foreground">Invitation MonAmi</h1>
         {loading ? (
           <p className="mt-3 text-sm text-muted-foreground">Loading the invitation…</p>
         ) : error ? (

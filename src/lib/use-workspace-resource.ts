@@ -19,7 +19,7 @@ export function useWorkspaceResource<T>(path: string) {
   const request = useCallback(
     async <R,>(requestPath: string, options: RequestOptions = {}) => {
       const token = await getToken()
-      if (!token) throw new Error("Session OctoHandy introuvable")
+      if (!token) throw new Error("Session MonAmi introuvable")
       return apiFetch<R>(requestPath, { ...options, token })
     },
     [getToken]

@@ -39,7 +39,7 @@ const VIDEO_URL = /https?:\/\/\S+\.mp4\b/g
 
 // What a seller can start with, phrased as the action they want; the prompt is what gets sent.
 const STARTERS = [
-  { icon: GraduationCap, tint: "bg-butter", label: "Teach OctoHandy a task", prompt: "I want OctoHandy to learn a task" },
+  { icon: GraduationCap, tint: "bg-butter", label: "Teach MonAmi a task", prompt: "I want MonAmi to learn a task" },
   { icon: Play, tint: "bg-sky", label: "Run one of my workflows", prompt: "Run one of my workflows" },
   { icon: Sparkles, tint: "bg-secondary", label: "What can I ask you?", prompt: "What can you do?" },
 ]
@@ -136,7 +136,7 @@ export default function ChatPage() {
   const request = useCallback(
     async <R,>(path: string, options: { method?: string; body?: unknown } = {}) => {
       const token = await getToken()
-      if (!token) throw new Error("OctoHandy session not found")
+      if (!token) throw new Error("MonAmi session not found")
       return apiFetch<R>(path, { ...options, token })
     },
     [getToken]
@@ -246,7 +246,7 @@ export default function ChatPage() {
                 <h1 className="mt-5 font-heading text-[2.5rem] leading-[1.1] text-foreground">
                   {user?.firstName ? `Hello ${user.firstName}.` : "Hello."}
                 </h1>
-                <p className="mt-2 text-[17px] text-muted-foreground">What would you like OctoHandy to handle?</p>
+                <p className="mt-2 text-[17px] text-muted-foreground">What would you like MonAmi to handle?</p>
                 <ul className={cn("mt-9 w-full max-w-[26rem] overflow-hidden rounded-2xl bg-card text-left", RAISED)}>
                   {STARTERS.map(({ icon: Icon, tint, label, prompt }) => (
                     <li key={label} className="[&+li>button]:before:absolute [&+li>button]:before:left-[3.75rem] [&+li>button]:before:right-0 [&+li>button]:before:top-0 [&+li>button]:before:h-px [&+li>button]:before:bg-border">
@@ -370,7 +370,7 @@ export default function ChatPage() {
                           case "tool-askDesktopAgent":
                             return (
                               <Tool key={key} className={cn("mb-0 max-w-[34rem] rounded-2xl border-0 bg-card", RAISED)}>
-                                <ToolHeader title="OctoHandy desktop" type={part.type} state={part.state} />
+                                <ToolHeader title="MonAmi desktop" type={part.type} state={part.state} />
                                 <ToolContent>
                                   <ToolInput input={part.input} />
                                   <ToolOutput output={part.output} errorText={part.errorText} />
@@ -406,12 +406,12 @@ export default function ChatPage() {
 
             {waiting && (
               <p className={cn("text-[15px]", styles.shimmer)} role="status">
-                OctoHandy is thinking…
+                MonAmi is thinking…
               </p>
             )}
             {error && !busy && (
               <p className="text-[15px] text-muted-foreground" role="alert">
-                OctoHandy could not reply. Send your message again to retry.
+                MonAmi could not reply. Send your message again to retry.
               </p>
             )}
           </ConversationContent>
@@ -435,7 +435,7 @@ export default function ChatPage() {
               <PromptInputAttachments>{(file) => <PromptInputAttachment data={file} />}</PromptInputAttachments>
               <PromptInputBody>
                 <PromptInputTextarea
-                  placeholder="Message OctoHandy…"
+                  placeholder="Message MonAmi…"
                   className="min-h-12 px-5 pt-4 text-[15px] placeholder:text-muted-foreground/80"
                 />
               </PromptInputBody>

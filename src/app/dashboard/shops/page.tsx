@@ -100,7 +100,7 @@ export default function ShopsPage() {
           <EmptyState
             icon={<Store className="w-6 h-6" />}
             title="No shops yet"
-            text="Click “Connect a marketplace”: you log in to Vinted, eBay, Etsy… in the Chrome of the OctoHandy desktop, and the agent works in that same session."
+            text="Click “Connect a marketplace”: you log in to Vinted, eBay, Etsy… in the Chrome of the MonAmi desktop, and the agent works in that same session."
             action={
               <Button asChild>
                 <Link href="/dashboard/extension">
