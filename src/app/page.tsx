@@ -13,7 +13,6 @@ import { MonamiLogo } from "@/components/oh/monami-brand"
 import { OhShell } from "@/components/oh/shell"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/lib/oh-i18n"
-import { FAMILIES } from "@/lib/oh-data"
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -26,11 +25,6 @@ const lift = { whileHover: { y: -2 }, whileTap: { scale: 0.97 }, transition: { t
 const inView = { initial: "hidden", whileInView: "show", viewport: { once: true, margin: "-80px" } } as const
 const group: Variants = { show: { transition: { staggerChildren: 0.12 } } }
 const pop: Variants = { hidden: { scale: 0, rotate: -20 }, show: { scale: 1, rotate: 0, transition: { type: "spring", stiffness: 420, damping: 14, delay: 0.25 } } }
-const drop: Variants = {
-  hidden: { opacity: 0, y: -60, rotate: -6 },
-  show: { opacity: 1, y: 0, rotate: 0, transition: { type: "spring", stiffness: 260, damping: 16 } },
-}
-
 // Scattered pile around the octopus: [box, left %, bottom %, width %, rotation, z, scroll speed]
 const PILE: [string, number, number, number, number, number, number][] = [
   ["mk-farfetch", 5, 36, 12, -9, 1, 1.4],
@@ -52,7 +46,7 @@ export default function Home() {
 }
 
 function HomeContent() {
-  const { t, lang } = useT()
+  const { t } = useT()
   const stage = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
