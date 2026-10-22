@@ -22,13 +22,13 @@ const TREE_BY_STEP: Record<Step, TreeStage> = {
 };
 
 function Bubble({ children }: { children: React.ReactNode }) {
-  return <div className="relative rounded-3xl rounded-bl-md bg-card px-5 py-4 text-base font-medium shadow-sm sm:text-lg">{children}</div>;
+  return <div className="relative min-w-0 rounded-3xl rounded-bl-md bg-card px-4 py-3.5 text-[15px] font-medium shadow-sm sm:px-5 sm:py-4 sm:text-lg">{children}</div>;
 }
 
 function MascotRow({ children, big }: { children: React.ReactNode; big?: boolean }) {
   return (
-    <div className="flex items-end gap-4">
-      <Mascot float className={cn("shrink-0 text-ink", big ? "w-24 sm:w-28" : "w-16 sm:w-20")} />
+    <div className="flex items-end gap-3 sm:gap-4">
+      <Mascot float className={cn("shrink-0 text-ink", big ? "w-20 sm:w-28" : "w-14 sm:w-20")} />
       <motion.div initial={{ opacity: 0, y: 12, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 20 }}>
         <Bubble>{children}</Bubble>
       </motion.div>
@@ -71,7 +71,7 @@ export function Onboarding({ onDone }: { onDone: (p: Profile) => void }) {
 
   return (
     <motion.div
-      className="relative flex h-dvh flex-col items-center overflow-hidden px-4"
+      className="relative flex min-h-dvh flex-col items-center overflow-x-hidden px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
       animate={leaving ? { scale: 1.6, filter: "blur(24px)", opacity: 0 } : { scale: 1, filter: "blur(0px)", opacity: 1 }}
       transition={{ duration: 0.9, ease: [0.6, 0, 0.4, 1] }}
     >
@@ -96,7 +96,7 @@ export function Onboarding({ onDone }: { onDone: (p: Profile) => void }) {
                   <div className="mt-2 text-muted-foreground">{copy.obAccount}</div>
                 </div>
               </MascotRow>
-              <div className="grid gap-3 pl-20 sm:grid-cols-2 sm:pl-28">
+              <div className="grid gap-3 sm:grid-cols-2 sm:pl-28">
                 {[
                   { label: copy.obLogin, v: true },
                   { label: copy.obSignup, v: false },
@@ -126,7 +126,7 @@ export function Onboarding({ onDone }: { onDone: (p: Profile) => void }) {
           {step === "niche" && (
             <motion.div key="niche" {...fade} className="space-y-8">
               <MascotRow>{copy.obNiche}</MascotRow>
-              <div className="grid gap-3 pl-20 sm:grid-cols-2 sm:pl-28">
+              <div className="grid gap-3 sm:grid-cols-2 sm:pl-28">
                 {niches.map((n, i) => (
                   <motion.button
                     key={n.id}
@@ -176,7 +176,7 @@ export function Onboarding({ onDone }: { onDone: (p: Profile) => void }) {
           {step === "intent" && niche && (
             <motion.div key="intent" {...fade} className="space-y-8">
               <MascotRow>{copy.obIntent}</MascotRow>
-              <div className="grid gap-3 pl-20 sm:grid-cols-2 sm:pl-28">
+              <div className="grid gap-3 sm:grid-cols-2 sm:pl-28">
                 {(
                   [
                     { v: "sell" as const, label: copy.obSell, sub: copy.obSellSub, emoji: "📸" },
@@ -209,7 +209,7 @@ export function Onboarding({ onDone }: { onDone: (p: Profile) => void }) {
           {step === "detail" && niche && intent === "sell" && (
             <motion.div key="sell" {...fade} className="space-y-8">
               <MascotRow>{copy.obSellPhotos}</MascotRow>
-              <div className="surface ml-20 space-y-4 rounded-3xl p-5 sm:ml-28">
+              <div className="surface space-y-4 rounded-3xl p-5 sm:ml-28">
                 <input
                   ref={fileRef}
                   type="file"
@@ -249,7 +249,7 @@ export function Onboarding({ onDone }: { onDone: (p: Profile) => void }) {
           {step === "detail" && niche && intent === "buy" && (
             <motion.div key="buy" {...fade} className="space-y-8">
               <MascotRow>{copy.obBuyWhat}</MascotRow>
-              <div className="ml-20 space-y-3 sm:ml-28">
+              <div className="space-y-3 sm:ml-28">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();

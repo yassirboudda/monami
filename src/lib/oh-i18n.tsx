@@ -28,7 +28,7 @@ const en = {
     askBot2: "3 on Vinted. I answered two size questions; one wants €35, shall I accept?",
     sellTitle: "Your stock, tidy.",
     sellLead: "Everything you sell, sorted by family. One stock for every marketplace: sold here, removed everywhere.",
-    footer: "Made at 42 Paris.",
+    footer: "monami · try-ami.com",
   },
   explore: {
     title: "Explore",
@@ -115,7 +115,7 @@ const fr: Dict = {
     askBot2: "3 sur Vinted. J'ai répondu à deux questions de taille ; un acheteur propose 35 €, j'accepte ?",
     sellTitle: "Votre stock, bien rangé.",
     sellLead: "Tout ce que vous vendez, rangé par famille. Un seul stock pour toutes les marketplaces : vendu ici, retiré partout.",
-    footer: "Fait à 42 Paris.",
+    footer: "monami · try-ami.com",
   },
   explore: {
     title: "Explorer",
