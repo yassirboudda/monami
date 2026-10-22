@@ -15,10 +15,10 @@ export function AuthShell({ mode, children }: { mode: "signin" | "signup"; child
     <div className="min-h-dvh bg-background">
       <div className="mx-auto grid min-h-dvh max-w-5xl items-center gap-10 px-4 py-10 lg:grid-cols-[1.1fr_1fr]">
         <div className="hidden lg:block">
-          <Link href="/" className="inline-flex items-center gap-2" aria-label="MonAmi">
+          <a href="https://try-ami.com" className="inline-flex items-center gap-2" aria-label="MonAmi">
             <Octopus className="w-14" label="" />
             <MonamiLogo className="text-[36px]" />
-          </Link>
+          </a>
           <h1 className="oh-serif mt-6 text-3xl font-semibold leading-tight">Your friend in the second-hand market.</h1>
           <ul className="mt-6 space-y-4">
             {POINTS.map(({ icon: Icon, t, d }) => (
@@ -34,10 +34,10 @@ export function AuthShell({ mode, children }: { mode: "signin" | "signup"; child
           <p className="mt-6 text-xs text-muted-foreground">Data on Aiven (PostgreSQL, Kafka, Valkey, ClickHouse), kept 90 days · payments by Stripe.</p>
         </div>
         <div className="flex flex-col items-center gap-4">
-          <Link href="/" className="flex items-center gap-2 lg:hidden" aria-label="MonAmi">
+          <a href="https://try-ami.com" className="flex items-center gap-2 lg:hidden" aria-label="MonAmi">
             <Octopus className="w-12" label="" />
             <MonamiLogo className="text-[32px]" />
-          </Link>
+          </a>
           <div className="w-full max-w-sm space-y-2 text-center">
             <p className="text-sm text-muted-foreground">{mode === "signin" ? "Welcome back." : "Create your workspace in a minute."}</p>
             <ul className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
