@@ -28,7 +28,8 @@ class Settings(BaseSettings):
     clerk_api_url: str = "https://api.clerk.com/v1"
     poc_allowed_emails: str = "yassirboudda@gmail.com"
     clerk_publishable_key: str = ""
-    clerk_jwks_url: str = "https://clerk.amirelay.com/.well-known/jwks.json"
+    # Comma-separated: one JWKS per Clerk instance the web app can be served from (e.g. amirelay.com + try-ami.com).
+    clerk_jwks_url: str = "https://clerk.amirelay.com/.well-known/jwks.json,https://clerk.try-ami.com/.well-known/jwks.json"
     nebius_api_key: str = ""
     nebius_base_url: str = "https://api.tokenfactory.nebius.com/v1"
     nebius_model: str = "deepseek-ai/DeepSeek-V4.1-Flash"
