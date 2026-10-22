@@ -21,10 +21,6 @@ const EASE = [0.16, 1, 0.3, 1] as const
 const hero: Variants = { show: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } } }
 const rise: Variants = { hidden: { opacity: 0, y: 18 }, show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: EASE } } }
 const lift = { whileHover: { y: -2 }, whileTap: { scale: 0.97 }, transition: { type: "spring", stiffness: 400, damping: 22 } } as const
-// Scroll reveals: each block rises once when it enters the viewport; groups stagger their children.
-const inView = { initial: "hidden", whileInView: "show", viewport: { once: true, margin: "-80px" } } as const
-const group: Variants = { show: { transition: { staggerChildren: 0.12 } } }
-const pop: Variants = { hidden: { scale: 0, rotate: -20 }, show: { scale: 1, rotate: 0, transition: { type: "spring", stiffness: 420, damping: 14, delay: 0.25 } } }
 // Scattered pile around the octopus: [box, left %, bottom %, width %, rotation, z, scroll speed]
 const PILE: [string, number, number, number, number, number, number][] = [
   ["mk-farfetch", 5, 36, 12, -9, 1, 1.4],
@@ -114,53 +110,42 @@ function HomeContent() {
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="relative border-t">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20 sm:py-28">
-          <motion.h2 {...inView} variants={rise} className="oh-serif oh-h2 text-center">{t.home.howTitle}</motion.h2>
-          <motion.ol {...inView} variants={group} className="mt-12 sm:mt-16 grid gap-6 sm:grid-cols-3">
-            {t.home.how.map((s, i) => (
-              <motion.li key={s.t} variants={rise} whileHover={{ y: -4 }} className="oh-card p-6 sm:p-7">
-                <div className="flex items-center justify-between">
-                  <motion.span variants={pop} className="oh-step">{i + 1}</motion.span>
-                  <BoxImg name={["mk-vinted", "mk-ebay-open", "mk-vinted-open"][i]} width={120} className="w-24 h-auto -my-3" alt="" />
-                </div>
-                <h3 className="text-lg font-semibold mt-5">{s.t}</h3>
-                <p className="mt-2 text-[var(--ink-soft)] leading-relaxed">{s.d}</p>
-              </motion.li>
-            ))}
-          </motion.ol>
-        </div>
-      </section>
-
-      {/* Ask */}
-      <section className="border-y relative overflow-hidden bg-background/40 backdrop-blur-[1px]">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20 sm:py-28 grid gap-12 lg:grid-cols-[1fr_1.1fr] items-center">
-          <motion.div {...inView} variants={group}>
-            <motion.h2 variants={rise} className="oh-serif oh-h2">{t.home.askTitle}</motion.h2>
-            <motion.p variants={rise} className="mt-4 text-lg text-[var(--ink-soft)] max-w-md leading-relaxed">{t.home.askLead}</motion.p>
-            {/* The octopus pops up from below, then keeps its own CSS float. */}
-            <motion.div variants={{ hidden: { opacity: 0, y: 40, scale: 0.85 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 200, damping: 14 } } }} className="w-40 sm:w-52 mt-8">
-              <Octopus className="w-full" label="" />
+      {/* Chapters: transparent text pinned to the climb of the ink tree (nos-brainer style) — nothing opaque over the scene */}
+      <section className="relative">
+        {[...t.home.how.map((st, i) => ({ k: `how-${i}`, n: String(i + 1).padStart(2, "0"), title: st.t, lead: st.d })),
+          { k: "ask", n: "04", title: t.home.askTitle, lead: t.home.askLead }].map((c, i) => (
+          <div key={c.k} className="relative min-h-[92vh] flex items-center">
+            <motion.div
+              className={`mx-auto w-full max-w-6xl px-4 sm:px-6 flex ${i % 2 ? "justify-end" : "justify-start"}`}
+              initial={{ opacity: 0, y: 48 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ amount: 0.5, margin: "-10% 0px -10% 0px" }}
+              transition={{ duration: 0.8, ease: EASE }}
+            >
+              <div className={`max-w-md ${i % 2 ? "text-right" : "text-left"}`}>
+                <span className="oh-kicker">{c.n}</span>
+                <h2 className="oh-serif oh-h2 mt-3">{c.title}</h2>
+                <p className="mt-4 text-lg leading-relaxed text-[var(--ink-soft)]">{c.lead}</p>
+                {c.k === "ask" && (
+                  <div className="mt-6 space-y-2">
+                    {[t.home.askUser, t.home.askBot].map((text, j) => (
+                      <motion.p
+                        key={j}
+                        className={j % 2 ? "oh-bubble oh-bubble-bot" : "oh-bubble oh-bubble-me ml-auto"}
+                        initial={{ opacity: 0, y: 12 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: "-80px" }}
+                        transition={{ duration: 0.45, delay: 0.3 + j * 0.5, ease: EASE }}
+                      >
+                        {text}
+                      </motion.p>
+                    ))}
+                  </div>
+                )}
+              </div>
             </motion.div>
-          </motion.div>
-          <motion.div {...inView} variants={rise} className="oh-card p-5 sm:p-7 space-y-3">
-            {/* The demo conversation plays out once, message by message, when scrolled into view. */}
-            {[t.home.askUser, t.home.askBot, t.home.askUser2, t.home.askBot2].map((text, i) => (
-              <motion.p
-                key={i}
-                className={i % 2 ? "oh-bubble oh-bubble-bot" : "oh-bubble oh-bubble-me ml-auto"}
-                initial={{ opacity: 0, y: 12, scale: 0.96 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                viewport={{ once: true, margin: "-80px" }}
-                transition={{ duration: 0.45, delay: 0.25 + i * 0.55, ease: EASE }}
-                style={{ transformOrigin: i % 2 ? "left bottom" : "right bottom" }}
-              >
-                {text}
-              </motion.p>
-            ))}
-          </motion.div>
-        </div>
+          </div>
+        ))}
       </section>
 
       {/* Seller shelf */}
