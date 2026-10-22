@@ -1,14 +1,13 @@
 "use client"
 
-import { Settings2 } from "lucide-react"
+import { BarChart3, CreditCard, Settings2 } from "lucide-react"
+import Link from "next/link"
 import { useState } from "react"
 import { toast } from "sonner"
 import { Button, Card, Field, Input, PageHeader, Textarea } from "@/components/ui"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Switch } from "@/components/ui/switch"
 import { useWorkspaceResource } from "@/lib/use-workspace-resource"
-import { PlanCard } from "@/components/oh/plan-card"
-import { AnalyticsCard } from "@/components/oh/analytics-card"
 import { ConnectorsCard } from "@/components/oh/connectors-card"
 import { ApiKeyCard } from "@/components/oh/api-key-card"
 
@@ -106,9 +105,18 @@ export default function SettingsPage() {
 
       <ApiKeyCard />
 
-      <PlanCard />
-
-      <AnalyticsCard />
+      <div className="grid gap-3 sm:grid-cols-2 max-w-2xl">
+        {[
+          { href: "/dashboard/plan", icon: CreditCard, t: "Plan & billing", d: "Trial, Starter, Pro, Unlimited — usage and invoices." },
+          { href: "/dashboard/analytics", icon: BarChart3, t: "Analytics", d: "What the agent did, your stock vs the market, stored on Aiven." },
+        ].map(({ href, icon: Icon, t, d }) => (
+          <Link key={href} href={href} className="rounded-2xl border p-4 hover:bg-muted/60 transition-colors">
+            <Icon className="w-4 h-4 text-muted-foreground" />
+            <div className="mt-2 font-medium text-sm">{t}</div>
+            <p className="text-xs text-muted-foreground mt-1">{d}</p>
+          </Link>
+        ))}
+      </div>
     </div>
   )
 }

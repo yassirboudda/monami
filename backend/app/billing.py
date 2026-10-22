@@ -193,7 +193,8 @@ def _ensure_customer(conn, workspace: str, user_id: str, email: str | None) -> s
     return customer.id
 
 
-def checkout_url(conn, workspace: str, user_id: str, email: str | None, plan: str = "pro") -> str:
+def checkout_url(conn, workspace: str, user_id: str, email: str | None, plan: str = "pro", app_url: str | None = None) -> str:
+    app_url = (app_url or settings.app_url).rstrip("/")
     if not configured():
         raise HTTPException(status_code=503, detail="Billing is not configured yet.")
     if plan not in PAID or not price_for(plan):
@@ -204,8 +205,8 @@ def checkout_url(conn, workspace: str, user_id: str, email: str | None, plan: st
         mode="subscription",
         customer=customer_id,
         line_items=[{"price": price_for(plan), "quantity": 1}],
-        success_url=f"{settings.app_url}/dashboard/settings?billing=success",
-        cancel_url=f"{settings.app_url}/dashboard/settings?billing=cancel",
+        success_url=f"{app_url}/dashboard/plan?billing=success",
+        cancel_url=f"{app_url}/dashboard/plan?billing=cancel",
         allow_promotion_codes=True,
         subscription_data={"metadata": {"workspace": workspace}},
         metadata={"workspace": workspace},
@@ -213,7 +214,8 @@ def checkout_url(conn, workspace: str, user_id: str, email: str | None, plan: st
     return session.url
 
 
-def portal_url(conn, workspace: str) -> str:
+def portal_url(conn, workspace: str, app_url: str | None = None) -> str:
+    app_url = (app_url or settings.app_url).rstrip("/")
     if not configured():
         raise HTTPException(status_code=503, detail="Billing is not configured yet.")
     row = _row(conn, workspace)
@@ -222,7 +224,7 @@ def portal_url(conn, workspace: str) -> str:
     _client()
     session = stripe.billing_portal.Session.create(
         customer=row["stripe_customer_id"],
-        return_url=f"{settings.app_url}/dashboard/settings",
+        return_url=f"{app_url}/dashboard/plan",
     )
     return session.url
 

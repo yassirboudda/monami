@@ -311,3 +311,72 @@ def summary(workspace: str, days: int = 14) -> dict[str, Any]:
         log.warning("analytics query failed: %s", e)
         out["error"] = "analytics temporarily unavailable"
     return out
+
+
+def dashboard(workspace: str, days: int = 30) -> dict[str, Any]:
+    """Everything the Analytics page shows, in one call: agent activity (summary), this month's usage and plan,
+    the stock against the market (from cached comps / history, never Apify) and the market searches the agent ran."""
+    from . import billing, db, market
+    out: dict[str, Any] = {"activity": summary(workspace, days)}
+    with db.connection() as conn:
+        bill = billing.status(conn, workspace)
+        out["plan"] = {"id": bill["plan"], "name": next((p["name"] for p in bill["plans"] if p["id"] == bill["plan"]), bill["plan"]),
+                       "complimentary": bill["complimentary"], "usage": bill["usage"], "quota": bill["quota"]}
+        listings = conn.execute("SELECT id, title, price, marketplace, status, views, favorites FROM listings WHERE workspace = ?",
+                                (workspace,)).fetchall()
+        shops = conn.execute("SELECT marketplace, COUNT(*) AS c FROM shops WHERE workspace = ? GROUP BY marketplace", (workspace,)).fetchall()
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        searches = conn.execute(
+            "SELECT marketplace, payload, ts FROM agent_events WHERE workspace = ? AND kind = 'market.comps' AND ts >= ? ORDER BY ts DESC LIMIT 400",
+            (workspace, since)).fetchall()
+    by_mk: dict[str, dict[str, Any]] = {}
+    asking = market_value = 0.0
+    priced = over = under = 0
+    for row in listings:
+        mk = by_mk.setdefault(row["marketplace"], {"marketplace": row["marketplace"], "listings": 0, "asking": 0.0, "views": 0, "favorites": 0, "shops": 0})
+        mk["listings"] += 1
+        mk["asking"] += float(row["price"] or 0)
+        mk["views"] += int(row["views"] or 0)
+        mk["favorites"] += int(row["favorites"] or 0)
+        asking += float(row["price"] or 0)
+        try:
+            hit = market.cached_comps(row["title"], row["marketplace"] if row["marketplace"] in ("ebay", "vinted", "leboncoin") else "ebay",
+                                      own_price=row["price"])
+        except Exception:  # noqa: BLE001
+            hit = None
+        if hit and hit.get("median") is not None:
+            priced += 1
+            market_value += float(hit["median"])
+            delta = hit.get("deltaPct")
+            if delta is not None and delta >= 8:
+                over += 1
+            elif delta is not None and delta <= -8:
+                under += 1
+    for row in shops:
+        by_mk.setdefault(row["marketplace"], {"marketplace": row["marketplace"], "listings": 0, "asking": 0.0, "views": 0, "favorites": 0, "shops": 0})["shops"] = int(row["c"])
+    out["stock"] = {"listings": len(listings), "asking": round(asking, 2), "priced": priced, "marketValue": round(market_value, 2),
+                    "overpriced": over, "underpriced": under,
+                    "byMarketplace": sorted(({**m, "asking": round(m["asking"], 2)} for m in by_mk.values()), key=lambda m: -m["listings"])}
+    seen: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in searches:
+        try:
+            payload = json.loads(row["payload"] or "{}")
+        except Exception:  # noqa: BLE001
+            continue
+        kw = str(payload.get("keyword") or "").strip()
+        if not kw or payload.get("median") is None:
+            continue
+        key = (row["marketplace"] or "ebay", kw)
+        entry = seen.setdefault(key, {"marketplace": key[0], "keyword": kw, "points": []})
+        entry["points"].append({"ts": row["ts"], "median": float(payload["median"]), "n": int(payload.get("n") or 0)})
+    searches_out = []
+    for e in seen.values():
+        pts = sorted(e["points"], key=lambda x: x["ts"])
+        first, last = pts[0]["median"], pts[-1]["median"]
+        searches_out.append({"marketplace": e["marketplace"], "keyword": e["keyword"], "median": last, "n": pts[-1]["n"],
+                             "lastAt": pts[-1]["ts"], "lookups": len(pts),
+                             "trendPct": round((last - first) / first * 100) if first and len(pts) > 1 else None,
+                             "series": [p["median"] for p in pts[-12:]]})
+    searches_out.sort(key=lambda x: x["lastAt"], reverse=True)
+    out["searches"] = searches_out[:12]
+    return out
