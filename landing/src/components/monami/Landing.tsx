@@ -29,10 +29,10 @@ const CHAPTERS: Chapter[] = [
 ];
 
 const PLANS = [
-  { name: "Essai", price: "0 $", sub: "sans carte", items: ["30 min de bureau distant", "Chat avec l'agent, 100k tokens IA", "1 marketplace", "Tu valides chaque réponse"], cta: "Commencer gratuitement" },
-  { name: "Starter", price: "20 $", sub: "/ mois", items: ["10 h de bureau distant", "500k tokens IA", "2 marketplaces", "Prix du marché sur chaque annonce"], cta: "Choisir Starter" },
-  { name: "Pro", price: "100 $", sub: "/ mois", items: ["100 h de bureau distant", "5M tokens IA", "Marketplaces illimitées", "Réponses envoyées pour toi (dans ta limite de remise)"], cta: "Choisir Pro", popular: true },
-  { name: "Unlimited", price: "200 $", sub: "/ mois", items: ["Bureau distant allumé 24h/24, tout le mois", "25M tokens IA", "Marketplaces illimitées + autopilote", "Support prioritaire"], cta: "Choisir Unlimited" },
+  { name: "Essai", price: "0 $", sub: "sans carte", items: ["30 min de bureau distant", "100k tokens IA", "1 marketplace"], cta: "Commencer gratuitement" },
+  { name: "Starter", price: "20 $", sub: "/ mois", items: ["10 h de bureau distant", "500k tokens IA", "2 marketplaces"], cta: "Choisir Starter" },
+  { name: "Pro", price: "100 $", sub: "/ mois", items: ["100 h de bureau distant", "5M tokens IA", "Marketplaces illimitées", "Autopilote des réponses"], cta: "Choisir Pro", popular: true },
+  { name: "Unlimited", price: "200 $", sub: "/ mois", items: ["Bureau distant 24h/24", "25M tokens IA", "Tout illimité", "Support prioritaire"], cta: "Choisir Unlimited" },
 ];
 
 function Bubble({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -120,11 +120,11 @@ function PriceCheck() {
         </div>
         {est && (
           <div className="text-sm text-muted-foreground">
-            <div>{est.n} ventes eBay récentes</div>
-            {est.p25 != null && est.p75 != null && <div>la moitié se vendent entre {eur(est.p25)} et {eur(est.p75)}</div>}
+            <div>{est.n} ventes eBay</div>
+            {est.p25 != null && est.p75 != null && <div>moitié entre {eur(est.p25)} et {eur(est.p75)}</div>}
           </div>
         )}
-        {state === "error" && <div className="text-sm text-muted-foreground">Pas encore de données pour celui-là — essaie un autre nom, ou demande à l'agent dans l'app.</div>}
+        {state === "error" && <div className="text-sm text-muted-foreground">Rien pour celui-là — essaie un autre nom.</div>}
       </div>
       {res && res.examples.length > 0 && (
         <ul className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -137,7 +137,7 @@ function PriceCheck() {
           ))}
         </ul>
       )}
-      <p className="mt-3 text-[11px] text-muted-foreground">Données réelles (ventes eBay), mises en cache 6 h. Dans l'app, l'agent compare aussi Vinted et Leboncoin et suit la courbe dans le temps.</p>
+      <p className="mt-3 text-[11px] text-muted-foreground">Vraies ventes eBay. Dans l'app : Vinted, Leboncoin et la courbe dans le temps.</p>
     </div>
   );
 }
@@ -174,19 +174,19 @@ export function Landing() {
       <Section id="hero" className="min-h-[calc(100svh-4rem)] pt-10">
         <MascotSays big>
           <div>Salut ! Moi c'est monami, ton copain pour la seconde main.</div>
-          <div className="mt-2 text-muted-foreground">Un agent qui vend et répond pour toi — et un bureau distant dans le cloud pour n'importe quel agent, le tien compris.</div>
+          <div className="mt-2 text-muted-foreground">Un agent qui vend pour toi. Un bureau distant pour tout agent.</div>
         </MascotSays>
         <Reveal className="mt-6 grid gap-3 sm:grid-cols-2 sm:pl-32" delay={0.2}>
           <a href={SIGN_UP} className="group flex flex-col rounded-3xl bg-primary px-5 py-4 text-left text-primary-foreground shadow-md transition hover:brightness-110">
             <span className="text-xs font-medium uppercase tracking-wider opacity-80">Vendeurs</span>
             <span className="mt-1 text-lg font-semibold">L'agent monami tient ta boutique</span>
-            <span className="mt-1 text-sm opacity-90">Prix du marché, annonces, réponses aux acheteurs — tu valides ce qui compte.</span>
+            <span className="mt-1 text-sm opacity-90">Prix, annonces, réponses. Tu valides.</span>
             <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold">Lancer l'agent <ArrowRight className="size-4 transition group-hover:translate-x-0.5" /></span>
           </a>
           <a href="#developers" className="group flex flex-col rounded-3xl bg-card px-5 py-4 text-left text-ink shadow-md transition hover:bg-card/80">
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Développeurs &amp; agents</span>
             <span className="mt-1 text-lg font-semibold">Un bureau distant pour ton propre agent</span>
-            <span className="mt-1 text-sm text-muted-foreground">Claude, Cursor, n8n, OpenClaw… : un vrai ordinateur cloud, navigateur + terminal, via MCP ou API.</span>
+            <span className="mt-1 text-sm text-muted-foreground">Claude, Cursor, n8n… via MCP ou API.</span>
             <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary">Connecter mon agent <ArrowRight className="size-4 transition group-hover:translate-x-0.5" /></span>
           </a>
         </Reveal>
@@ -194,7 +194,7 @@ export function Landing() {
           <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded-3xl bg-card/80 py-1.5 pl-1.5 pr-4 shadow-sm backdrop-blur">
             <a href={SIGN_UP} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-110">Commencer gratuitement</a>
             <a href={SIGN_IN} className="text-sm font-medium text-ink underline-offset-4 hover:underline">J'ai déjà un compte</a>
-            <span className="text-xs text-muted-foreground">30 min de bureau distant offertes · sans carte</span>
+            <span className="text-xs text-muted-foreground">30 min offertes · sans carte</span>
           </div>
         </Reveal>
         <Reveal className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink/70 sm:pl-32" delay={0.35}>
@@ -207,7 +207,7 @@ export function Landing() {
           <Intro>
           <Kicker>Le prix du marché, en direct</Kicker>
           <H2>Ce que ça vaut vraiment. Aujourd'hui.</H2>
-          <Lead>Le même objet a dix prix différents. monami lit les ventes réelles : chaque nouvelle annonce et chaque vente fait bouger la courbe, tu sais toujours ce que les acheteurs paient.</Lead>
+          <Lead>Le même objet, dix prix. monami lit les ventes réelles.</Lead>
           </Intro>
         </Reveal>
         <Reveal className="mt-8" delay={0.15}><PriceCheck /></Reveal>
@@ -217,17 +217,17 @@ export function Landing() {
         <Reveal>
           <Intro>
           <Kicker>Ton agent a son propre ordinateur</Kicker>
-          <H2>Il publie, il répond, il navigue. Toi, tu fermes le capot.</H2>
-          <Lead>Chaque compte reçoit un bureau distant isolé dans le cloud : navigateur, terminal, allumé jour et nuit. L'agent y publie tes annonces, répond aux acheteurs et met à jour ton stock — depuis une vraie machine, pas une API bricolée.</Lead>
+          <H2>Il bosse. Tu fermes le capot.</H2>
+          <Lead>Un vrai ordinateur cloud, à toi, allumé jour et nuit.</Lead>
           </Intro>
         </Reveal>
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          <Reveal delay={0.05}><Feature icon={MonitorSmartphone} title="Bureau distant 24h/24" text="Ton propre profil Linux, navigateur et terminal. Tu le regardes en direct, tu reprends la main quand tu veux." /></Reveal>
-          <Reveal delay={0.15}><Feature icon={ShieldCheck} title="Tu valides avant d'envoyer" text="Réponses aux acheteurs, remises, publications : l'agent propose, tu approuves dans le chat. Au-delà de ta limite de remise, il demande toujours." /></Reveal>
-          <Reveal delay={0.25}><Feature icon={KeyRound} title="Clé API + MCP" text="Branche ton propre agent (Claude, Cursor, n8n…) : il ouvre le bureau, lit l'écran, clique, tape, enregistre — avec les mêmes quotas et validations." /></Reveal>
+          <Reveal delay={0.05}><Feature icon={MonitorSmartphone} title="Bureau distant 24h/24" text="Navigateur + terminal. Tu regardes en direct." /></Reveal>
+          <Reveal delay={0.15}><Feature icon={ShieldCheck} title="Tu valides" text="Il propose, tu approuves dans le chat." /></Reveal>
+          <Reveal delay={0.25}><Feature icon={KeyRound} title="Clé API + MCP" text="Ton agent ouvre le bureau, lit, clique, tape." /></Reveal>
         </div>
         <Reveal className="mt-6" delay={0.3}>
-          <MascotSays>Publie ma veste Levi's sur Vinted et eBay à 45 € → <span className="text-muted-foreground">Fait. Elle est en ligne sur les deux, je la retire partout dès qu'elle part.</span></MascotSays>
+          <MascotSays>« Publie ma veste à 45 € sur Vinted et eBay » → <span className="text-muted-foreground">Fait.</span></MascotSays>
         </Reveal>
       </Section>
 
@@ -235,14 +235,14 @@ export function Landing() {
         <Reveal>
           <Intro>
           <Kicker>Il veille pour toi</Kicker>
-          <H2>Trop beau pour être vrai ? Il te dit pourquoi.</H2>
-          <Lead>Choisis ta niche — cartes, sneakers, montres, ce que tu aimes. monami suit chaque annonce, repère les bonnes affaires avant les autres et signale les arnaques avec la raison.</Lead>
+          <H2>Trop beau pour être vrai ? Il te le dit.</H2>
+          <Lead>Ta niche, chaque annonce suivie. Bonnes affaires et arnaques repérées.</Lead>
           </Intro>
         </Reveal>
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          <Reveal delay={0.05}><Feature icon={ShieldAlert} title="Détecteur d'arnaques" text="Prix hors marché, vendeur tout neuf, photos réutilisées : l'offre est marquée, avec l'explication en clair." /></Reveal>
-          <Reveal delay={0.15}><Feature icon={Bell} title="Bonnes affaires en secondes" text="Une pépite dans ta niche ? Ton téléphone vibre. Tes propres annonces trop chères ou trop basses ? Une alerte aussi." /></Reveal>
-          <Reveal delay={0.25}><Feature icon={Sparkles} title="Le bon prix pour le tien" text="Une photo suffit : l'agent lit l'état, compare au marché du moment et te donne un prix pour ton objet, pas une moyenne." /></Reveal>
+          <Reveal delay={0.05}><Feature icon={ShieldAlert} title="Détecteur d'arnaques" text="Signalée, avec la raison." /></Reveal>
+          <Reveal delay={0.15}><Feature icon={Bell} title="Bonnes affaires" text="Ton téléphone vibre en secondes." /></Reveal>
+          <Reveal delay={0.25}><Feature icon={Sparkles} title="Le bon prix, en photo" text="Il lit l'état, compare, te donne ton prix." /></Reveal>
         </div>
       </Section>
 
@@ -250,13 +250,13 @@ export function Landing() {
         <Reveal>
           <Intro>
           <Kicker>Tes chiffres</Kicker>
-          <H2>Ce que l'agent a fait, et ce que vaut ton stock.</H2>
-          <Lead>Réponses envoyées, actions sur le bureau, prix demandés face au marché, recherches de prix : tout est stocké 90 jours et lisible en un coup d'œil dans l'app.</Lead>
+          <H2>Ce qu'il a fait. Ce que vaut ton stock.</H2>
+          <Lead>Tout est gardé 90 jours, lisible en un coup d'œil.</Lead>
           </Intro>
         </Reveal>
         <Reveal className="mt-8 grid gap-4 sm:grid-cols-2" delay={0.15}>
-          <Feature icon={BarChart3} title="Activité jour par jour" text="Ce que l'agent a fait pour toi, par marketplace, avec son temps de réponse." />
-          <Feature icon={Search} title="Ton stock face au marché" text="Prix demandés vs valeur marché, annonces trop chères ou qui pourraient se vendre plus." />
+          <Feature icon={BarChart3} title="Activité jour par jour" text="Par marketplace, avec le temps de réponse." />
+          <Feature icon={Search} title="Ton stock face au marché" text="Trop cher ? Pourrait partir plus cher ?" />
         </Reveal>
       </Section>
 
@@ -264,8 +264,8 @@ export function Landing() {
         <Reveal>
           <Intro>
           <Kicker>Pour les développeurs</Kicker>
-          <H2>Un ordinateur cloud pour ton agent. En une ligne.</H2>
-          <Lead>Crée une clé dans l'app, colle la config MCP dans Claude, Cursor ou ton propre code : ton agent ouvre un bureau distant isolé, navigue, lit l'écran, clique, tape, enregistre — et accède aussi aux prix du marché et à tes boutiques. Mêmes quotas, mêmes validations que dans l'app.</Lead>
+          <H2>Un ordinateur cloud pour ton agent.</H2>
+          <Lead>Une clé, une config MCP. C'est tout.</Lead>
           </Intro>
         </Reveal>
         <div className="mt-8 grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
@@ -291,12 +291,12 @@ export function Landing() {
             </div>
           </Reveal>
           <div className="grid gap-4">
-            <Reveal delay={0.15}><Feature icon={MonitorSmartphone} title="Isolé par compte" text="Un profil Linux, un navigateur et un terminal à toi : les autres comptes n'y voient rien. Tu regardes l'écran en direct et tu reprends la main quand tu veux." /></Reveal>
-            <Reveal delay={0.2}><Feature icon={ShieldCheck} title="Les minutes de ton plan" text="L'essai offre 30 min de bureau distant ; Unlimited le laisse allumé 24h/24 tout le mois. Chaque session consomme le même compteur que dans l'app." /></Reveal>
+            <Reveal delay={0.15}><Feature icon={MonitorSmartphone} title="Isolé par compte" text="Ton profil, ton navigateur, ton terminal." /></Reveal>
+            <Reveal delay={0.2}><Feature icon={ShieldCheck} title="Les minutes de ton plan" text="30 min offertes. Unlimited : 24h/24." /></Reveal>
             <Reveal delay={0.25}>
               <div className="surface rounded-3xl p-5">
                 <div className="text-sm font-semibold">Propulsé par Aiven</div>
-                <p className="mt-1 text-sm text-muted-foreground">PostgreSQL pour tes données, Kafka pour le flux d'événements, Valkey pour le cache des prix, ClickHouse pour l'historique : tes chiffres sont conservés 90 jours, hébergés en Europe.</p>
+                <p className="mt-1 text-sm text-muted-foreground">PostgreSQL, Kafka, Valkey, ClickHouse. 90 jours, en Europe.</p>
               </div>
             </Reveal>
           </div>
@@ -307,8 +307,8 @@ export function Landing() {
         <Reveal>
           <Intro>
           <Kicker>Plans</Kicker>
-          <H2>Commence gratuitement. Paie quand l'agent te fait gagner du temps.</H2>
-          <Lead>Chaque plan donne des minutes de bureau distant et des tokens IA par mois. Paiement sécurisé par Stripe, résiliable à tout moment.</Lead>
+          <H2>Gratuit pour commencer.</H2>
+          <Lead>Minutes de bureau + tokens IA par mois. Stripe, sans engagement.</Lead>
           </Intro>
         </Reveal>
         <div className="mt-8 grid gap-4 md:grid-cols-4">
