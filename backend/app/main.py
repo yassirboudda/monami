@@ -130,6 +130,15 @@ async def _jwks() -> list[dict[str, Any]]:
     return keys
 
 
+def _workspace_aliases() -> dict[str, str]:
+    out: dict[str, str] = {}
+    for pair in settings.workspace_aliases.split(","):
+        if "=" in pair:
+            a, b = pair.split("=", 1)
+            out[a.strip()] = b.strip()
+    return out
+
+
 async def require_user(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(401, "Missing bearer token")
@@ -200,9 +209,11 @@ async def require_user(authorization: str | None = Header(default=None)) -> dict
         raise HTTPException(401, "No subject")
     org_claim = claims.get("o") or {}
     org_id = org_claim.get("id") or claims.get("org_id")
+    workspace = f"org:{org_id}" if org_id else f"user:{sub}"
+    workspace = _workspace_aliases().get(workspace, workspace)
     return {
         "user_id": sub,
-        "workspace": f"org:{org_id}" if org_id else f"user:{sub}",
+        "workspace": workspace,
         "org_id": org_id,
         "via": "clerk",
         "claims": claims,

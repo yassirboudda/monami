@@ -102,7 +102,7 @@
 .oh-eye { transform-box: fill-box; transform-origin: center; animation: oh-blink 4.2s ease-in-out infinite; }
 
 /* Wordmark hover: the two dots jump one after the other, the letters ripple left to right. */
-.oh-logo { pointer-events: bounding-box; }
+.oh-logo { pointer-events: bounding-box; color: var(--ink); }
 .oh-logo .oh-logo-letter, .oh-logo .oh-logo-eye { transform-box: fill-box; transform-origin: 50% 100%; }
 :is(.oh-logo:hover, a:hover .oh-logo, button:hover .oh-logo) .oh-logo-letter { animation: oh-letter-ripple 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both; animation-delay: calc(var(--i, 0) * 60ms); }
 :is(.oh-logo:hover, a:hover .oh-logo, button:hover .oh-logo) .oh-logo-eye { animation: oh-eye-jump 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both; }

@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     connectors_secret: str = ""  # encrypts stored refresh tokens (falls back to APP_SESSION_SECRET)
     # Comma-separated workspaces that are Pro without paying (founder accounts, judges demo)
     billing_pro_workspaces: str = ""
+    # "user:<new clerk id>=user:<existing workspace>,..." — same person signing in from another Clerk instance keeps one workspace
+    workspace_aliases: str = ""
 
     # Aiven for Apache Kafka: every product event goes to this topic. Empty = events are dropped (local dev).
     kafka_bootstrap_servers: str = ""

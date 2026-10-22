@@ -72,6 +72,13 @@
   --horizon: #80aee8;
   --butter: #dfe9f8; /* soft Cool Horizon: active/highlight */
   --bordeaux: #5b0015;
+  /* Magra's brand tokens: mascot metal fill + wordmark ink */
+  --tree-leaf: #5b0015;
+  --tree-leaf-light: #861c39;
+  --metal-bright: #f4f8ff;
+  --metal-mid: #c4d0df;
+  --mascot-outline: #f7f2e0;
+  --ink: oklch(0.31 0.025 45);
   --sidebar: #f2ecd9;
   --sidebar-foreground: #3f302b;
   --sidebar-primary: #5b0015;

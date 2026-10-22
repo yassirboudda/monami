@@ -15,7 +15,7 @@ export function OhNav() {
       <nav className="mx-auto max-w-6xl px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3">
         <Link href="/" className="flex items-center gap-2 mr-auto" aria-label="MonAmi">
           <Octopus still className="w-8 sm:w-9" label="" />
-          <MonamiLogo className="text-[22px] sm:text-[26px] text-foreground" />
+          <MonamiLogo className="text-[22px] sm:text-[26px]" />
         </Link>
         <ToggleGroup
           type="single"

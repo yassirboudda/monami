@@ -201,7 +201,7 @@ function HomeContent() {
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 flex flex-wrap items-center gap-3 justify-between text-sm text-[var(--ink-soft)]">
           <span className="flex items-center gap-2">
             <Octopus still className="w-7" label="" />
-            <MonamiLogo className="text-[20px] text-foreground" />
+            <MonamiLogo className="text-[20px]" />
           </span>
           <span>{t.home.footer}</span>
         </div>
