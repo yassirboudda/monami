@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   applicationName: "MonAmi",
   openGraph: {
     title: "MonAmi — Ton assistant marketplace",
-    description: "The octopus that watches your Vinted, eBay, Vestiaire and Depop shops and acts on your remote desktop.",
+    description: "Your second-hand buddy: it watches your Vinted, eBay, Vestiaire and Depop shops and acts on your remote desktop.",
     siteName: "MonAmi",
     locale: "fr_FR",
     type: "website",

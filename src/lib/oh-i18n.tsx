@@ -17,7 +17,7 @@ const en = {
     howTitle: "Up and running in two minutes.",
     how: [
       { t: "Connect your shops", d: "Log in to each marketplace yourself, in a secure browser. We never see your password." },
-      { t: "Ask the octopus", d: "\"Publish my Levi's jacket\", \"Reply to my Vinted buyers\". One chat for everything." },
+      { t: "Ask MonAmi", d: "\"Publish my Levi's jacket\", \"Reply to my Vinted buyers\". One chat for everything." },
       { t: "It does the work", d: "Listings, messages and stock across every marketplace, with your approval." },
     ],
     askTitle: "Just ask.",
