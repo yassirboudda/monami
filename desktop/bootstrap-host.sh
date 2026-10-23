@@ -11,7 +11,7 @@ PUBLIC_HOST="${OH_PUBLIC_HOST:-$(curl -fsS -m 10 https://ifconfig.me | tr . -).s
 echo "== packages"
 apt-get update -q
 apt-get install -y -q --no-install-recommends \
-  tigervnc-standalone-server tigervnc-tools xfce4 xfce4-terminal xfce4-screensaver dbus-x11 xauth x11-utils xdotool \
+  tigervnc-standalone-server tigervnc-tools xfce4 xfce4-terminal dbus-x11 xauth x11-utils xdotool \
   ffmpeg novnc fonts-noto-core fonts-noto-color-emoji fonts-liberation locales \
   python3-venv python3-pip ufw iptables curl ca-certificates gnupg util-linux jq
 sed -i 's/^# *fr_FR.UTF-8/fr_FR.UTF-8/' /etc/locale.gen && locale-gen >/dev/null
