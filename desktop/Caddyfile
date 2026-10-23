@@ -1,0 +1,40 @@
+# TLS front of the remote-desktop box. Installed by bootstrap-host.sh (__HOST__ = <public-ip-dashed>.sslip.io or a real domain).
+# Routes = desktop/CONTRACT.md: noVNC static + /websockify + /desktop/* -> gate, /hermes/* -> Hermes gateway,
+# /screenpipe/* -> default profile's Screenpipe, /llm/* -> local vLLM, /api/* -> local app backend.
+__HOST__ {
+	encode gzip
+	handle /websockify* {
+		reverse_proxy 127.0.0.1:6081
+	}
+	handle /desktop/* {
+		reverse_proxy 127.0.0.1:6081 {
+			transport http {
+				response_header_timeout 300s
+			}
+		}
+	}
+	handle_path /hermes/* {
+		reverse_proxy 127.0.0.1:8642 {
+			transport http {
+				response_header_timeout 600s
+			}
+		}
+	}
+	handle_path /screenpipe/* {
+		reverse_proxy 127.0.0.1:3031
+	}
+	handle_path /llm/* {
+		reverse_proxy 127.0.0.1:8000 {
+			transport http {
+				response_header_timeout 600s
+			}
+		}
+	}
+	handle_path /api/* {
+		reverse_proxy 127.0.0.1:3100
+	}
+	handle {
+		root * /usr/share/novnc
+		file_server
+	}
+}
