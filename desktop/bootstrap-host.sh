@@ -13,8 +13,9 @@ apt-get update -q
 apt-get install -y -q --no-install-recommends \
   tigervnc-standalone-server tigervnc-tools xfce4 xfce4-terminal dbus-x11 xauth x11-utils xdotool \
   ffmpeg novnc fonts-noto-core fonts-noto-color-emoji fonts-liberation locales \
-  python3-venv python3-pip ufw iptables curl ca-certificates gnupg util-linux jq
+  tinyproxy python3-venv python3-pip ufw iptables curl ca-certificates gnupg util-linux jq
 sed -i 's/^# *fr_FR.UTF-8/fr_FR.UTF-8/' /etc/locale.gen && locale-gen >/dev/null
+timedatectl set-timezone Europe/Paris || true
 
 if ! command -v google-chrome >/dev/null; then
   echo "== google chrome"
@@ -63,6 +64,8 @@ chmod 600 /etc/octohandy/gate.env
 chmod 600 /etc/octohandy/workspaces.json
 
 echo "== services"
+systemctl disable -q --now tinyproxy.service 2>/dev/null || true
+[ -s /etc/octohandy/proxy.env ] && systemctl enable -q --now oh-proxy.service
 systemctl enable -q --now oh-firewall.service oh-gate.service oh-mcp.service
 systemctl restart oh-gate.service oh-mcp.service
 sleep 2
