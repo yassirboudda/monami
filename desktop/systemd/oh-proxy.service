@@ -1,0 +1,15 @@
+[Unit]
+Description=Local HTTP proxy (tinyproxy) chaining to the French residential/ISP upstream for all desktop profiles
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/octohandy/proxy.env
+RuntimeDirectory=tinyproxy
+ExecStartPre=/opt/octohandy/render-tinyproxy.sh
+ExecStart=/usr/bin/tinyproxy -d -c /run/tinyproxy/tinyproxy.conf
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
