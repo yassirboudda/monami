@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 EnvironmentFile=/etc/octohandy/proxy.env
 RuntimeDirectory=tinyproxy
-ExecStartPre=/bin/sh -c 'printf "User nobody\nGroup nogroup\nPort 3128\nListen 127.0.0.1\nTimeout 600\nMaxClients 200\nLogLevel Warning\nPidFile \"/run/tinyproxy/tinyproxy.pid\"\nAllow 127.0.0.1\nDisableViaHeader Yes\nConnectPort 443\nConnectPort 563\nConnectPort 80\nupstream http %s:%s@%s:%s\n" "$PROXY_USER" "$PROXY_PASS" "$PROXY_HOST" "$PROXY_PORT" > /run/tinyproxy/tinyproxy.conf; chmod 600 /run/tinyproxy/tinyproxy.conf'
+ExecStartPre=/opt/octohandy/render-tinyproxy.sh
 ExecStart=/usr/bin/tinyproxy -d -c /run/tinyproxy/tinyproxy.conf
 Restart=always
 RestartSec=2

@@ -35,7 +35,7 @@ echo "== code -> /opt/octohandy"
 install -d -m 755 /opt/octohandy
 install -d -m 700 /etc/octohandy /etc/octohandy/profiles
 install -m 644 "$SRC"/gate.py "$SRC"/octohandy_browser.py "$SRC"/octohandy_sync.py "$SRC"/octohandy_mcp.py /opt/octohandy/
-install -m 755 "$SRC"/harden-host.sh "$SRC"/provision-profile.sh "$SRC"/bootstrap-host.sh /opt/octohandy/
+install -m 755 "$SRC"/harden-host.sh "$SRC"/provision-profile.sh "$SRC"/bootstrap-host.sh "$SRC"/render-tinyproxy.sh /opt/octohandy/
 install -m 644 "$SRC"/CONTRACT.md /opt/octohandy/
 [ -x /opt/octohandy/venv/bin/python ] || python3 -m venv /opt/octohandy/venv
 /opt/octohandy/venv/bin/pip install -q -U pip wheel
